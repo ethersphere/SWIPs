@@ -58,7 +58,7 @@ The necessity of stamping multiple payloads from the same payment transaction co
 Doing an on-chain payment for each chunk or message is prohibitively expensive.
 
 ## Specification
-<!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.
+<!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations. -->
 
 Nodes participating in the same postage system are configured to reference the same contract on the same blockchain. This contract
 *must* have an accessor call with the following ABI signature:
