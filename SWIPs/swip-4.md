@@ -1,9 +1,7 @@
-
 ---
-SWIP: 4
-Title: Choose payment module and honeyMoney oracle
-Author: Aron Fischer <aron@ethswarm.org>, Rinke Hendriksen <rinke@ethswarm.org>, Vojtech Simetka <vojtech@ethswarm.org>
-Disscussions-to: URL will be provided
+Title: Payment module preference
+Author: Aron Fischer <aron@ethswarm.org>, Rinke Hendriksen <rinke@ethswarm.org>, Vojtech Simetka <vojtech@iovlabs.org>
+Discussions-to: URL will be provided
 Status: Draft
 Type: Standards track
 Category: Core
@@ -37,6 +35,7 @@ The fallback option for the preference list is:
   
 - For any payment module where the private key of the standard payment module cannot be used to authorize or receive payments, the payment module implementation should be responsible in making sure that the user manages a valid private key to receive / make payments before they are due. 
 Please refer to the picture below to see how preferences are resolved during the handshake:
+
 ![Handshake.png](./../assets/Handshake.png)
 
 ## Rationale
