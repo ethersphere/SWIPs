@@ -1,8 +1,9 @@
+
 ---
 SWIP: 4
-Title: Generic payment module
-Author: Aron Fischer <Aron@ethswarm.org>, Rinke Hendriksen <rinke@ethswarm.org>, Vojtech Simetka <vojtech@iovlabs.org>
-Discussions-to: URL will be provided 
+Title: Choose payment module and honeyMoney oracle
+Author: Aron Fischer <aron@ethswarm.org>, Rinke Hendriksen <rinke@ethswarm.org>, Vojtech Simetka <vojtech@ethswarm.org>
+Disscussions-to: URL will be provided
 Status: Draft
 Type: Standards track
 Category: Core
@@ -10,27 +11,43 @@ Created: 31-07-2019
 ---
 
 ## Simple summary
-This SWIP proposes to decouple the accounting for services provided via SWARM with the actual handling of the payment. A generic payment module will be defined as an interface for handling the payments; the chequebook will be the first implementation of this interface. Doing this will pave the way for enabling other currencies to define their implementation of the payment module, which will increase the resilience of the SWARM network as well as increase the user-base of SWARM. 
+If we want to allow for multiple payment modules to co-exist on the same network, then nodes must have the possibility to come to an agreement on which payment module to use. We propose that nodes can mention their preferences in a list, where the preferences are normalized and weighted and that, when nodes don't have overlapping prefences or non of the prefences have a higher score than the default option, then the default option will be chosen which is paying in ether by the cheqeubook contract, using the default honey/money payment oracle.
 ## Abstract 
-A payment module is responsible for handling payments. A minimal payment module accepts a price (in honey), converts this price to a currency via an agreed-upon price oracle, sends the payment and returns when the payment is successful. Making it clear in the code that this is the minimum expected from a payment module will both increase the readability and audibility of the SWARM source code, but will also make it easier for other payment methods to implement this interface, hereby allowing users to choose how they want to settle their payments, which increases the resilience of the network and enlarges the potential user base. 
+To be defined
 ## Motivation
-Currently, SWARM is implementing the chequebook contract (base currency: Ether) to allow nodes to receive payments without doing on-chain transactions. While the chequebook contract is beautiful in its simplicity, it is expected that users of the SWARM might prefer a different way of compensation for their service performed. Nodes might want to receive Ether via a different 2nd layer payment solution (e.g. Raiden), they might want to be compensated with a different currency (e.g. an ERC20 token) or they might want to settle their payment using a different blockchain. Allowing the network to be flexible in this way will make the network more resilient (i.e. if one payment module fails, others might still work) and it will make SWARM attractive to a wider user-base by allowing nodes to pay in the currency of their preference. This SWIP is not about implementing multiple payment modules. Instead, it is a proposal for a minimal interface needed for any payment solution to be compatible with SWARM and implementing the chequebook in such a way that it reflects this interface. 
-
+SWIP [PaymentModule](https://github.com/Eknir/SWIPs/edit/master/SWIPs/swip-3.md) laid the ground for supporting multiple payment modules by standardizing the default payment module of SWARM. Allowing multiple payment modules is beneficial for SWARM as it will make the network more resilient (i.e. if one payment module fails, others might still work) and it will make SWARM attractive to a wider user-base by allowing nodes to pay in their currency of preference. If we want to allow different payment modules to co-exist on the same network, there must be a possibility for nodes to list their preference for this payment module. Furthermore, if a payment module implies a different base currency, there must also be the possibility to set the preference for a different HoneyMoney price oracle. Making it a possibility for nodes to set their preference for a payment module will incentivize developers to implement payment modules on SWARM as it will be easy for users to actually choose to pay out with this module. As it is essential for the nodes on the network to be able to always connect even in the case of heterogeneous preferences, there must be a fallback option provided for both the honeyMoney oracle and the payment module. 
 ## Specification
-* The payment module accepts an amount (in honey) and a recipient
-* The payment module is responsible for:
-* Querying the agreed-upon price oracle with the recipient
-* Sending the recipient a payment
-* Returning true when the payment was successful 
-* The payment module references a type, version and base currency 
-* The payment module optionally exposes other methods such as querying balances, topping up balances or sending payments (outside of SWARM). 
+- Nodes can specify their preference for both payment module, as well as price oracle in a list in a configuration file. The preferences are normalized and weighted.
+- For any preference list, the chosen option will be the option which has the highest cumulative preference.
+- The preference list has two dimensions. Which will be resolved from high to low:
+1) Currency to use
+
+2a) Price oracle to use
+
+2b) payment method to use
+
+- Nodes must be able to reach an agreement in any dimension of the preference list, or the fallback option will be chosen.
+The fallback option for the preference list is:
+
+1) wei (Ether)
+
+2a) HonMon oracle <SWIP reference>
+
+2b) chequebook <SWIP reference>
+  
+- For any payment module where the private key of the standard payment module cannot be used to authorize or receive payments, the payment module implementation should be responsible in making sure that the user manages a valid private key to receive / make payments before they are due. 
+Please refer to the picture below to see how preferences are resolved during the handshake:
+![Handshake.png](./../assets/Handshake.png)
 
 ## Rationale
-To be defined
-## Backwards Compatibility 
-This SWIP is backward compatible, as nodes that don't give any preference will be considered to prefer the default currency with default oracle and default payout mechanism.
-## Test Cases 
+To-be-defined
+## Backwards Compatibility
+This SWIP creates no issues with backwards compatability as SWARM nodes that don't implement this SWIP yet, will be considerd by nodes who implement this SWIP as listing the default preference for currency, payment module and honeyMoney oracle.  
+## Test Cases
 Not currently defined
-## Implementations:
+
+## Implementations 
 Not currently defined
-Copyright Waiver: Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
+
+## Copyright Waiver
+Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
