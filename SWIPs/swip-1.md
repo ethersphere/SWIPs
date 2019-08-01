@@ -2,7 +2,7 @@
 swip: 1
 title: Message to honey oracle
 Author: Rinke Hendriksen <rinke@ethswarm.org>
-Discussions-to: *URL will be provided*
+Discussions-to: URL will be provided
 Status: Draft
 Type: Standards track
 Category: Core
