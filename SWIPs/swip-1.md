@@ -31,5 +31,5 @@ This SWIP is backward compatible as long as the price oracle quotes the same pri
 Test Cases Not currently available
 ## Implementations
 Not currently available
-##Copyright Waiver
-Copyright and related rights waived via CC0.
+## Copyright Waiver
+ Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
