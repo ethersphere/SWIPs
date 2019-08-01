@@ -8,9 +8,9 @@ created: 2019-07-08
 updated: 2019-07-09
 ---
 
-## What is an SWIP?
+## What is a SWIP?
 
-SWIP stands for Swarm Improvement Proposal. An SWIP is a design document providing information to the Swarm community, or describing a new feature for Swarm or its processes or environment. The SWIP should provide a concise technical specification of the feature and a rationale for the feature. The SWIP author is responsible for building consensus within the community and documenting dissenting opinions.
+SWIP stands for Swarm Improvement Proposal. A SWIP is a design document providing information to the Swarm community, or describing a new feature for Swarm or its processes or environment. The SWIP should provide a concise technical specification of the feature and a rationale for the feature. The SWIP author is responsible for building consensus within the community and documenting dissenting opinions.
 
 ## SWIP Rationale
 
@@ -29,7 +29,7 @@ There are three types of SWIP:
 - A **Meta SWIP** describes a process surrounding Swarm or proposes a change to (or an event in) a process. Process SWIPs are like Standards Track SWIPs but apply to areas other than the Swarm protocol itself. They may propose an implementation, but not to Swarm's codebase; they often require community consensus; unlike Informational SWIPs, they are more than recommendations, and users are typically not free to ignore them. Examples include procedures, guidelines, changes to the decision-making process, and changes to the tools or environment used in Swarm development. Any meta-SWIP is also considered a Process SWIP.
 - An **Informational SWIP** describes an Swarm design issue, or provides general guidelines or information to the Swarm community, but does not propose a new feature. Informational SWIPs do not necessarily represent Swarm community consensus or a recommendation, so users and implementers are free to ignore Informational SWIPs or follow their advice.
 
-It is highly recommended that a single SWIP contain a single key proposal or new idea. The more focused the SWIP, the more successful it tends to be. A change to one client doesn't require an SWIP; a change that affects multiple clients, or defines a standard for multiple apps to use, does.
+It is highly recommended that a single SWIP contain a single key proposal or new idea. The more focused the SWIP, the more successful it tends to be. A change to one client doesn't require a SWIP; a change that affects multiple clients, or defines a standard for multiple apps to use, does.
 
 A SWIP must meet certain minimum criteria. It must be a clear and complete description of the proposed enhancement. The enhancement must represent a net improvement. The proposed implementation, if applicable, must be solid and must not complicate the protocol unduly.
 
@@ -49,9 +49,9 @@ Each status change is requested by the SWIP author and reviewed by the SWIP edit
 
 * **Active** -- Some Informational and Process SWIPs may also have a status of “Active” if they are never meant to be completed. E.g. SWIP 0 (this SWIP).
 * **Work in progress (WIP)** -- Once the champion has asked the Swarm community whether an idea has any chance of support, they will write a draft SWIP as a [pull request]. Consider including an implementation if this will aid people in studying the SWIP.
-  * :arrow_right: Draft -- If agreeable, SWIP editor will assign the SWIP a number (generally the issue or PR number related to the SWIP) and merge your pull request. The SWIP editor will not unreasonably deny an SWIP.
+  * :arrow_right: Draft -- If agreeable, SWIP editor will assign the SWIP a number (generally the issue or PR number related to the SWIP) and merge your pull request. The SWIP editor will not unreasonably deny a SWIP.
   * :x: Draft -- Reasons for denying draft status include being too unfocused, too broad, duplication of effort, being technically unsound, not providing proper motivation or addressing backwards compatibility and Swarm's mission.
-* **Draft** -- Once the first draft has been merged, you may submit follow-up pull requests with further changes to your draft until such point as you believe the SWIP to be mature and ready to proceed to the next status. An SWIP in draft status must be implemented to be considered for promotion to the next status (ignore this requirement for core SWIPs).
+* **Draft** -- Once the first draft has been merged, you may submit follow-up pull requests with further changes to your draft until such point as you believe the SWIP to be mature and ready to proceed to the next status. A SWIP in draft status must be implemented to be considered for promotion to the next status (ignore this requirement for core SWIPs).
   * :arrow_right: Last Call -- If agreeable, the SWIP editor will assign Last Call status and set a review end date (`review-period-end`), normally 14 days later.
   * :x: Last Call -- A request for Last Call status will be denied if material changes are still expected to be made to the draft. We hope that SWIPs only enter Last Call once, so as to avoid unnecessary noise.
 * **Last Call** -- This SWIP will listed on the Swarm website (Open - Link TBD)
@@ -66,9 +66,9 @@ Other exceptional statuses include:
 
 * **Deferred** -- This is for core SWIPs that have been put off for a future network.
 * **Abandoned** -- This SWIP is no longer pursued by the original authors or it may not be a (technically) preferred option anymore.
-* **Rejected** -- An SWIP that is fundamentally broken or a Core SWIP that was rejected by the Core Devs and will not be implemented.
-* **Active** -- This is similar to Final, but denotes an SWIP which may be updated without changing its SWIP number.
-* **Superseded** -- An SWIP which was previously final but is no longer considered state-of-the-art. Another SWIP will be in Final status and reference the Superseded SWIP.
+* **Rejected** -- A SWIP that is fundamentally broken or a Core SWIP that was rejected by the Core Devs and will not be implemented.
+* **Active** -- This is similar to Final, but denotes a SWIP which may be updated without changing its SWIP number.
+* **Superseded** -- A SWIP which was previously final but is no longer considered state-of-the-art. Another SWIP will be in Final status and reference the Superseded SWIP.
 
 ## What belongs in a successful SWIP?
 
@@ -148,7 +148,7 @@ The `resolution` header is required for Standards Track SWIPs only. It contains 
 
 #### `discussions-to` header
 
-While an SWIP is a draft, a `discussions-to` header will indicate the mailing list or URL where the SWIP is being discussed. As mentioned above, examples for places to discuss your SWIP include [Swarm topics on Mattermost](https://beehive.ethswarm.org/) and the [Swarm Research Forum](https://swarmresear.ch/) or this repo.
+While a SWIP is a draft, a `discussions-to` header will indicate the mailing list or URL where the SWIP is being discussed. As mentioned above, examples for places to discuss your SWIP include [Swarm topics on Mattermost](https://beehive.ethswarm.org/) and the [Swarm Research Forum](https://swarmresear.ch/) or this repo.
 
 No `discussions-to` header is necessary if the SWIP is being discussed privately with the author.
 
@@ -176,7 +176,7 @@ SWIPs may have a `requires` header, indicating the SWIP numbers that this SWIP d
 
 #### `superseded-by` and `replaces` headers
 
-SWIPs may also have a `superseded-by` header indicating that an SWIP has been rendered obsolete by a later document; the value is the number of the SWIP that replaces the current document. The newer SWIP must have a `replaces` header containing the number of the SWIP that it rendered obsolete.
+SWIPs may also have a `superseded-by` header indicating that a SWIP has been rendered obsolete by a later document; the value is the number of the SWIP that replaces the current document. The newer SWIP must have a `replaces` header containing the number of the SWIP that it rendered obsolete.
 
 ## Auxiliary Files
 
@@ -184,9 +184,9 @@ SWIPs may include auxiliary files such as diagrams. Such files must be named SWI
 
 ## Transferring SWIP Ownership
 
-It occasionally becomes necessary to transfer ownership of SWIPs to a new champion. In general, we'd like to retain the original author as a co-author of the transferred SWIP, but that's really up to the original author. A good reason to transfer ownership is because the original author no longer has the time or interest in updating it or following through with the SWIP process, or has fallen off the face of the 'net (i.e. is unreachable or isn't responding to email). A bad reason to transfer ownership is because you don't agree with the direction of the SWIP. We try to build consensus around an SWIP, but if that's not possible, you can always submit a competing SWIP.
+It occasionally becomes necessary to transfer ownership of SWIPs to a new champion. In general, we'd like to retain the original author as a co-author of the transferred SWIP, but that's really up to the original author. A good reason to transfer ownership is because the original author no longer has the time or interest in updating it or following through with the SWIP process, or has fallen off the face of the 'net (i.e. is unreachable or isn't responding to email). A bad reason to transfer ownership is because you don't agree with the direction of the SWIP. We try to build consensus around a SWIP, but if that's not possible, you can always submit a competing SWIP.
 
-If you are interested in assuming ownership of an SWIP, send a message asking to take over, addressed to both the original author and the SWIP editor. If the original author doesn't respond to email in a timely manner, the SWIP editor will make a unilateral decision (it's not like such decisions can't be reversed :)).
+If you are interested in assuming ownership of a SWIP, send a message asking to take over, addressed to both the original author and the SWIP editor. If the original author doesn't respond to email in a timely manner, the SWIP editor will make a unilateral decision (it's not like such decisions can't be reversed :)).
 
 ## SWIP Editors
 
@@ -208,7 +208,7 @@ If the SWIP isn't ready, the editor will send it back to the author for revision
 
 Once the SWIP is ready for the repository, the SWIP editor will:
 
-- Assign an SWIP number (generally the PR number or, if preferred by the author, the Issue # if there was discussion in the Issues section of this repository about this SWIP)
+- Assign a SWIP number (generally the PR number or, if preferred by the author, the Issue # if there was discussion in the Issues section of this repository about this SWIP)
 
 - Merge the corresponding pull request
 
