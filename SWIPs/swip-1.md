@@ -1,7 +1,7 @@
 ---
 swip: 1
 title: Message to honey oracle
-Author: Rinke Hendriksen <rinke@ethswarm.org>
+Author: Aron Fischer <aron@ethswarm.org>, Rinke Hendriksen <rinke@ethswarm.org>, Vojtech Simetka <vojtech@iovlabs.org>
 Discussions-to: URL will be provided
 Status: Draft
 Type: Standards track
@@ -29,7 +29,7 @@ To be defined
 ## Backwards Compatibility 
 This SWIP is backward compatible as long as the price oracle quotes the same prices as listed in the price matrix of the non-upgraded SWARM nodes. It is up to the owner of the MsgToHoney oracle to ensure that he does not update prices too much while not all nodes run are on the new SWARM. Currently, the SWARM is not running with a live test net for settling prices, so we expect no problems with this SWIP if it is implemented before the SWARM will go live with price-incentivization. 
 Test Cases Not currently available
-##Implementations
+## Implementations
 Not currently available
 ##Copyright Waiver
 Copyright and related rights waived via CC0.
