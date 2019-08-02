@@ -1,34 +1,34 @@
 ---
 SWIP: <to be assigned>
 title: Adaptive nodes capabilities protocol
-author: Louis Holbrook @nolash <rhabdo@ethswarm.org>, Tim Bansemer (editorial) @FantasticoFox <tim@ethswarm.org>
+author: Louis Holbrook @nolash <dev@holbrook.no>, Tim Bansemer (editorial) @FantasticoFox <tim@ethswarm.org>
 status: Draft
 type: Track Networking
 created: 2019-07-11
 ---
 
-## Simple Summary
-
-Adaptive node operation means a node should be able to change the capabilities it has according to changes in available resources.
-The peers of the node may need to adjust their behavior towards the node when these capabilities change. Therefore, a protocol is required to inform the peers of changes in capabilities.
-
 ## Abstract
 
+Adaptive node operation means a node should be able to change the capabilities it has according to changes in available resources.
+
+## Motivation
+
+The peers of the node may need to adjust their behavior towards the node when these capabilities change. Therefore, a protocol is required to inform the peers of changes in capabilities.
+
+The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.
+
+## Specification
+
 Upon initial connection, capabilities can be transmitted already within the handshake message.
+
 Capabilities are combinational. Some combination may make more sense than other. Interpreting which combinations are feasible and which are not should be handled by respective nodes, and not be hardwired in the protocol.
+
 For this reason, a bit vector seems the most logical choice. The bit vector can represent the adaptive node operation state within the node, and be embedded into the protocol message as-is.
 Since the capabilities may have to be set from different system modules, the network module should provide an API for registering them. The following structure is proposed:
 
 * the first byte is the identifier of the module (0x00 is bzz, and built in)
 * the second byte is the length `n` of the bit vector containing the flags
 * the last `n` bytes is the bit vector containing the flags
-
-## Motivation
-<!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
-The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.
-
-## Specification
-<!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
 
 For the individually capability flags we will initially be choosing from, we can see an example of two distinct byte pairs representing tematic categories:
 
@@ -76,19 +76,21 @@ RemoveCapability(id byte, flags byte)	// turne off flags set to 1
 ```
 
 ## Backwards Compatibility
-<!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
-All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.
 
 The version number of the bzz protocol will have to be incremented after this change is implemented.
 We hereby abandon the notion of categorical "full" and "light" nodes completely. Currently no functional light mode operation is implemented in Swarm. In the interim, to emulate the `Light` field in the bzz handshake, capabilities for `BZZ/SYNC` (builtin id `0x00`) should simply be set to `0x80` for `Light = false` and `0x00` for `Light = true`
 
 ## Test Cases
-<!--Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.-->
-Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.
+
+Handshake test confirming that capabilities are properly exchanged.
 
 ## Implementation
-<!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
-The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.
+
+The first block of changes adds flexible capabilities settings on the node, and replaces the LightNode bool in the handshake with this data.
+
+The second block of changes implements an API to add capabilities to the node.
+
+Edit and remove operations will not be implemented until the underlying node implementation can accommodate changing capabilities on the fly.
 
 ## COPYRIGHT WAIVER
 
