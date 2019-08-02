@@ -86,7 +86,7 @@ Handshake test confirming that capabilities are properly exchanged.
 
 ## Implementation
 
-The first block of changes adds flexible capabilities settings on the node, and replaces the LightNode bool in the handshake with this data.
+The first block of changes adds flexible capabilities settings on the node, and replaces the LightNode bool in the handshake with this data. PR: https://github.com/ethersphere/swarm/pull/1619
 
 The second block of changes implements an API to add capabilities to the node.
 
