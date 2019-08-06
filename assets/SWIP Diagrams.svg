@@ -24,13 +24,33 @@
     </font-face>
   </defs>
   <metadata> Produced by OmniGraffle 7.11 
-    <dc:date>2019-08-06 11:03:50 +0000</dc:date>
+    <dc:date>2019-08-06 11:12:38 +0000</dc:date>
   </metadata>
   <g id="Canvas_9" fill="none" fill-opacity="1" stroke-opacity="1" stroke="none" stroke-dasharray="none">
     <title>Canvas 9</title>
     <rect fill="white" x="-286" y="413" width="2765" height="1055"/>
     <g id="Canvas_9: Layer 1">
       <title>Layer 1</title>
+      <g id="Graphic_84">
+        <rect x="224" y="717" width="1228" height="250" fill="white"/>
+        <rect x="224" y="717" width="1228" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_86">
+        <rect x="224" y="467" width="1228" height="250" fill="white"/>
+        <rect x="224" y="467" width="1228" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_132">
+        <rect x="1121" y="484" width="195" height="241" fill="#e7ffe7"/>
+      </g>
+      <g id="Graphic_131">
+        <rect x="1013.0855" y="651" width="302.91446" height="260.171" fill="#e7ffe7"/>
+      </g>
+      <g id="Graphic_140">
+        <rect x="822.2429" y="651" width="190.84002" height="165" fill="#ffe6e7"/>
+      </g>
+      <g id="Graphic_142">
+        <rect x="892" y="761.092" width="302.91446" height="150.07897" fill="#e7ffe7"/>
+      </g>
       <g id="Graphic_88">
         <rect x="1535.988" y="717" width="942" height="250" fill="white"/>
         <rect x="1535.988" y="717" width="942" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
@@ -53,17 +73,6 @@
       <g id="Graphic_138">
         <rect x="1566.7428" y="1020" width="778.2572" height="373" fill="#e7ffe7"/>
       </g>
-      <g id="Graphic_84">
-        <rect x="224" y="717" width="1228" height="250" fill="white"/>
-        <rect x="224" y="717" width="1228" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
-      </g>
-      <g id="Graphic_86">
-        <rect x="224" y="467" width="1228" height="250" fill="white"/>
-        <rect x="224" y="467" width="1228" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
-      </g>
-      <g id="Graphic_132">
-        <rect x="1121" y="484" width="195" height="241" fill="#e7ffe7"/>
-      </g>
       <g id="Graphic_85">
         <rect x="224" y="1217" width="1228" height="250" fill="white"/>
         <rect x="224" y="1217" width="1228" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
@@ -71,9 +80,6 @@
       <g id="Graphic_87">
         <rect x="224" y="967" width="1228" height="250" fill="white"/>
         <rect x="224" y="967" width="1228" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
-      </g>
-      <g id="Graphic_131">
-        <rect x="997" y="725" width="319" height="186.171" fill="#e7ffe7"/>
       </g>
       <g id="Graphic_129">
         <rect x="744.494" y="1020" width="688.506" height="373" fill="#ffe6e7"/>
@@ -246,10 +252,10 @@
         </text>
       </g>
       <g id="Line_35">
-        <path d="M 1073.0855 779.5 L 1073.0855 698.75 L 1012.5855 698.75 L 1012.5855 627.9" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <path d="M 1073.0855 779.5 L 1073.0855 699.2959 L 1012.5855 699.2959 L 1012.5855 627.9" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
       </g>
       <g id="Graphic_36">
-        <rect x="1058.9465" y="737.6958" width="28.278" height="28" fill="white"/>
+        <rect x="1058.9465" y="737.69584" width="28.278" height="28" fill="white"/>
         <text transform="translate(1063.9465 742.6958)" fill="#515556">
           <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">No</tspan>
         </text>
@@ -545,11 +551,14 @@
           <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#008f00" x="7958079e-19" y="13">Creditor flow only</tspan>
         </text>
       </g>
-      <g id="Graphic_140">
-        <rect x="819.56" y="685.5" width="177.44" height="130.5" fill="#ffe6e7"/>
-      </g>
       <g id="Line_141">
         <path d="M 829.8611 816 L 829.8611 699.30556 L 1013.0855 699.30556 L 1012.5855 632.9 L 1012.5855 627.9" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_143">
+        <rect x="830" y="664" width="116.145" height="28" fill="white"/>
+        <text transform="translate(835 669)" fill="#ee220c">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#ee220c" x="22026825e-20" y="13">Debitor flow only</tspan>
+        </text>
       </g>
     </g>
   </g>
