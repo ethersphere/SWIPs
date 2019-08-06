@@ -19,6 +19,9 @@ To be able to update prices is required to:
 
 We propose an on-chain price oracle that returns the most current exchange rate when queried. The price-oracle will be managed by SWARM developers and stakeholders.
 
+This SWIP is part of a series of SWIPs (but can be implemented on it's own). To see the full picture, please refer to `paymentModule messageToHoney SWIP links` and the diagram below:
+![SWIP_Diagrams.svg](./../assets/swip-honey_to_money/SWIP_Diagrams.svg)
+
 ## Motivation
 Nodes keep track of the balances with each other nodes using an imaginary currency: honey. Since honey is not a currency in which nodes can settle their balances with each other - it is merely a unit of account - there is a requirement to facilitate converting honey to a currency (currently Ether). Furthermore, it is desirable that this conversion rate can fluctuate since:
 * The SWARM developers plan to initially set the price of honey very low and progressively increase this price to the point where it is sufficiently high to incentivize nodes to offer their service to the network while being low enough not to scare away potential users of SWARM. 

@@ -16,7 +16,7 @@ Created: 31-07-2019
 Nodes in the SWARM network can send various types of messages. Currently, the SWARM developers have limited data available to set the optimal price of these messages relative to each other and we expect to adjust the relative prices of messages based on advancing insights. It is important that an update of such prices happens simultaneously on all nodes in the network or otherwise accounting imbalances between nodes will come into existence, potentially severely harming the connectivity of the network. 
 An on-chain price oracle, managed by a multi-signature wallet of SWARM stakeholders provides a clean way for updating relative prices; the SWARM source code will never require an update but instead references the address of the oracle which updates its quoted prices at predictable times.
 This SWIP is part of a series of SWIPs (but can be implemented on it's own). To see the full picture, please refer to `paymentModule honeyToMoney SWIP links` and the diagram below:
-![SWIP_Diagrams.svg](./../assets/SWIP_Diagrams.svg)
+![SWIP_Diagrams.svg](./../assets/swip-message_to_honey/SWIP_Diagrams.svg)
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
@@ -36,6 +36,7 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 * If the oracle does not list a new price or cannot be reached while the old price is expired, nodes will apply the old price.   
 * Upon start-up, nodes will look at the contents of their local database and query the price oracle if no or invalid prices are listed locally or the listed price expires soon.
 * Nodes expect other nodes to apply the same price as they do themselves. Due to the asynchronicity of the network, this will not necessarily be true around the period that prices are updated, which causes accounting dust (pollen) to be collected. This SWIP does not facilitate a solution for this, as the expected amount of pollen is not high enough to cause disruptions in the network. 
+Please refer to ![message_pricing.svg](./../assets/swip-message_to_honey/message_pricing.svg)
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
 No alternative solutions to updating the *relative* message pricing was considered. Noteworthy is perhaps to look at how op-code prices (in gas) are updated in Ethereum. Also here, it concerns relative prices and the developers are tweaking the gas-prices almost every hard-fork (see [opcode re-price discussion](https://ethereum-magicians.org/t/opcode-repricing/3024)). Using an oracle, updatable by a multi-signature of SWARM developers effectively also allows the developers to set prices (just as they do with ether opcodes). However, the ethereum opcode upgrade mechanism must also be approved by the majority of the hashing power of the Ethereum network (to have a succesfull hard-fork). This check is missing in the current design for messageToHoney price oracles. 
