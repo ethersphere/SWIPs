@@ -16,7 +16,7 @@ Created: 31-07-2019
 Nodes in the SWARM network can send various types of messages. Currently, the SWARM developers have limited data available to set the optimal price of these messages relative to each other and we expect to adjust the relative prices of messages based on advancing insights. It is important that an update of such prices happens simultaneously on all nodes in the network or otherwise accounting imbalances between nodes will come into existence, potentially severely harming the connectivity of the network. 
 An on-chain price oracle, managed by a multi-signature wallet of SWARM stakeholders provides a clean way for updating relative prices; the SWARM source code will never require an update but instead references the address of the oracle which updates its quoted prices at predictable times.
 This SWIP is part of a series of SWIPs (but can be implemented on it's own). To see the full picture, please refer to `paymentModule honeyToMoney SWIP links` and the diagram below:
-![SWIP Diagrams.svg](./../assets/SWIP Diagrams.svg)
+![SWIP_Diagrams.svg](./../assets/SWIP_Diagrams.svg)
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
