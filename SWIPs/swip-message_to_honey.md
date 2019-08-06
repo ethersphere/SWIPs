@@ -1,5 +1,5 @@
 ---
-swip: 1
+swip: 
 title: Message to honey oracle
 Author: Aron Fischer <aron@ethswarm.org>, Rinke Hendriksen <rinke@ethswarm.org>, Vojtech Simetka <vojtech@iovlabs.org>
 Discussions-to: URL will be provided
