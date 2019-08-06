@@ -1,0 +1,556 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xl="http://www.w3.org/1999/xlink" version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="-286 413 2765 1055" width="2765" height="1055">
+  <defs>
+    <font-face font-family="Avenir" font-size="13" panose-1="2 11 7 3 2 2 3 2 2 4" units-per-em="1000" underline-position="-75" underline-thickness="50" slope="0" x-height="480" cap-height="708" ascent="1e3" descent="-365.9973" font-weight="800">
+      <font-face-src>
+        <font-face-name name="Avenir-Heavy"/>
+      </font-face-src>
+    </font-face>
+    <marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="FilledArrow_Marker" stroke-linejoin="miter" stroke-miterlimit="10" viewBox="-1 -4 10 8" markerWidth="10" markerHeight="8" color="black">
+      <g>
+        <path d="M 8 0 L 0 -3 L 0 3 Z" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      </g>
+    </marker>
+    <font-face font-family="Helvetica Neue" font-size="16" panose-1="2 0 5 3 0 0 0 2 0 4" units-per-em="1000" underline-position="-100" underline-thickness="50" slope="0" x-height="517" cap-height="714" ascent="951.9958" descent="-212.99744" font-weight="400">
+      <font-face-src>
+        <font-face-name name="HelveticaNeue"/>
+      </font-face-src>
+    </font-face>
+    <font-face font-family="Avenir" font-size="20" panose-1="2 11 7 3 2 2 3 2 2 4" units-per-em="1000" underline-position="-75" underline-thickness="50" slope="0" x-height="480" cap-height="708" ascent="1e3" descent="-365.9973" font-weight="800">
+      <font-face-src>
+        <font-face-name name="Avenir-Heavy"/>
+      </font-face-src>
+    </font-face>
+  </defs>
+  <metadata> Produced by OmniGraffle 7.11 
+    <dc:date>2019-08-06 11:03:50 +0000</dc:date>
+  </metadata>
+  <g id="Canvas_9" fill="none" fill-opacity="1" stroke-opacity="1" stroke="none" stroke-dasharray="none">
+    <title>Canvas 9</title>
+    <rect fill="white" x="-286" y="413" width="2765" height="1055"/>
+    <g id="Canvas_9: Layer 1">
+      <title>Layer 1</title>
+      <g id="Graphic_88">
+        <rect x="1535.988" y="717" width="942" height="250" fill="white"/>
+        <rect x="1535.988" y="717" width="942" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_93">
+        <rect x="1535.988" y="1217" width="942" height="250" fill="white"/>
+        <rect x="1535.988" y="1217" width="942" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_94">
+        <rect x="1535.988" y="467" width="942" height="250" fill="white"/>
+        <rect x="1535.988" y="467" width="942" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_95">
+        <rect x="1535.988" y="967" width="942" height="250" fill="white"/>
+        <rect x="1535.988" y="967" width="942" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_137">
+        <rect x="2139.976" y="808.6366" width="205.024" height="241" fill="#e7ffe7"/>
+      </g>
+      <g id="Graphic_138">
+        <rect x="1566.7428" y="1020" width="778.2572" height="373" fill="#e7ffe7"/>
+      </g>
+      <g id="Graphic_84">
+        <rect x="224" y="717" width="1228" height="250" fill="white"/>
+        <rect x="224" y="717" width="1228" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_86">
+        <rect x="224" y="467" width="1228" height="250" fill="white"/>
+        <rect x="224" y="467" width="1228" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_132">
+        <rect x="1121" y="484" width="195" height="241" fill="#e7ffe7"/>
+      </g>
+      <g id="Graphic_85">
+        <rect x="224" y="1217" width="1228" height="250" fill="white"/>
+        <rect x="224" y="1217" width="1228" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_87">
+        <rect x="224" y="967" width="1228" height="250" fill="white"/>
+        <rect x="224" y="967" width="1228" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_131">
+        <rect x="997" y="725" width="319" height="186.171" fill="#e7ffe7"/>
+      </g>
+      <g id="Graphic_129">
+        <rect x="744.494" y="1020" width="688.506" height="373" fill="#ffe6e7"/>
+      </g>
+      <g id="Graphic_130">
+        <rect x="1242" y="808.6366" width="191" height="213.36345" fill="#ffe6e7"/>
+      </g>
+      <g id="Graphic_75">
+        <rect x="-242" y="717" width="376" height="250" fill="white"/>
+        <rect x="-242" y="717" width="376" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_52">
+        <rect x="-285" y="1217" width="43.5" height="250" fill="#dadada"/>
+        <rect x="-285" y="1217" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_53">
+        <rect x="-285" y="467" width="43.5" height="250" fill="#dadada"/>
+        <rect x="-285" y="467" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_54">
+        <rect x="-285" y="717" width="43.5" height="250" fill="#dadada"/>
+        <rect x="-285" y="717" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_55">
+        <rect x="-285" y="967" width="43.5" height="250" fill="#dadada"/>
+        <rect x="-285" y="967" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_40">
+        <rect x="-242" y="1217" width="376" height="250" fill="white"/>
+        <rect x="-242" y="1217" width="376" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_3">
+        <rect x="-242" y="467" width="376" height="250" fill="white"/>
+        <rect x="-242" y="467" width="376" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_39">
+        <rect x="-242" y="967" width="376" height="250" fill="white"/>
+        <rect x="-242" y="967" width="376" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_2">
+        <text transform="translate(-272.25 645.7875) rotate(-90)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="3623768e-19" y="13">Protocols Module</tspan>
+        </text>
+      </g>
+      <g id="Graphic_5">
+        <text transform="translate(-272.25 906.171) rotate(-90)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Accounting Module</tspan>
+        </text>
+      </g>
+      <g id="Graphic_8">
+        <text transform="translate(-272.25 1143.636) rotate(-90)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="4192202e-19" y="13">Payment Module</tspan>
+        </text>
+      </g>
+      <g id="Graphic_12">
+        <path d="M 396.5 742.5 L 456.5 802.5 L 396.5 862.5 L 336.5 802.5 Z" fill="white"/>
+        <path d="M 396.5 742.5 L 456.5 802.5 L 396.5 862.5 L 336.5 802.5 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(357.7 783.3)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="3.1645" y="13">Should it be </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="5.0885" y="31">accounted?</tspan>
+        </text>
+      </g>
+      <g id="Graphic_13">
+        <path d="M 329.65 571 L 463.35 571 C 479.1648 571 492 579.064 492 589 C 492 598.936 479.1648 607 463.35 607 L 329.65 607 C 313.8352 607 301 598.936 301 589 C 301 579.064 313.8352 571 329.65 571 Z" fill="white"/>
+        <path d="M 329.65 571 L 463.35 571 C 479.1648 571 492 579.064 492 589 C 492 598.936 479.1648 607 463.35 607 L 329.65 607 C 313.8352 607 301 598.936 301 589 C 301 579.064 313.8352 571 329.65 571 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(325.1 571)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="14.843502" y="13">New P2P Message</tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="30.099" y="31">Send/Receive</tspan>
+        </text>
+      </g>
+      <g id="Graphic_15">
+        <rect x="471" y="906.5" width="125" height="47" fill="white"/>
+        <rect x="471" y="906.5" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(476 912)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="6.6765" y="13">Calculate pricing </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="31.6235" y="31">in honey</tspan>
+        </text>
+      </g>
+      <g id="Line_16">
+        <line x1="396.5" y1="607" x2="396.5" y2="732.6" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_18">
+        <path d="M 1073.0855 779.5 L 1133.0855 839.5 L 1073.0855 899.5 L 1013.0855 839.5 Z" fill="white"/>
+        <path d="M 1073.0855 779.5 L 1133.0855 839.5 L 1073.0855 899.5 L 1013.0855 839.5 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(1034.2855 811.3)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="6.538" y="13">Disconnect </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="11.114" y="31">threshold </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="12.1865" y="49">reached?</tspan>
+        </text>
+      </g>
+      <g id="Line_19">
+        <path d="M 456.5 802.5 L 585.9375 802.5 L 585.9375 594.5 L 940.1855 594.5" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_20">
+        <rect x="950.0855" y="571" width="125" height="47" fill="white"/>
+        <rect x="950.0855" y="571" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(955.0855 585.5)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="6.0005" y="13">Process message</tspan>
+        </text>
+      </g>
+      <g id="Line_22">
+        <path d="M 1133.0855 839.5 L 1165.5653 839.5 L 1165.5653 840.465 L 1221.5 840.465 L 1221.5 622.9" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_23">
+        <rect x="1138.4386" y="825.5" width="31.424" height="28" fill="white"/>
+        <text transform="translate(1143.4386 830.5)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Yes</tspan>
+        </text>
+      </g>
+      <g id="Graphic_24">
+        <rect x="455.53244" y="788.5" width="28.278" height="28" fill="white"/>
+        <text transform="translate(460.53243 793.5)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">No</tspan>
+        </text>
+      </g>
+      <g id="Line_25">
+        <path d="M 596 930 L 673.0254 930 L 673.0254 839.5 L 757.1 839.5" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_26">
+        <rect x="767" y="816" width="125" height="47" fill="white"/>
+        <rect x="767" y="816" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(772 830.5)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="9.582" y="13">Update balance</tspan>
+        </text>
+      </g>
+      <g id="Line_27">
+        <path d="M 396.5 862.5 L 396.5 929.3578 L 414.6789 929.3578 L 414.6789 930 L 461.1 930" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_28">
+        <path d="M 829.5 1032.5 L 889.5 1092.5 L 829.5 1152.5 L 769.5 1092.5 Z" fill="white"/>
+        <path d="M 829.5 1032.5 L 889.5 1092.5 L 829.5 1152.5 L 769.5 1092.5 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(790.7 1064.3)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="13.519" y="13">Payment </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="11.114" y="31">threshold </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="7.604" y="49">triggered?</tspan>
+        </text>
+      </g>
+      <g id="Line_29">
+        <line x1="829.5" y1="863" x2="829.5" y2="1022.6" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4.0,4.0" stroke-width="1"/>
+      </g>
+      <g id="Graphic_30">
+        <rect x="1007" y="1312" width="125" height="47" fill="white"/>
+        <rect x="1007" y="1312" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(1012 1317.5)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="13.0985" y="13">Get money for </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="38.9685" y="31">honey</tspan>
+        </text>
+      </g>
+      <g id="Line_31">
+        <path d="M 889.5 1092.5 L 899.5 1092.5 L 997.1 1092.4435" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_32">
+        <rect x="906.1632" y="1078.487" width="31.424" height="28" fill="white"/>
+        <text transform="translate(911.1632 1083.487)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Yes</tspan>
+        </text>
+      </g>
+      <g id="Graphic_33">
+        <rect x="1159" y="566" width="125" height="47" fill="white"/>
+        <rect x="1159" y="566" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(1164 571.5)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="13.5795" y="13">Drop message </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="21.152" y="31">and/or peer</tspan>
+        </text>
+      </g>
+      <g id="Graphic_34">
+        <rect x="380.788" y="859.9275" width="31.424" height="28" fill="white"/>
+        <text transform="translate(385.788 864.9275)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Yes</tspan>
+        </text>
+      </g>
+      <g id="Line_35">
+        <path d="M 1073.0855 779.5 L 1073.0855 698.75 L 1012.5855 698.75 L 1012.5855 627.9" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_36">
+        <rect x="1058.9465" y="737.6958" width="28.278" height="28" fill="white"/>
+        <text transform="translate(1063.9465 742.6958)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">No</tspan>
+        </text>
+      </g>
+      <g id="Graphic_42">
+        <text transform="translate(-272.25 1368.861) rotate(-90)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Oracles</tspan>
+        </text>
+      </g>
+      <g id="Graphic_44">
+        <rect x="1277" y="1069" width="125" height="47" fill="white"/>
+        <rect x="1277" y="1069" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(1282 1083.5)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="46.6645" y="13">Pay</tspan>
+        </text>
+      </g>
+      <g id="Line_45">
+        <path d="M 1132 1335.5 L 1167.452 1335.5 L 1167.452 1160.774 L 1098.9589 1160.774 L 1098.9589 1125.9" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4.0,4.0" stroke-width="1"/>
+      </g>
+      <g id="Graphic_46">
+        <rect x="1277" y="819" width="125" height="47" fill="white"/>
+        <rect x="1277" y="819" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(1282 833.5)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="9.582" y="13">Update balance</tspan>
+        </text>
+      </g>
+      <g id="Line_47">
+        <path d="M 1339.5 1069 L 1339.5 1059 L 1339.1514 875.9" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4.0,4.0" stroke-width="1"/>
+      </g>
+      <g id="Line_57">
+        <line x1="892" y1="839.5" x2="1003.1855" y2="839.5" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_58">
+        <path d="M -143.35 574 L -9.65 574 C 6.1648 574 19 582.064 19 592 C 19 601.936 6.1648 610 -9.65 610 L -143.35 610 C -159.1648 610 -172 601.936 -172 592 C -172 582.064 -159.1648 574 -143.35 574 Z" fill="white"/>
+        <path d="M -143.35 574 L -9.65 574 C 6.1648 574 19 582.064 19 592 C 19 601.936 6.1648 610 -9.65 610 L -143.35 610 C -159.1648 610 -172 601.936 -172 592 C -172 582.064 -159.1648 574 -143.35 574 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(-147.9 583)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="6.0490015" y="13">New peer connection</tspan>
+        </text>
+      </g>
+      <g id="Graphic_60">
+        <rect x="-139" y="1041.25" width="125" height="47" fill="white"/>
+        <rect x="-139" y="1041.25" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(-134 1046.75)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="26.5665" y="13">Negotiate </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="7.9115" y="31">payment system</tspan>
+        </text>
+      </g>
+      <g id="Graphic_61">
+        <rect x="-139" y="1086.25" width="125" height="62.75" fill="white"/>
+        <rect x="-139" y="1086.25" width="125" height="62.75" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(-134 1090.625)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="26.5665" y="13">Negotiate </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="11.155" y="31">settlement unit </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="14.418" y="49">(coin + oracle)</tspan>
+        </text>
+      </g>
+      <g id="Line_62">
+        <line x1="-76.5" y1="610" x2="-76.5" y2="1031.35" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_64">
+        <path d="M -184 1011.5 L 31 1011.5 L 31 1176.5 L -184 1176.5 Z" stroke="#f9ba00" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8.0,8.0" stroke-width="2"/>
+      </g>
+      <g id="Graphic_65">
+        <rect x="-184" y="975.25" width="297.183" height="28" fill="white"/>
+        <text transform="translate(-179 980.25)" fill="#f9ba00">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="42632564e-20" y="13">SWIP: Handshake- Payment module preference</tspan>
+        </text>
+      </g>
+      <g id="Graphic_66">
+        <rect x="471" y="1336.5" width="125" height="47" fill="white"/>
+        <rect x="471" y="1336.5" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(476 1342)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="6.9495" y="13">Get latest honey </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="11.5255" y="31">to money price</tspan>
+        </text>
+      </g>
+      <g id="Line_67">
+        <line x1="533.5" y1="953.5" x2="533.5" y2="1326.6" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4.0,4.0" stroke-width="1"/>
+      </g>
+      <g id="Line_69">
+        <path d="M 596 1360 L 632.6579 1360 L 632.6579 991.3257 L 558.37615 991.3257 L 558.37615 963.4" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4.0,4.0" stroke-width="1"/>
+      </g>
+      <g id="Graphic_71">
+        <path d="M 330.5 725 L 660.5 725 L 660.5 1420 L 330.5 1420 Z" stroke="#f9ba00" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8.0,8.0" stroke-width="2"/>
+      </g>
+      <g id="Graphic_72">
+        <rect x="737.488" y="947.75" width="152.012" height="28" fill="white"/>
+        <text transform="translate(742.488 952.75)" fill="#f9ba00">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="0" y="13">SWIP: Payment module</tspan>
+        </text>
+      </g>
+      <g id="Graphic_73">
+        <rect x="328" y="683.75" width="201.815" height="28" fill="white"/>
+        <text transform="translate(333 688.75)" fill="#f9ba00">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="0" y="13">SWIP: Message to honey oracle</tspan>
+        </text>
+      </g>
+      <g id="Graphic_76">
+        <rect x="1007" y="1069" width="125" height="47" fill="white"/>
+        <rect x="1007" y="1069" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(1012 1083.5)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="1.0345" y="13">Calculate payment</tspan>
+        </text>
+      </g>
+      <g id="Line_77">
+        <line x1="1132" y1="1092.5" x2="1267.1" y2="1092.5" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_78">
+        <line x1="1069.5" y1="1116" x2="1069.5" y2="1302.1" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4.0,4.0" stroke-width="1"/>
+      </g>
+      <g id="Graphic_79">
+        <rect x="962.4856" y="1248.7182" width="191.22" height="31.563636" fill="white"/>
+        <text transform="translate(967.4856 1255.5)" fill="#f9ba00">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="0" y="13">SWIP: Honey to money oracle</tspan>
+        </text>
+      </g>
+      <g id="Graphic_81">
+        <rect x="737.488" y="975.75" width="273.107" height="28" fill="white"/>
+        <text transform="translate(742.488 980.75)" fill="#f9ba00">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="0" y="13">SWIP: Swarm settlement payment channels</tspan>
+        </text>
+      </g>
+      <g id="Graphic_90">
+        <rect x="1492.988" y="467" width="43.5" height="250" fill="#dadada"/>
+        <rect x="1492.988" y="467" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_91">
+        <rect x="1492.988" y="717" width="43.5" height="250" fill="#dadada"/>
+        <rect x="1492.988" y="717" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_96">
+        <text transform="translate(1505.738 645.7875) rotate(-90)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="3623768e-19" y="13">Protocols Module</tspan>
+        </text>
+      </g>
+      <g id="Graphic_97">
+        <text transform="translate(1505.738 906.171) rotate(-90)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Accounting Module</tspan>
+        </text>
+      </g>
+      <g id="Graphic_100">
+        <path d="M 1616.638 1085.4862 L 1750.338 1085.4862 C 1766.1528 1085.4862 1778.988 1093.5502 1778.988 1103.4862 C 1778.988 1113.4222 1766.1528 1121.4862 1750.338 1121.4862 L 1616.638 1121.4862 C 1600.8232 1121.4862 1587.988 1113.4222 1587.988 1103.4862 C 1587.988 1093.5502 1600.8232 1085.4862 1616.638 1085.4862 Z" fill="white"/>
+        <path d="M 1616.638 1085.4862 L 1750.338 1085.4862 C 1766.1528 1085.4862 1778.988 1093.5502 1778.988 1103.4862 C 1778.988 1113.4222 1766.1528 1121.4862 1750.338 1121.4862 L 1616.638 1121.4862 C 1600.8232 1121.4862 1587.988 1113.4222 1587.988 1103.4862 C 1587.988 1093.5502 1600.8232 1085.4862 1616.638 1085.4862 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(1612.088 1094.4862)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x=".8555015" y="13">New payment received</tspan>
+        </text>
+      </g>
+      <g id="Graphic_113">
+        <rect x="2173.988" y="1323" width="125" height="47" fill="white"/>
+        <rect x="2173.988" y="1323" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(2178.988 1328.5)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="13.0985" y="13">Get money for </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="38.9685" y="31">honey</tspan>
+        </text>
+      </g>
+      <g id="Line_112">
+        <path d="M 2036.488 1103.5 L 2046.488 1103.5 L 2164.088 1103.4416" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_111">
+        <rect x="2058.6618" y="1089.4862" width="31.424" height="28" fill="white"/>
+        <text transform="translate(2063.6618 1094.4862)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Yes</tspan>
+        </text>
+      </g>
+      <g id="Line_109">
+        <path d="M 2298.988 1346.5 L 2334.44 1346.5 L 2334.44 1171.774 L 2265.947 1171.774 L 2265.947 1136.9" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4.0,4.0" stroke-width="1"/>
+      </g>
+      <g id="Graphic_108">
+        <rect x="2173.988" y="830" width="125" height="47" fill="white"/>
+        <rect x="2173.988" y="830" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(2178.988 844.5)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="9.582" y="13">Update balance</tspan>
+        </text>
+      </g>
+      <g id="Line_107">
+        <path d="M 2236.488 1080 L 2236.488 1070 L 2236.5853 886.9" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4.0,4.0" stroke-width="1"/>
+      </g>
+      <g id="Graphic_105">
+        <rect x="2173.988" y="1080" width="125" height="47" fill="white"/>
+        <rect x="2173.988" y="1080" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(2178.988 1085.5)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="9.1075" y="13">Calculate honey </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="33.424" y="31">paid for</tspan>
+        </text>
+      </g>
+      <g id="Line_103">
+        <line x1="2236.488" y1="1127" x2="2236.488" y2="1313.1" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4.0,4.0" stroke-width="1"/>
+      </g>
+      <g id="Graphic_114">
+        <path d="M 1976.488 1043.5 L 2036.488 1103.5 L 1976.488 1163.5 L 1916.488 1103.5 Z" fill="white"/>
+        <path d="M 1976.488 1043.5 L 2036.488 1103.5 L 1976.488 1163.5 L 1916.488 1103.5 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(1937.688 1084.3)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="6.7785" y="13">Is payment </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="22.2875" y="31">valid?</tspan>
+        </text>
+      </g>
+      <g id="Line_115">
+        <path d="M 1778.988 1103.4862 L 1788.988 1103.4862 L 1901.588 1103.5 L 1906.588 1103.5" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_80">
+        <path d="M 962.4856 1288.6455 L 2366 1288.6455 L 2366 1402.5 L 962.4856 1402.5 Z" stroke="#f9ba00" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8.0,8.0" stroke-width="2"/>
+        <text transform="translate(967.4856 1336.3487)" fill="black">
+          <tspan font-family="Helvetica Neue" font-size="16" font-weight="400" fill="black" x="696.7572" y="15"> </tspan>
+        </text>
+      </g>
+      <g id="Graphic_89">
+        <rect x="1492.988" y="1217" width="43.5" height="250" fill="#dadada"/>
+        <rect x="1492.988" y="1217" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_99">
+        <text transform="translate(1505.738 1368.861) rotate(-90)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Oracles</tspan>
+        </text>
+      </g>
+      <g id="Graphic_74">
+        <path d="M 737 1012 L 2366 1012 L 2366 1177 L 737 1177 Z" stroke="#f9ba00" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8.0,8.0" stroke-width="2"/>
+      </g>
+      <g id="Graphic_92">
+        <rect x="1492.988" y="967" width="43.5" height="250" fill="#dadada"/>
+        <rect x="1492.988" y="967" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_98">
+        <text transform="translate(1505.738 1143.636) rotate(-90)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="4192202e-19" y="13">Payment Module</tspan>
+        </text>
+      </g>
+      <g id="Graphic_116">
+        <rect x="180.5" y="1217" width="43.5" height="250" fill="#dadada"/>
+        <rect x="180.5" y="1217" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_117">
+        <rect x="180.5" y="467" width="43.5" height="250" fill="#dadada"/>
+        <rect x="180.5" y="467" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_118">
+        <rect x="180.5" y="717" width="43.5" height="250" fill="#dadada"/>
+        <rect x="180.5" y="717" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_119">
+        <rect x="180.5" y="967" width="43.5" height="250" fill="#dadada"/>
+        <rect x="180.5" y="967" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_120">
+        <text transform="translate(193.25 645.7875) rotate(-90)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="3623768e-19" y="13">Protocols Module</tspan>
+        </text>
+      </g>
+      <g id="Graphic_121">
+        <text transform="translate(193.25 906.171) rotate(-90)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Accounting Module</tspan>
+        </text>
+      </g>
+      <g id="Graphic_122">
+        <text transform="translate(193.25 1143.636) rotate(-90)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="4192202e-19" y="13">Payment Module</tspan>
+        </text>
+      </g>
+      <g id="Graphic_123">
+        <text transform="translate(193.25 1368.861) rotate(-90)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Oracles</tspan>
+        </text>
+      </g>
+      <g id="Graphic_124">
+        <text transform="translate(-280 419)" fill="#515556">
+          <tspan font-family="Avenir" font-size="20" font-weight="800" fill="#515556" x="0" y="20">Handshake</tspan>
+        </text>
+      </g>
+      <g id="Graphic_125">
+        <text transform="translate(185.5 419)" fill="#515556">
+          <tspan font-family="Avenir" font-size="20" font-weight="800" fill="#515556" x="0" y="20">Message processing</tspan>
+        </text>
+      </g>
+      <g id="Graphic_126">
+        <text transform="translate(1497.988 419)" fill="#515556">
+          <tspan font-family="Avenir" font-size="20" font-weight="800" fill="#515556" x="0" y="20">Payment received</tspan>
+        </text>
+      </g>
+      <g id="Graphic_133">
+        <rect x="755.4215" y="1355.5" width="116.145" height="28" fill="white"/>
+        <text transform="translate(760.4215 1360.5)" fill="#ee220c">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#ee220c" x="22026825e-20" y="13">Debitor flow only</tspan>
+        </text>
+      </g>
+      <g id="Graphic_134">
+        <rect x="1127.9525" y="496" width="120.24" height="28" fill="white"/>
+        <text transform="translate(1132.9525 501)" fill="#008f00">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#008f00" x="7958079e-19" y="13">Creditor flow only</tspan>
+        </text>
+      </g>
+      <g id="Graphic_139">
+        <rect x="1577.476" y="1032.5" width="120.24" height="28" fill="white"/>
+        <text transform="translate(1582.476 1037.5)" fill="#008f00">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#008f00" x="7958079e-19" y="13">Creditor flow only</tspan>
+        </text>
+      </g>
+      <g id="Graphic_140">
+        <rect x="819.56" y="685.5" width="177.44" height="130.5" fill="#ffe6e7"/>
+      </g>
+      <g id="Line_141">
+        <path d="M 829.8611 816 L 829.8611 699.30556 L 1013.0855 699.30556 L 1012.5855 632.9 L 1012.5855 627.9" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+    </g>
+  </g>
+</svg>
