@@ -9,7 +9,7 @@ Created: 31-07-2019
 ---
 
 ## Simple summary 
-Swarm needs a mechanism to allow fluctuation of the exchange rate between honey (Swarns internal accounting unit) and the currency used to pay. We propose an on-chain price oracle that returns an exchange rate + validUntil tuple.  
+Swarm needs a mechanism to allow fluctuation of the exchange rate between honey (Swarms internal accounting unit) and the currency used to pay. We propose an on-chain price oracle that returns an exchange rate + validUntil tuple.  
 
 ## Abstract 
 The ability to update prices is required in order to:
@@ -46,9 +46,12 @@ By externalising the price to an oracle, we can completely decouple the basic fu
 
 ## Backwards Compatibility 
 This SWIP is backward compatible as long as the price oracle quotes the same prices as is currently hard-coded in non-upgraded Swarm nodes. It is up to the owner of the MsgToHoney oracle to ensure that he does not update prices too much while not all nodes that run are on the new Swarm version. Currently, the Swarm is not running with a live test net for settling prices, so we expect no problems with this SWIP if it is implemented before the Swarm will go live with price-incentivization. 
+
 ## Test Cases
 Not currently available
+
 ## Implementations 
 Not currently available
+
 ## Copyright Waiver
  Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
