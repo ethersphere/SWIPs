@@ -64,19 +64,15 @@ For any preference list, the chosen option will be the option which has the high
 
 Nodes must be able to reach an agreement in any dimension of the preference list, or the fallback option for each dimension of the preference list will be chosen:
 
-<center>
 | Dimension  | Fallback option |
 | ---------- | --------------- |
 | Currency to use | Wei (Ether)                    |
 | Price oracle    | HonMon oracle <SWIP reference> |
 | Payment method  | Chequebook contract            |
-</center>
 
 Please refer to the picture below to see how preferences are resolved during the handshake:
 
-<center>
 ![Handshake.svg](./../assets/multiple-payment_processing_support/Handshake.svg)
-</center>
 
 ### Technical details
 
