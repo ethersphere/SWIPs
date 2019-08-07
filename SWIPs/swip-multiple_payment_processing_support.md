@@ -51,11 +51,11 @@ At a high level a payment module is responsible for:
 * Sending the recipient a payment.
 * Returning true when the payment was successful.
 * Returning false when the payment was not successful.
-* Verifying any on-chain conditions and making sure that within a reasonable time window after the transaction happens they don't change (due to block reorganizations / payment-module specific conditions)
-* The payment module references a type, version and base currency 
-* The payment module optionally exposes other methods such as querying balances, topping up balances or sending payments (outside of SWARM). 
+* Verifying any on-chain conditions and making sure that they don't change within a reasonable time window after the transaction happens (due to block reorganizations / payment-module specific conditions)
+* Referencing a type, version and base currency 
+* Optionally exposing other methods such as querying balances, topping up balances or sending payments (outside of Swarm). 
 
-Nodes can specify their preference for both payment module, as well as price oracle in a list in a configuration file. The preferences are normalized and weighted.
+Nodes can specify their preference for both payment module, as well as price oracle in a list in a configuration file. The preferences are normalized and weighed.
 For any preference list, the chosen option will be the option which has the highest cumulative preference. The preference list has three dimensions, which will be resolved from high to low:
 
 1. Currency to use
