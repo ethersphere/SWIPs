@@ -32,13 +32,13 @@ Incorporating the required abstractions to support payment modules will require 
 
 ## Motivation
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
-Currently, Swarm is implementing the chequebook contract (base currency: Ether) to allow nodes to receive payments without doing on-chain transactions. While the chequebook contract is beautiful in its simplicity, it is expected that users of Swarm might prefer a different way of compensation for their services provided, especially if they are already participating in a payment network (e.g. Lumino, Raiden or Lightning network). 
+Currently, Swarm is implementing the chequebook contract (with a base currency of Ether) to allow nodes to receive payments without doing on-chain transactions. While the chequebook contract is beautiful in its simplicity, it is expected that users of Swarm might prefer a different way of compensation for their services provided, especially if they are already participating in a payment network (e.g. Lumino, Raiden or Lightning network). 
 
 Storage providers might want to be compensated with a different currency (e.g. an ERC20 token) or they might want to settle their payment using a different blockchain. Furthermore, a storage provider offering other paid services will find appealing not to be forced to support multiple payment systems, but being able to consolidate the payments received under a single technology.
 
-Finally, new users of Swarm could bootstrap its participation in a payment channel network by providing storage services with zero cost of entry, as described in [Generalised Swap Swear and Swindle games, 2019, Tron and Fischer](https://www.sharelatex.com/read/yszmsdqyqbvc) 
+Finally, new users of Swarm could bootstrap its participation in a payment channel network by providing storage services with zero cost of entry, as described in [Generalised Swap Swear and Swindle games (Tron & Fischer, 2019).](https://www.sharelatex.com/read/yszmsdqyqbvc) 
 
-When it possible for nodes to set their preference for a payment module developers will be incentivized to implement payment modules on Swarm as it will be easy for users to choose to pay with this module. It will also enable seamlessly multicurrency support and foster interoperation across Blockchains without forcing participants to be tied to a single Blockchain or settlement technology.
+When it becomes possible for nodes to set their preference for a payment module, developers will be incentivized to implement payment modules on Swarm as it will be easy for users to choose to pay with this module. It will also seamlessly enable multicurrency support and foster interoperation across blockchains without forcing participants to be tied to a single Blockchain or settlement technology.
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
