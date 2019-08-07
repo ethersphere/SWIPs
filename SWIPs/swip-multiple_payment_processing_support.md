@@ -78,7 +78,7 @@ Please refer to the picture below to see how preferences are resolved during the
 
 This section describes the existing code and provides suggestions on how it could be modified to achieve the end goal of this SWIP. It is by no means an indication on how this feature should be implemented, the final design and implementation will be agreed with the community and it could differ completely from what it is described here.
 
-Swarm defines a ```Balance``` interface in p2p/protocols/accounting.go as an abstraction for the accounting process:
+Swarm defines a ```Balance``` interface in ```p2p/protocols/accounting.go``` as an abstraction for the accounting process:
 
 ```golang
 // Balance is the actual accounting instance
@@ -103,12 +103,11 @@ var Spec = &protocols.Spec{
 	Messages: []interface{}{
 		HandshakeMsg{},
 		EmitChequeMsg{},
-		ErrorMsg{},
 	},
 }
 ```
 
-When received, this message is handled by the ```handleEmitChequeMsg``` function of the Swap devp2p ```Peer``` defined in swap/peer.go:
+When received, this message is handled by the ```handleEmitChequeMsg``` function of the Swap devp2p ```Peer``` defined in ```swap/peer.go```:
 
 ```golang
 func (sp *Peer) handleEmitChequeMsg(ctx context.Context, msg interface{}) error 
@@ -116,7 +115,7 @@ func (sp *Peer) handleEmitChequeMsg(ctx context.Context, msg interface{}) error
 
 This function performs the accounting and the payment steps tightly coupled to Swap, making it difficult to support different settlement strategies. 
 
-The ```handleMsg``` function defined in swap/peer.go should delegate the processing of ```EmitChequeMsg``` to a component or service (from now on ```SwarmPayments```) which provides access to the payment modules supported by the node receiving the message, thus decoupling Swarm from payment processing. We refer to the concrete payment module implementation as a ```PaymentProcessor```. The existing code for ```handleEmitChequeMsg``` will become part of the SWAP ```PaymentProcessor```. The ```handleMsg``` function could be redefined as:
+The ```handleMsg``` function defined in ```swap/peer.go``` should delegate the processing of ```EmitChequeMsg``` to a component or service (from now on ```SwarmPayments```) which provides access to the payment modules supported by the node receiving the message, thus decoupling Swarm from payment processing. We refer to the concrete payment module implementation as a ```PaymentProcessor```. The existing code for ```handleEmitChequeMsg``` will become part of the SWAP ```PaymentProcessor```. The ```handleMsg``` function could be redefined as:
 
 ```golang
 // handleMsg is for handling messages when receiving messages
@@ -143,7 +142,7 @@ where the ```sp.payments``` member of the ```Peer``` struct holds the ```SwarmPa
 
 The use (if required) of a price oracle will be handled internally by the ```PaymentProcessor```.
 
-The ```Cheque```and ```ChequeParams``` defined in swap/types.go should be more general to allow ```PaymentProcessor```s to generate the required data structures for the specific payment implementation (e.g. Balance Proof, in the case of payment channels). The current implementations of ```Cheque``` and ```ChequeParams``` should be part of the SWAP ```PaymentProcessor```. For clarity they could be renamed to ```Payment``` and ```PaymentParams```, respectively.
+The ```Cheque```and ```ChequeParams``` defined in ```swap/types.go``` should be more general to allow ```PaymentProcessor```s to generate the required data structures for the specific payment implementation (e.g. Balance Proof, in the case of payment channels). The current implementations of ```Cheque``` and ```ChequeParams``` should be part of the SWAP ```PaymentProcessor```. For clarity they could be renamed to ```Payment``` and ```PaymentParams```, respectively.
 
 ```golang
 // PaymentParams encapsulate all payment parameters
