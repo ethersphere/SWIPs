@@ -72,7 +72,7 @@ Nodes must be able to reach an agreement in any dimension of the preference list
 
 Please refer to the picture below to see how preferences are resolved during the handshake:
 
-![Handshake.svg](./../assets/multiple_payment_processing_support/Handshake.svg)
+![Handshake.svg](./../assets/multiple-payment_processing_support/Handshake.svg)
 
 ### Technical details
 
