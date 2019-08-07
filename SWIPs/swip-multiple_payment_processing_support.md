@@ -166,7 +166,7 @@ type Payment struct {
 Upon connection and during the handshake, each peer should indicate its supported ```PaymentProcessor```s, being the SWAP ```PaymentProcessor``` the default and fallback payment method to use. The ```PaymentProcessor``` implementation negotiated during the handshake with a given Peer will be registered in the  ```SwarmPayments``` component. To support multiple payment methods this information could be stored in a map where the key will be each beneficiary address, and the value a list of supported ```PaymentProcessor```s:
 
 ```golang
-// PaymentParams encapsulate all payment parameters
+// SwarmPayments registers the negotiated payment processors for each peer plus the default payment processor
 type SwarmPayments struct {
     PaymentProcessors        map[common.Address][]PaymentProcessor // payment processors negotiated with each peer during handshake 
     DefaultPaymentProcessor  SwapPaymentProcessor                  // Swap PaymentProcessor implementation used as the default payment method
