@@ -63,16 +63,36 @@ HandshakeMsg {
 	Version		uint64
 	NetworkID	uint64
 	Addr		*BzzAddr
-	Mode		Capabilities
+	Capabilities	Capabilities
+}
+```
+
+For simplicity, arrays of bools are used to represent the flags in interfacing code. In the JSON-RPC API a `Capability` is represented in the following manner:
+
+```
+{
+	"Id": <int>,
+	"Cap": []<bool>,
+}
+```
+
+For example, a `Capability` with id 42 and three flags with values `true, false, true` this becomes:
+
+```
+{
+	"Id": 42,
+	"Cap": [true, false, true],
 }
 ```
 
 The network module API can merely consist of:
 
 ```
-RegisterCapabilityModule(id byte)	// called during setup, before node is started
-SetCapability(id byte, flags byte) 	// turns on flags set to 1
-RemoveCapability(id byte, flags byte)	// turne off flags set to 1
+RegisterCapability(capability Capability)	// called during setup, before node is started
+IsRegisteredCapability(id int)			// check whether capability is registered
+MatchCapability(id int, idx int) 		// check whether flag on capability is set
+SetCapability(capability Capability) 		// turns on flags set to true for the registered Capability matching the id
+RemoveCapability(capability Capability)		// turns off flags set to true for the registered Capability matching the id
 ```
 
 ## Backwards Compatibility
