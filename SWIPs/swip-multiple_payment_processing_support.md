@@ -21,7 +21,7 @@ To allow multiple payment modules to co-exist on the same network, nodes must be
 
 This SWIP is part of a series of SWIPs (but can be implemented on it's own). To see the full picture, please refer to `msgToHoney honeyToMoney SWIP links` and the diagram below:
 ![SWIP_Diagrams.svg](./../assets/multiple-payment_processing_support/SWIP_Diagrams.svg)
-assets/multiple-payment_processing_support
+
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
 The payment module interface specifies the minimum requirements to allow different implementations to be supported by Swarm. An implementation of this interface will be responsible for handling payments, hiding the specifics of the underlying payment processing and providing a unified API, thus decoupling the distributed storage service from the actual payment system used by participants. 
