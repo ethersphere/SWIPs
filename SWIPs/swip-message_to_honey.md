@@ -43,7 +43,7 @@ This section describes the interaction between the nodes and the oracle in more 
 {honeyPrices: 
   {
     TTL, 
-    prices: [0: {validFrom, msgPrices[]} n:{...}]
+    prices: [0: {validFrom, msgPrices[]}, n:{...}]
   }
 }
 ```
