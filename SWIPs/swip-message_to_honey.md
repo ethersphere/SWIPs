@@ -13,9 +13,10 @@ Created: 31-07-2019
 
 ## Simple summary
 <!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
-Nodes in the Swarm network can send various types of messages. Currently, the Swarm developers have limited data available to set the optimal price of these messages relative to each other and we expect to adjust the relative prices of messages based on advancing insights. It is important that an update of such prices happens simultaneously on all nodes in the network or otherwise accounting imbalances between nodes will come into existence, potentially severely harming the connectivity of the network. 
-An on-chain price oracle, managed by a multi-signature wallet of Swarm stakeholders provides a clean way for updating relative prices; the Swarm source code will never require an update but instead references the address of the oracle which updates its quoted prices at predictable times.
-This SWIP is part of a series of SWIPs (but can be implemented on it's own). To see the full picture, please refer to `paymentModule honeyToMoney SWIP links` and the diagram below:
+Nodes in the SWARM network can send various types of messages. Currently, the SWARM developers have limited data available to set the optimal price of these messages relative to each other and we expect to adjust the relative prices of messages based on advancing insights. It is important that an update of such prices happens simultaneously on all nodes in the network or otherwise accounting imbalances between nodes will come into existence, potentially severely harming the connectivity of the network. 
+An on-chain price oracle, managed by a multi-signature wallet of SWARM stakeholders provides a clean way for updating relative prices; the SWARM source code will never require an update but instead references the address of the oracle which updates its quoted prices at predictable times.
+This SWIP is part of a series of SWIPs (but can be implemented on it's own). To see the full picture, please refer to [swip-multiple_payment_processing_support](./swip-multiple_payment_processing_support.md), [swip-honey_to_money](./swip-honey_to_money.md) and the diagram below:
+
 ![SWIP_Diagrams.svg](./../assets/swip-message_to_honey/SWIP_Diagrams.svg)
 
 ## Abstract

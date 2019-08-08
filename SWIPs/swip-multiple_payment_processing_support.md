@@ -19,7 +19,7 @@ This SWIP proposes decoupling the accounting for services provided via Swarm fro
 
 To allow multiple payment modules to co-exist on the same network, nodes must be able to come to an agreement on which payment module (or modules) to use. We propose a mechanism for nodes to indicate these preferences during handshake; such preferences should be normalized and weighed. Furthermore, there must be a fallback option provided for the payment module to ensure that nodes can always connect. Finally, there should be a mechanism for each node to keep track of the payment methods negotiated with its peers.
 
-This SWIP is part of a series of SWIPs (but can be implemented on its own). To see the full picture, please refer to [msgToHoney](./swip-message_to_honey.md), [honeyToMoney](./swip-honey_to_money.md) SWIP links and the diagram below:
+This SWIP is part of a series of SWIPs (but can be implemented on its own). To see the full picture, please refer to [swip-message_to_honey](./swip-message_to_honey.md), [swip-honey_to_money](./swip-honey_to_money.md) and the diagram below:
 ![SWIP_Diagrams.svg](./../assets/multiple-payment_processing_support/SWIP_Diagrams.svg)
 
 ## Abstract
