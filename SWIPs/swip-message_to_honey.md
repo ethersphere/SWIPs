@@ -47,11 +47,6 @@ t be at least `TTL` seconds in the future. Furthermore, if the oracle maintainer
 * Upon start-up, nodes will look at the contents of their local database and query the price oracle if no `honeyPrices` object is found, or the `TTL` of their cached `honeyPrices` object has expired. 
 * If the oracle cannot be reached when the `TTL` of the last `honeyPrices` object is expired, nodes will continue to apply the `prices` as instructed by the expired `honeyObject` and will start to query the oracle at a more regular interval to re-establish connection. 
 
-New price will be published into the oracle prior to the expiry of the last price such that each node has to check the price oracle at least twice before it is applied (=the announcencement of new price happens at least 2x of the price's Time To Live (TTL) period).
-
-
-the existing code and provides suggestions on how it could be modified to achieve the end goal of this SWIP. It is by no means an indication on how this feature should be implemented, the final design and implementation will be agreed with the community and it could differ completely from what it is described here.
-
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
 No alternative solutions to updating the *relative* message pricing was considered. Noteworthy is perhaps to look at how op-code prices (in gas) are updated in Ethereum. Also here, it concerns relative prices and the developers are tweaking the gas-prices almost every hard-fork (see [opcode re-price discussion](https://ethereum-magicians.org/t/opcode-repricing/3024)). Using an oracle, updatable by a multi-signature of Swarm developers effectively also allows the developers to set prices (just as they do with ether opcodes). However, the ethereum opcode upgrade mechanism must also be approved by the majority of the hashing power of the Ethereum network (to have a succesfull hard-fork). This check is missing in the current design for `messageToHoney` price oracles. 
@@ -66,7 +61,7 @@ No test cases for this SWIP are provided at this moment.
 
 ## Implementations
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
-The 
+No implementation for this SWIP is provided at this moment.	
 
 
 ## Copyright Waiver
