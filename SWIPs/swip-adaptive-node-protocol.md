@@ -90,7 +90,8 @@ The network module API can merely consist of:
 ```
 RegisterCapability(capability Capability)	// called during setup, before node is started
 IsRegisteredCapability(id int)			// check whether capability is registered
-MatchCapability(id int, idx int) 		// check whether flag on capability is set
+MatchCapability(capability Capability)		// check whether flags set in passed capability are set in the receiver
+HasCapability(id int, idx int) 		// check whether flag on the corresponding index on capability is set
 SetCapability(capability Capability) 		// turns on flags set to true for the registered Capability matching the id
 RemoveCapability(capability Capability)		// turns off flags set to true for the registered Capability matching the id
 ```
