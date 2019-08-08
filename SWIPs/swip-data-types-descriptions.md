@@ -52,26 +52,13 @@ implications for the RLP encoding of the data, as described in [3].
 We define the following mappings from ABNF data type definitions to RLP
 data types:
 
-BOOL
-
-:   is encoded as an RLP encoded integer with length of one byte
-
-OCTET
-
-:   is encoded as an RLP encoded integer with length of one byte
-
-TIMESTAMP
-
-:   is encoded as an RLP encoded variable length integer
-
-\%x\#\#
-
-:   hexadecimal literals are encoded as encoded integers with length of
-    one byte, corresponding to its hexadecimal (not its string) value
-
-LIST
-
-:   as defined in [1.1.3] will be RLP encoded as RLP lists.
+|---|---|
+|BOOL|is encoded as an RLP encoded integer with length of one byte|
+|OCTET|is encoded as an RLP encoded integer with length of one byte|
+|TIMESTAMP|is encoded as an RLP encoded variable length integer|
+|\%x\#\#|hexadecimal literals are encoded as encoded integers with length of one byte, corresponding to its hexadecimal (not its string) value|
+|LIST|as defined in [1.1.3] will be RLP encoded as RLP lists|
+|---|---|
 
 All other data is encoded as RLP lists.
 
