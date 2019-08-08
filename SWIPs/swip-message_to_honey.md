@@ -33,8 +33,7 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 * The `MsgToHoneyPrice` contract will be initially owned by an M/N multi-sig of Swarm developers and stakeholders.
 * Upon receiving/sending of a message, a node checks his local database if his cached price is valid. If not, the node will query the price oracle to get the current price. The node will apply the current price to the balance of his peer. (see diagram below)
 * Nodes expect other nodes to apply the same price as they do themselves. Due to the asynchronicity of the network, this will not necessarily be true around the period that prices are updated, which causes accounting dust (pollen) to be collected. This SWIP does not facilitate a solution for this, as the expected amount of pollen is not high enough to cause disruptions in the network. 
-* The design of the oracle, as well as the interaction with the oracle should be designed in such a way as to minimize the interaction of swarm nodes and the oracle maintainers with the oracle. A design proposal is clarified under the header `Technical details`
-* If the oracle does not list a new price or cannot be reached while the old price is expired, nodes will apply the latest chached price. (see diagram below)
+* The design of the oracle, as well as the interaction with the oracle should be designed in such a way as to minimize the interaction of swarm nodes and the oracle maintainers with the oracle. A design proposal is clarified under the header `Technical details`, and a high-level diagram is provided below. 
 ![message_pricing.svg](./../assets/swip-message_to_honey/message_pricing.svg)
 
 ## Technical details
