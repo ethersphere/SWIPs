@@ -1,6 +1,5 @@
 ---
-swip: 
-title: Message to honey oracle
+Title: Honey to money oracle
 Author: Aron Fischer <aron@ethswarm.org>, Rinke Hendriksen <rinke@ethswarm.org>, Vojtech Simetka <vojtech@iovlabs.org>
 Discussions-to: URL will be provided
 Status: Draft
@@ -9,65 +8,43 @@ Category: Core
 Created: 31-07-2019
 ---
 
-<!--You can leave these HTML comments in your merged SWIP and delete the visible duplicate text guides, they will not appear and may be helpful to refer to if you edit it again. This is the suggested template for new SWIPs. Note that a SWIP number will be assigned by an editor. When opening a pull request to submit your SWIP, please use an abbreviated title in the filename, `SWIP-draft_title_abbrev.md`. The title should be 44 characters or less.-->
+## Simple summary 
+SWARM needs a mechanism to allow fluctuation of the exchange rate between honey (SWARMs internal accounting unit) and the currency used to pay. We propose an on-chain price oracle that returns an exchange rate + validUntil tuple.  
 
-## Simple summary
-<!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
-Nodes in the Swarm network can send various types of messages. Currently, the Swarm developers have limited data available to set the optimal price of these messages relative to each other and we expect to adjust the relative prices of messages based on advancing insights. It is important that an update of such prices happens simultaneously on all nodes in the network or otherwise accounting imbalances between nodes will come into existence, potentially severely harming the connectivity of the network. 
-An on-chain price oracle, managed by a multi-signature wallet of Swarm stakeholders provides a clean way for updating relative prices; the Swarm source code will never require an update but instead references the address of the oracle which updates its quoted prices at predictable times.
-This SWIP is part of a series of SWIPs (but can be implemented on it's own). To see the full picture, please refer to `paymentModule honeyToMoney SWIP links` and the diagram below:
-![SWIP_Diagrams.svg](./../assets/swip-message_to_honey/SWIP_Diagrams.svg)
+## Abstract 
+The ability to update prices is required in order to:
+* Facilitate experimentation with the absolute price of honey (e.g. start at a low price and gradually increase);
+* Off-set fluctuations of the currency used to pay;
+* Lower the price of SWARM in the long-run as the costs of operating a SWARM-node decreases.
 
-## Abstract
-<!--A short (~200 word) description of the technical issue being addressed.-->
-To enable changing the relative prices of Swarm messages for all nodes simultaneously, Swarm will provide a `msgToHoney` payment oracle, initially managed by Swarm stakeholders and developers. The `msgToHoney` oracle receives a message type and returns a price + validUntil tuple. The `msgToHoney` oracle lives on the Ethereum blockchain and is managed by a multi-signature of Swarm stakeholders and developers. Once nodes receive a message to account for, they will query their local database on whether they have a valid price for this message. If this is the case, the price will be applied by the node, if this is not the case, the nodes will query the `msgToHoney` oracle. The oracle provides a new price before the old price expires, to allow nodes to pre-load new prices before old ones expire. If the oracle fails to submit a new price, while the old price is expired, nodes will continue querying the `msgToHoney` oracle at a set interval and apply the most-recent price known to them. 
+We propose an on-chain price oracle that returns the current exchange rate when queried. The price-oracle will be initially managed by SWARM developers and stakeholders.
+
+This SWIP is part of a series of SWIPs (but can be implemented on it's own). To see the full picture, please refer to `paymentModule messageToHoney SWIP links` and the diagram below:
+![SWIP_Diagrams.svg](./../assets/swip-honey_to_money/SWIP_Diagrams.svg)
 
 ## Motivation
-<!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
-In Swarm, nodes send various types of messages; chunk requests, chunk delivery, PSS… to name a few. Every message is priced differently to reflect the different load such messages have on the system. To ensure optimal usage and health of the network it is essential that these prices are quoted relative to their load on the network. If this is not the case certain messages will be too cheap - causing a burden on service providers without sufficient compensation, while others will be too expensive - causing such messages to be less frequently send. The Swarm network must be used by real nodes to get insights on how messages should be priced relative to each other. Because of this, there is a need for an update process of the relative prices of messages on a live network. This update process should be atomic: either all nodes upgrade or none, which is currently not facilitated by the hardcoded values in the Swarm source code. Therefore, if in the current implementation price changes, nodes running different release version will account for messages differently. Eventually, this will result in disconnects due to balance differences between nodes who run different versions of the software. This SWIP proposes an on-chain price oracle to enable an atomic update process of message prices without requiring nodes to update their source-code. 
-
+Nodes keep track of the balances with each other nodes using an imaginary currency: honey. Since honey is not a currency in which nodes can settle their balances with each other - it is merely a unit of account - there is a requirement to facilitate converting honey to a currency (currently Ether). Furthermore, it is desirable that this conversion rate can fluctuate since:
+* The SWARM developers plan to initially set the price of honey very low and progressively increase this price to the point where it is sufficiently high to incentivize nodes to offer their service to the network while being low enough not to scare away potential users of SWARM. 
+* We expect the price of the counterpart currency to fluctuate in value against the costs of operating a SWARM node. As the real benefits (i.e. the worth of your compensation) of operating a SWARM node shouldn't fluctuate, the honey price should fluctuate inversely against the fluctuations of currency. If this happens, the real benefit stays equal, regardless of price fluctuations of the currency in which compensation is paid. 
+* The costs of operating a SWARM node is expected to decrease over time, the price of honey should decrease as well to reflect this. 
+This update process should be atomic: either all nodes upgrade or none. If we would update the prices in the SWARM source code (as is currently the case), it will affect that, while not all nodes are on the same release, nodes with By externalising the price to an oracle, we can completely decouple the basic functioning of Swarm - which is heavily focused on data availability, delivery, and security considerations - from the price discovery. By building support for price oracles, we can coordinate price changes across the network, and set the stage for future experimentation with various mechanisms for setting prices, from DAOs, to bonding curves, to fixed prices. This SWIP makes no recommendation for the eventual pricing mechanism, it only prepares the network for adopting them in future.
+an old release expect a settlement of honey to be worth a different amount in currency. Eventually, this will result in nodes who run different versions of the software to disconnect from each other as the difference in prices will cause balances to be updated differently on each node. This SWIP proposes an on-chain price oracle to enable an atomic update process of honey prices without requiring nodes to update their source-code. 
 ## Specification
-<!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
-* The Swarm source-code references the address of a smart-contract which acts as a honey pricing oracle for messages.
-* The price oracle implements the `MsgToHoneyPrice` interface (to-be specified) 
-* The `MsgToHoneyPrice` contract will be initially owned by an M/N multi-sig of Swarm developers and stakeholders.
-* Upon receiving/sending of a message, a node checks his local database if his cached price is valid. If not, the node will query the price oracle to get the current price. The node will apply the current price to the balance of his peer. (see diagram below)
-* Nodes expect other nodes to apply the same price as they do themselves. Due to the asynchronicity of the network, this will not necessarily be true around the period that prices are updated, which causes accounting dust (pollen) to be collected. This SWIP does not facilitate a solution for this, as the expected amount of pollen is not high enough to cause disruptions in the network. 
-* The design of the oracle, as well as the interaction with the oracle should be designed in such a way as to minimize the interaction of swarm nodes and the oracle maintainers with the oracle. A design proposal is clarified under the header `Technical details`
-* If the oracle does not list a new price or cannot be reached while the old price is expired, nodes will apply the latest chached price. (see diagram below)
-![message_pricing.svg](./../assets/swip-message_to_honey/message_pricing.svg)
-
-## Technical details
-This section describes the interaction between the nodes and the oracle in more detail. It is by no means an indication on how this feature should be implemented, the final design and implementation will be agreed upon with the community and it could differ completely from what is described here.
-* Querying the oracle will return a `honeyPrices` object, specifying a `Time to Live (TTL)`in seconds and an array of `price` objects, each index specifying a `validFrom` field as an UTCDate and all messages with their respective prices. Taken together, the oracle returns: `{honeyPrices: {TTL, prices: [{validFrom, msgPrices[]}]}}`
-* After `TTL` expires, nodes will query the price oracle for a new honeyPrices object. 
-* The `TTL` is set as a state-variable in the smart-contract and can be updated.
-* To ensure that it is not possible that a new entry in the `prices` array becomes valid, while not all nodes are updated, the smart-contract or update-policy must ensure that the `validFrom` of new prices musI can also just give it to you, you can read it and update your PR yourself
-t be at least `TTL` seconds in the future. Furthermore, if the oracle maintainers decide to add more than one entry in the `prices` array, the difference between `validFrom` at index `n` and validFrom at index `n+1` must be at least equal to the `TTL` seconds in the future.
-* Upon start-up, nodes will look at the contents of their local database and query the price oracle if no `honeyPrices` object is found, or the `TTL` of their cached `honeyPrices` object has expired. 
-* If the oracle cannot be reached when the `TTL` of the last `honeyPrices` object is expired, nodes will continue to apply the `prices` as instructed by the expired `honeyObject` and will start to query the oracle at a more regular interval to re-establish connection. 
-
-New price will be published into the oracle prior to the expiry of the last price such that each node has to check the price oracle at least twice before it is applied (=the announcencement of new price happens at least 2x of the price's Time To Live (TTL) period).
-
-
-the existing code and provides suggestions on how it could be modified to achieve the end goal of this SWIP. It is by no means an indication on how this feature should be implemented, the final design and implementation will be agreed with the community and it could differ completely from what it is described here.
+* The SWARM source will reference the address of a honeyToMoney price oracle
+* The price oracle implements the HoneyToMoney interface (to-be specified) 
+* The HoneyToMoney contract will be initially owned by an M/N multi-sig of SWARM developers and stakeholders.
+* Before sending a payment (denominated in currency), a node will query the honeyToMoney price oracle to get the most up-to-date price conversion. 
+* Upon receiving of payment, nodes will request the honey amount of this payment by looking up the quoted value of the oracle at the time in which the payment was received. This might cause payment imbalances between nodes, as the oracle might be queried one or several blocks before the transaction was sent. To avoid this situation, we propose that nodes include a payload with the transaction, specifying the time at which the oracle was queried.
 
 ## Rationale
-<!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
-No alternative solutions to updating the *relative* message pricing was considered. Noteworthy is perhaps to look at how op-code prices (in gas) are updated in Ethereum. Also here, it concerns relative prices and the developers are tweaking the gas-prices almost every hard-fork (see [opcode re-price discussion](https://ethereum-magicians.org/t/opcode-repricing/3024)). Using an oracle, updatable by a multi-signature of Swarm developers effectively also allows the developers to set prices (just as they do with ether opcodes). However, the ethereum opcode upgrade mechanism must also be approved by the majority of the hashing power of the Ethereum network (to have a succesfull hard-fork). This check is missing in the current design for `messageToHoney` price oracles. 
+We need a way for prices in the Swarm to change over time. However, due to the nature of Swarm - specifically independent connections between pairs of nodes each with their individual accounting and payments - there is no clear price discovery mechanism. Furthermore, since Swarm nodes are expected to be conduits for both payments and data (buy from one peer and sell to the other) it is necessary for nodes to coordinate price changes with all their peers. In short, we need a mechanism for network-wide changes in pricing that the peer-to-peer routing and accounting does not provide.
+By externalising the price to an oracle, we can completely decouple the basic functioning of Swarm - which is heavily focused on data availability, delivery, and security considerations - from the price discovery. By building support for price oracles, we can coordinate price changes across the network, and set the stage for future experimentation with various mechanisms for setting prices, from DAOs, to bonding curves, to fixed prices. This SWIP makes no recommendation for the eventual pricing mechanism, it only prepares the network for adopting them in future.
 
 ## Backwards Compatibility 
-<!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
-This SWIP is backward compatible as long as the price oracle quotes the same prices as listed in the price matrix of the non-upgraded Swarm nodes. It is up to the owner of the MsgToHoney oracle to ensure that he does not update prices too much while not all nodes run are on the new Swarm. Currently, the Swarm is not running with a live test net for settling prices, so we expect no problems with this SWIP if it is implemented before the Swarm will go live with price-incentivization. 
-
-## Test Cases 
-<!--Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.-->
-No test cases for this SWIP are provided at this moment.
-
-## Implementations
-<!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
-The 
-
-
+This SWIP is backward compatible as long as the price oracle quotes the same prices as is currently hard-coded in non-upgraded SWARM nodes. It is up to the owner of the MsgToHoney oracle to ensure that he does not update prices too much while not all nodes run are on the new SWARM. Currently, the SWARM is not running with a live test net for settling prices, so we expect no problems with this SWIP if it is implemented before the SWARM will go live with price-incentivization. 
+Test Cases
+Not currently available
+## Implementations 
+Not currently available
 ## Copyright Waiver
  Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
