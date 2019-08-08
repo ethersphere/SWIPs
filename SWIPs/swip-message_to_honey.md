@@ -38,11 +38,18 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 
 ## Technical details
 This section describes the interaction between the nodes and the oracle in more detail. It is by no means an indication on how this feature should be implemented, the final design and implementation will be agreed upon with the community and it could differ completely from what is described here.
-* Querying the oracle will return a `honeyPrices` object, specifying a `Time to Live (TTL)`in seconds and an array of `price` objects, each index specifying a `validFrom` field as an UTCDate and all messages with their respective prices. Taken together, the oracle returns: `{honeyPrices: {TTL, prices: [{validFrom, msgPrices[]}]}}`
+* Querying the oracle will return a `honeyPrices` object, specifying a `Time to Live (TTL)`in seconds and an array of `price` objects, each index specifying a `validFrom` field as an UTCDate and all messages with their respective prices. Taken together, the oracle returns: 
+```typescript
+{honeyPrices: 
+  {
+    TTL, 
+    prices: [0: {validFrom, msgPrices[]} n:{...}]
+  }
+}
+```
 * After `TTL` expires, nodes will query the price oracle for a new honeyPrices object. 
 * The `TTL` is set as a state-variable in the smart-contract and can be updated.
-* To ensure that it is not possible that a new entry in the `prices` array becomes valid, while not all nodes are updated, the smart-contract or update-policy must ensure that the `validFrom` of new prices musI can also just give it to you, you can read it and update your PR yourself
-t be at least `TTL` seconds in the future. Furthermore, if the oracle maintainers decide to add more than one entry in the `prices` array, the difference between `validFrom` at index `n` and validFrom at index `n+1` must be at least equal to the `TTL` seconds in the future.
+* To ensure that it is not possible that a new entry in the `prices` array becomes valid, while not all nodes are updated, the smart-contract or update-policy must ensure that the `validFrom` of new prices must be at least `TTL` seconds in the future.
 * Upon start-up, nodes will look at the contents of their local database and query the price oracle if no `honeyPrices` object is found, or the `TTL` of their cached `honeyPrices` object has expired. 
 * If the oracle cannot be reached when the `TTL` of the last `honeyPrices` object is expired, nodes will continue to apply the `prices` as instructed by the expired `honeyObject` and will start to query the oracle at a more regular interval to re-establish connection. 
 
@@ -56,8 +63,7 @@ This SWIP is backward compatible as long as the price oracle quotes the same pri
 
 ## Test Cases 
 <!--Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.-->
-No test cases for this SWIP are provided at this moment.
-
+No test cases for this SWIP are provided at this moment
 ## Implementations
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
 No implementation for this SWIP is provided at this moment.	
