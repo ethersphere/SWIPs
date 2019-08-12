@@ -7,13 +7,13 @@ type: General
 created: 2019-08-02
 ---
 
-## abstract
+## Abstract
 
-This SWIP defines pseudo data types for use in Swarm protocol specifications.
+This SWIP defines pseudo data types for use in Swarm protocol specifications, and their serialization to RLP.
 
-## motivation
+## Motivation
 
-To describe protocols in our specifications, we are in need of a strongly defined way of describing data types and their serializations to RLP.
+To describe protocols in our specifications, we are in need of a strongly defined way of describing data types and their serializations to RLP. RLP is the relevant format in this case, as it is the serialization format currently being used in devp2p, and Swarm is currently based on devp2p.
 
 RLP does not have "types" as such, just self-describing data units whose length is serially interpreted. Hence it is for example not possible to define a number value range merely in terms of RLP constructs.
 
@@ -64,7 +64,7 @@ All other data is encoded as RLP lists.
 
 The outermost element of a serialization is always a LIST item [^1]
 
-## example
+### example
 
 A message structure with only one field of `3OCTET` data will in
 *reality* be `LIST(3OCTET)`. If the data is `0x666f6f` it will serialize
@@ -75,3 +75,19 @@ LIST:   0xc4 (list, 4 bytes long)
 3OCTET: 0x83 (string, 3 bytes long)
 data:   0x66 0x6f 0x6f
 ```
+
+## Backwards Compatibility
+
+There are no compatibility issues.
+
+## Test Cases
+
+There are no relevant test cases.
+
+## Implementation
+
+Any future SWIP defining Swarm protocols.
+
+## Copyright
+
+Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
