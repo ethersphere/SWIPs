@@ -15,8 +15,6 @@ Adaptive node operation means a node should be able to change the capabilities i
 
 The peers of the node may need to adjust their behavior towards the node when these capabilities change. Therefore, a protocol is required to inform the peers of changes in capabilities.
 
-The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.
-
 ## Specification
 
 Upon initial connection, capabilities can be transmitted already within the handshake message.
@@ -113,7 +111,7 @@ The second block of changes implements an API to add capabilities to the node.
 
 Edit and remove operations will not be implemented until the underlying node implementation can accommodate changing capabilities on the fly.
 
-## COPYRIGHT WAIVER
+## Copyright
 
 Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/)
 
