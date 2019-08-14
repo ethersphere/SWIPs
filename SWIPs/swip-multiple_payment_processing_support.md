@@ -20,6 +20,7 @@ This SWIP proposes decoupling the accounting for services provided via Swarm fro
 To allow multiple payment modules to co-exist on the same network, nodes must be able to come to an agreement on which payment module (or modules) to use. We propose a mechanism for nodes to indicate these preferences during handshake; such preferences should be normalized and weighed. Furthermore, there must be a fallback option provided for the payment module to ensure that nodes can always connect. Finally, there should be a mechanism for each node to keep track of the payment methods negotiated with its peers.
 
 This SWIP is part of a series of SWIPs (but can be implemented on its own). To see the full picture, please refer to [swip-message_to_honey](./swip-message_to_honey.md), [swip-honey_to_money](./swip-honey_to_money.md) and the diagram below:
+
 ![SWIP_Diagrams.svg](./../assets/multiple-payment_processing_support/SWIP_Diagrams.svg)
 
 ## Abstract
@@ -92,7 +93,7 @@ type Balance interface {
 }
 ```
 
-```Swap``` (as defined in swap/protocol.go) is an implementation of this interface and among the list of meesages supported by its ```Spec``` there is the ```EmitChequeMsg``` message:
+```Swap``` (as defined in swap/protocol.go) is an implementation of this interface and among the list of messages supported by its ```Spec``` there is the ```EmitChequeMsg``` message:
 
 ```golang
 // Spec is the swap protocol specification
@@ -107,34 +108,44 @@ var Spec = &protocols.Spec{
 }
 ```
 
-When received, this message is handled by the ```handleEmitChequeMsg``` function of the Swap devp2p ```Peer``` defined in ```swap/peer.go```:
+When received, this message is handled by the ```handleEmitChequeMsg``` function defined in ```swap/swap.go```:
 
 ```golang
-func (sp *Peer) handleEmitChequeMsg(ctx context.Context, msg interface{}) error 
+func (s *Swap) handleMsg(p *Peer) func(ctx context.Context, msg interface{}) error
 ```
 
-This function performs the accounting and the payment steps tightly coupled to Swap, making it difficult to support different settlement strategies. 
+The ```handleEmitChequeMsg``` function executes the accounting and payment processing required by Swap, tightly coupling both operations.
 
-The ```handleMsg``` function defined in ```swap/peer.go``` should delegate the processing of ```EmitChequeMsg``` to a component or service (from now on ```SwarmPayments```) which provides access to the payment modules supported by the node receiving the message, thus decoupling Swarm from payment processing. We refer to the concrete payment module implementation as a ```PaymentProcessor```. The existing code for ```handleEmitChequeMsg``` will become part of the SWAP ```PaymentProcessor```. The ```handleMsg``` function could be redefined as:
+In the current codebase ```Swap``` is a member of the ```Peer``` struct defined in ```swap/peer.go```: 
 
 ```golang
-// handleMsg is for handling messages when receiving messages
-func (sp *Peer) handleMsg(ctx context.Context, msg interface{}) error {
-	switch msg := msg.(type) {
-
-	case *EmitPaymentMsg:
-		return sp.payments.emitPayment(ctx, msg)
-
-	case *ErrorMsg:
-		return sp.handleErrorMsg(ctx, msg)
-
-	default:
-		return fmt.Errorf("unknown message type: %T", msg)
-	}
+// Peer is a devp2p peer for the Swap protocol
+type Peer struct {
+	*protocols.Peer
+	swap               *Swap
+	backend            contract.Backend
+	beneficiary        common.Address
+	contractAddress    common.Address
+	lastReceivedCheque *Cheque
 }
 ```
 
-where the ```sp.payments``` member of the ```Peer``` struct holds the ```SwarmPayments``` component described previously. ```SwarmPayments``` is responsible to hold the particular ```PaymentProcessor``` implementations supported by the node and a mapping of:
+One option is to move the accounting responsibilities from ```Swap``` to a new component (from now on ```Accounting```), introduce it as a new member of the ```Peer``` struct and add a new collaborator on which we can delegate the payment processing. This collaborator (from now on ```SwarmPayments```) will provide access to the supported payment modules, being Swarm one of such modules. This design decouples the accounting from the payment processing. We refer to the concrete payment module implementations as a ```PaymentProcessor```s.
+
+```golang
+// Peer is a devp2p peer for the Swap protocol
+type Peer struct {
+	*protocols.Peer
+	accounting         *Accounting
+	payments           *SwarmPayments
+	backend            contract.Backend
+	beneficiary        common.Address
+	contractAddress    common.Address
+	lastReceivedCheque *Cheque
+}
+```
+
+The ```payments``` member of the ```Peer``` struct holds the ```SwarmPayments``` component described previously, which is responsible to hold the particular ```PaymentProcessor``` implementations supported by the node and a mapping of:
 
 * Peer (beneficiary) addressess.
 * The currency to use.
@@ -142,7 +153,7 @@ where the ```sp.payments``` member of the ```Peer``` struct holds the ```SwarmPa
 
 The use (if required) of a price oracle will be handled internally by the ```PaymentProcessor```.
 
-The ```Cheque```and ```ChequeParams``` defined in ```swap/types.go``` should be more general to allow ```PaymentProcessor```s to generate the required data structures for the specific payment implementation (e.g. Balance Proof, in the case of payment channels). The current implementations of ```Cheque``` and ```ChequeParams``` should be part of the SWAP ```PaymentProcessor```. For clarity they could be renamed to ```Payment``` and ```PaymentParams```, respectively.
+The ```Cheque```and ```ChequeParams``` defined in ```swap/types.go``` should be made more general to allow ```PaymentProcessor```s to generate the required data structures for the specific payment implementation (e.g. Balance Proof, in the case of payment channels). The current implementations of ```Cheque``` and ```ChequeParams``` should be part of the SWAP ```PaymentProcessor```. For clarity they could be renamed to ```Payment``` and ```PaymentParams```, respectively.
 
 ```golang
 // PaymentParams encapsulate all payment parameters
