@@ -39,12 +39,12 @@ Storage providers might want to be compensated with a different currency (e.g. a
 
 Finally, new users of Swarm could bootstrap its participation in a payment channel network by providing storage services with zero cost of entry, as described in [Generalised Swap Swear and Swindle games (Tron & Fischer, 2019).](https://www.sharelatex.com/read/yszmsdqyqbvc) 
 
-When it becomes possible for nodes to set their preference for a payment module, developers will be incentivized to implement payment modules on Swarm as it will be easy for users to choose to pay with this module. It will also seamlessly enable multicurrency support and foster interoperation across blockchains without forcing participants to be tied to a single Blockchain or settlement technology.
+When it becomes possible for nodes to set their preference for a payment module, developers will be incentivized to implement payment modules on Swarm as it will be easy for users to choose to pay with this module. It will also seamlessly enable multicurrency support and foster interoperation across Blockchains without forcing participants to be tied to a single Blockchain or settlement technology.
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
 
-At high level a payment module sents to a recipient (a peer providing storage services) an amount of honey to cover the costs of the services provided. How payments are actually performed will depend on the specific implementation of the payment module. The payment module is then responsible for:
+At high level a payment module sends to a recipient (a peer providing storage services) an amount of honey to cover the costs of the services provided. How payments are actually performed will depend on the specific implementation of the payment module. The payment module is then responsible for:
 
 * Resolving the conversion from honey to money (currently by querying the agreed-upon price oracle with the recipient).
 * Ensuring that the user can engage in SWAP accounting for the chosen payment module before payment is due.
@@ -69,7 +69,7 @@ Nodes should be allowed to specify their payment preferences and indicate which 
 The following is an example of the proposed configuration:
 
 ```yaml
-# How important a dimension is for the node at the moment of negotiating with a peer the payment mecanism to use
+# How important a dimension is for the node at the moment of negotiating with a peer the payment mechanism to use
 dimensions:
 	currency: 70
 	provider: 20
@@ -83,49 +83,45 @@ payments:
 	rif:
 		weight: 35
 		providers:
-			1: Lumino
-			2: Raiden
+			Lumino:
+				weigth: 10
+			Raiden:
+				weight: 50
 		oracles:
-			1: OracleA
-			2: OracleB
-			3: OracleC
-
+			OracleA:
+			OracleB:
+			OracleC:
 	xdai:
 		weight: 10
 		providers:
-			1: Lumino
-			2: Raiden
+			Lumino: 1
 		oracles:
-			1: OracleB
-			2: OracleD
-
-	xdai:
-		weight: 10
-		providers:
-			1: Lumino
-		oracles:
-			1: OracleA
-
+			OracleA: 1
 	dai:
 		weight: 5
 		providers:
-			1: Raiden
+			Raiden:
+				weight: 80
 		oracles:
-			1: OracleC
-			2: OracleE
-
+			OracleC: 
+				weight: 30
+			OracleE:
+				weight: 20
 	eth:
 		weight: 40
 		providers:
-			1: Swap
+			Swap:
+				weight: 35
 		oracles:
-			1: OracleB
-			2: OracleE
+			OracleB:
+				weight: 90
+			OracleE:
+				weight: 10
 ```
 
 The selection algorithm during handshake works like this:
 
-1. Base on the node configuration generate triplets of the form ```[currency, provider, oracle]``` and assign to the triplet the corresponding weight from the config file.
+1. Based on the node configuration generate triplets of the form ```[currency, provider, oracle]``` and assign to the triplet the corresponding weight from the config file.
 2. Exchange the generated triplets with the peer.
 3. Each peer will eliminate triplets they don't have in common.
 4. Compute the weighted preference of each remaining triplet from node A and node B as:
