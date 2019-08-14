@@ -81,43 +81,50 @@ dimensions:
 # higher preference over Raiden. 
 payments:
 	rif:
-		weight: 35
+		weight: 36
 		providers:
-			Lumino:
+			lumino:
+				weigth: 15
+			raiden:
+				weight: 45
+		oracles:
+			oracleA:
 				weigth: 10
-			Raiden:
-				weight: 50
-		oracles:
-			OracleA:
-			OracleB:
-			OracleC:
+			oracleB:
+				weigth: 70
+			oracleC:
+				weigth: 60
 	xdai:
-		weight: 10
+		weight: 9
 		providers:
-			Lumino: 1
+			Lumino: 
+				weigth: 10
 		oracles:
-			OracleA: 1
+			oracleA: 
+				weight: 20
 	dai:
 		weight: 5
 		providers:
-			Raiden:
+			raiden:
 				weight: 80
 		oracles:
-			OracleC: 
+			oracleC: 
 				weight: 30
-			OracleE:
+			oracleE:
 				weight: 20
 	eth:
 		weight: 40
 		providers:
-			Swap:
+			swap:
 				weight: 35
 		oracles:
-			OracleB:
+			oracleB:
 				weight: 90
-			OracleE:
+			oracleE:
 				weight: 10
 ```
+
+It's important to mention that weights can be any numeric value and that they are normalized.
 
 The selection algorithm during handshake works like this:
 
@@ -127,14 +134,35 @@ The selection algorithm during handshake works like this:
 4. Compute the weighted preference of each remaining triplet from node A and node B as:
 
 	```golang
-	weightedPreference := [dimensions.coin * triplet[n].weight + dimensions.provider * 1/pos(triplet[n].provider) + dimensions.oracle * 1/pos(triplet[n].oracle)]
+	weightedPreference := normalized(dimensions.coin) * normalized(triplet[n].weight) + 
+						normalized(dimensions.provider) * normalized(triplet[n].provider.weight) + 
+						normalized(dimensions.oracle) * normalized(triplet[n].oracle.weight)
 	```
 	
-	as an example let's assume node A has a triplet [rif, lumino, oracleB] with assigned weight 35. The coin, provider and oracle dimensions are 70, 20 and 10 respectively, Lumino is the first provider preference and oracleB is the second oracle preference. Then the ```weightedPreference``` for this triplet is:
+	as an example let's take from the previous configuration the ```rif``` entry. From that entry we can build the triplet [rif, lumino, oracleB] with an assigned weight of 36. The coin, provider and oracle dimensions are 70, 20 and 10 respectively, Lumino has a weight of 15 and oracleB has a weight of 70. 
+
+	Normalizing the dimensions (dividing each value by the sum of all values), we have:
+
+
+	***Sum of all dimension values = 100***
+	* Normalized currency dimension: 70 / 100 = 0.7
+	* Normalized provider dimension: 20 / 100 = 0.2
+	* Normalized oracle dimension: 10 / 100 = 0.1
+
+	***Sum of all currency weights = 90***
+	* RIF normalized weight = 36 / 90 = 0.4
+
+	***Sum of all provider weights for RIF = 60***
+	* Lumino normalized weight = 15 / 60 = 0.25
+
+	***Sum of all oracle weights for RIF = 140***
+	* oracleB normalized weight = 70 / 140 = 0.5
+
+	Then the ```weightedPreference``` for this triplet is:
 
 	```golang
-    weightedPreference := [70 * 35 + 20 * 1 + 10 * 1/2] // then
-	weightedPreference := 2475
+    weightedPreference := [0.7 * 0.4 + 0.2 * 0.25 + 0.1 * 0.5] // then
+	weightedPreference := 0.38
 	```
 
 5. Add the weights of matching triplets from A and B and keep the one with the highest cumulative preference value:
@@ -143,7 +171,15 @@ The selection algorithm during handshake works like this:
 	max(weightedPreference for triplet[n] from A + weightedPreference for triplet[n] from B)
 	```
 
-6. If there are no match between the triplets from A and the triplets from B then the fallback option for each dimension of the triplet will be used by the peers:
+6. If there are more than one triplet with the same ```weightedPreference``` value, both nodes will compute for each colliding triplet a tie breaker as follows:
+
+	```golang
+	tieBreaker := hash(triplet.coin || triplet.provider || triplet.oracle)
+	```
+	
+	and then each node will select the triplet with the minimum ```tieBreaker``` value.
+
+7. If there are no match between the triplets from A and the triplets from B then the fallback option for each dimension of the triplet will be used by the peers:
 
 	| Dimension  | Fallback option |
 	| ---------- | --------------- |
