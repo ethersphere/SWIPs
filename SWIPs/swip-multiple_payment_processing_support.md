@@ -137,7 +137,7 @@ The selection algorithm during handshake works like this:
 	as an example let's assume node A has a triplet [rif, lumino, oracleB] with assigned weight 35. The coin, provider and oracle dimensions are 70, 20 and 10 respectively, Lumino is the first provider preference and oracleB is the second oracle preference. Then the ```weightedPreference``` for this triplet is:
 
 	```golang
-	weightedPreference := [70 * 35 + 20 * 1 + 10 * 1/2] // then
+    weightedPreference := [70 * 35 + 20 * 1 + 10 * 1/2] // then
 	weightedPreference := 2475
 	```
 
@@ -149,11 +149,11 @@ The selection algorithm during handshake works like this:
 
 6. If there are no match between the triplets from A and the triplets from B then the fallback option for each dimension of the triplet will be used by the peers:
 
-| Dimension  | Fallback option |
-| ---------- | --------------- |
-| Currency to use | Wei (Ether)                    |
-| Price oracle    | HonMon oracle <SWIP reference> |
-| Payment method  | Chequebook contract            |
+	| Dimension  | Fallback option |
+	| ---------- | --------------- |
+	| Currency to use | Wei (Ether)                    |
+	| Price oracle    | HonMon oracle <SWIP reference> |
+	| Payment method  | Chequebook contract            |
 
 Please refer to the picture below to see how preferences are resolved during the handshake:
 
