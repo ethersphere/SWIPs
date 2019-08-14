@@ -44,26 +44,110 @@ When it becomes possible for nodes to set their preference for a payment module,
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
 
-At a high level a payment module is responsible for:
+At high level a payment module sents to a recipient (a peer providing storage services) an amount of honey to cover the costs of the services provided. How payments are actually performed will depend on the specific implementation of the payment module. The payment module is then responsible for:
 
-* Accepting an amount (in honey) and a recipient.
 * Resolving the conversion from honey to money (currently by querying the agreed-upon price oracle with the recipient).
 * Ensuring that the user can engage in SWAP accounting for the chosen payment module before payment is due.
-* Sending the recipient a payment.
-* Returning true when the payment was successful.
-* Returning false when the payment was not successful.
-* Verifying any on-chain conditions and making sure that they don't change within a reasonable time window after the transaction happens (due to block reorganizations / payment-module specific conditions)
-* Referencing a type, version and base currency 
+* Sending a payment to the recipient.
+* Handling any potential errors.
+* Verifying any on-chain conditions and making sure that they don't change within a reasonable time window after the transaction happens (due to block reorganizations / payment-module specific conditions).
 * Optionally exposing other methods such as querying balances, topping up balances or sending payments (outside of Swarm). 
 
-Nodes can specify their preference for both payment module, as well as price oracle in a list in a configuration file. The preferences are normalized and weighted.
-For any preference list, the chosen option will be the option which has the highest cumulative preference. The preference list has three dimensions, which will be resolved from high to low:
+Payment module negotiation can occur either during handshake or at a later time, since the payment module is only needed when peers need to balance their debts (i.e. when the payment threshold is reached). Negotiating the payment module only when needed will help to reduce the network load when nodes build up a connection. The disadvantage is that it will be unclear in which currency nodes will going to get paid until they engage in the payment module negotiation. The fallback mechanism ensures that nodes will always be able to issue payments to balance their debts.
+
+Experimentation is needed to determine the best time for nodes to engage in payment module negotiation.
+
+### Multiple payment modules support
+When allowing multiple payment modules, it is essential for nodes to communicate their preference. There are three dimensions to take into consideration for the payment preference:
 
 1. Currency to use
 2. Price oracle to use
 3. Payment method to use
 
-Nodes must be able to reach an agreement in any dimension of the preference list, or the fallback option for each dimension of the preference list will be chosen:
+Nodes should be allowed to specify their payment preferences and indicate which dimension (or dimensions) will have the biggest impact when negotiating the payment mechanism to use with their peers.
+
+The following is an example of the proposed configuration:
+
+```yaml
+# How important a dimension is for the node at the moment of negotiating with a peer the payment mecanism to use
+dimensions:
+	currency: 70
+	provider: 20
+	oracle: 10
+
+# Supported payment options by the node.
+# A payment is defined by a currency, the weight (preference) for such currency and the preferred providers and oracles.
+# Provider preference for a given currency is defined by the order of the provider. As an example, for the rif currency Lumino has a  
+# higher preference over Raiden. 
+payments:
+	rif:
+		weight: 35
+		providers:
+			1: Lumino
+			2: Raiden
+		oracles:
+			1: OracleA
+			2: OracleB
+			3: OracleC
+
+	xdai:
+		weight: 10
+		providers:
+			1: Lumino
+			2: Raiden
+		oracles:
+			1: OracleB
+			2: OracleD
+
+	xdai:
+		weight: 10
+		providers:
+			1: Lumino
+		oracles:
+			1: OracleA
+
+	dai:
+		weight: 5
+		providers:
+			1: Raiden
+		oracles:
+			1: OracleC
+			2: OracleE
+
+	eth:
+		weight: 40
+		providers:
+			1: Swap
+		oracles:
+			1: OracleB
+			2: OracleE
+```
+
+The selection algorithm during handshake works like this:
+
+1. Base on the node configuration generate triplets of the form ```[currency, provider, oracle]``` and assign to the triplet the corresponding weight from the config file.
+2. Exchange the generated triplets with the peer.
+3. Each peer will eliminate triplets they don't have in common.
+4. Compute the weighted preference of each remaining triplet from node A and node B as:
+
+	```golang
+	weightedPreference := [dimensions.coin * triplet[n].weight + dimensions.provider * 1/pos(triplet[n].provider) + dimensions.oracle * 1/pos(triplet[n].oracle)]
+	```
+	
+	as an example let's assume node A has a triplet [rif, lumino, oracleB] with assigned weight 35. The coin, provider and oracle dimensions are 70, 20 and 10 respectively, Lumino is the first provider preference and oracleB is the second oracle preference. Then the ```weightedPreference``` for this triplet is:
+
+	```golang
+	weightedPreference := [70 * 35 + 20 * 1 + 10 * 1/2] // then
+	weightedPreference := 2475
+	```
+
+5. Add the weights of matching triplets from A and B and keep the one with the highest cumulative preference value:
+
+	```golang
+	max(weightedPreference for triplet[n] from A + weightedPreference for triplet[n] from B)
+	```
+
+6. If there are no match between the triplets from A and the triplets from B then the fallback option for each dimension of the triplet will be used by the peers:
 
 | Dimension  | Fallback option |
 | ---------- | --------------- |
