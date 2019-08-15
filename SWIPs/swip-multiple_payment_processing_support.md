@@ -33,9 +33,9 @@ Incorporating the required abstractions to support payment modules will require 
 
 ## Motivation
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
-Currently, Swarm is implementing the chequebook contract (with a base currency of Ether) to allow nodes to receive payments without doing on-chain transactions. While the chequebook contract is beautiful in its simplicity, it is expected that users of Swarm might prefer a different way of compensation for their services provided, especially if they are already participating in a payment network (e.g. Lumino, Raiden or Lightning network). 
+Currently, Swarm is implementing the chequebook contract (with a base currency of Ether). While the chequebook contract is beautiful in its simplicity, it is expected that users of Swarm might prefer a different way of compensation for their services provided, especially if they are already participating in a payment network (e.g. Lumino, Raiden or Lightning network). 
 
-Storage providers might want to be compensated with a different currency (e.g. an ERC20 token) or they might want to settle their payment using a different blockchain. Furthermore, a storage provider offering other paid services will find it appealing not to be forced to support multiple payment systems, but being able to consolidate the payments received under a single technology.
+Furthermore, storage providers might want to be compensated with a different currency or they might want to settle their payment using a different Blockchain altogether. 
 
 Finally, new users of Swarm could bootstrap its participation in a payment channel network by providing storage services with zero cost of entry, as described in [Generalised Swap Swear and Swindle games (Tron & Fischer, 2019).](https://www.sharelatex.com/read/yszmsdqyqbvc) 
 
@@ -43,153 +43,145 @@ When it becomes possible for nodes to set their preference for a payment module,
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
+### Generic payment module
+At high level a payment module is responsible for sending a payment to a recipient (a peer providing storage services) for services provided. How payments are actually performed will depend on the specific implementation of the payment module. The payment module is then responsible for:
 
-At high level a payment module sends to a recipient (a peer providing storage services) an amount of honey to cover the costs of the services provided. How payments are actually performed will depend on the specific implementation of the payment module. The payment module is then responsible for:
-
-* Resolving the conversion from honey to money (currently by querying the agreed-upon price oracle with the recipient).
-* Ensuring that the user can engage in SWAP accounting for the chosen payment module before payment is due.
+* Resolving the conversion from honey to money.
 * Sending a payment to the recipient.
+* Sending a message to the accounting module upon receipt of payment
+* Ensuring that the user can send payments with the chosen payment module before payment is due.
 * Handling any potential errors.
-* Verifying any on-chain conditions and making sure that they don't change within a reasonable time window after the transaction happens (due to block reorganizations / payment-module specific conditions).
 * Optionally exposing other methods such as querying balances, topping up balances or sending payments (outside of Swarm). 
 
+<<<<<<< HEAD
 Payment module negotiation can occur either during handshake or at a later time, since the payment module is only needed when peers need to balance their debts (i.e. when the payment threshold is reached). Negotiating the payment module only when needed will help to reduce the network load when nodes build up a connection. The disadvantage is that it will be unclear in which currency nodes will going to get paid until they engage in the payment module negotiation. The fallback mechanism ensures that nodes will always be able to issue payments to balance their debts.
 
 Experimentation is needed to determine the best time for nodes to engage in payment module negotiation.
 
 ### Multiple payment modules support
 When allowing multiple payment modules, it is essential for nodes to communicate their preference. There are three dimensions to take into consideration for the payment preference:
+=======
+### Allowing multiple payment modules
+When allowing multiple payment modules, it is essential for nodes to communicate their preference. There are three dimensions to take into consideration for the payment preference: 
+>>>>>>> review weighted payment preferences.
 
 1. Currency to use
 2. Price oracle to use
-3. Payment method to use
+3. Payment provider to use
 
-Nodes should be allowed to specify their payment preferences and indicate which dimension (or dimensions) will have the biggest impact when negotiating the payment mechanism to use with their peers.
+We propose a standardized way how to communicate these preferences and an algorithm to resolve any two preferences lists.
+
+For any dimension, nodes list the relative importance of them. Consequently, nodes specify their accepted options within each dimension. Importance is communicated through Swarm by any positive integer
 
 The following is an example of the proposed configuration:
 
 ```yaml
-# How important a dimension is for the node at the moment of negotiating with a peer the payment mechanism to use
+# The relative importance of each dimension for the node
 dimensions:
 	currency: 70
 	provider: 20
 	oracle: 10
 
 # Supported payment options by the node.
-# A payment is defined by a currency, the weight (preference) for such currency and the preferred providers and oracles.
-# Provider preference for a given currency is defined by the order of the provider. As an example, for the rif currency Lumino has a  
-# higher preference over Raiden. 
-payments:
+# A payment module is defined by a currency, provider and oracle. Weights are the associated preferences.
+currency:
 	rif:
-		weight: 36
+		weight: 40
 		providers:
 			lumino:
-				weigth: 15
+				weigth: 30
 			raiden:
-				weight: 45
+				weight: 70
 		oracles:
-			oracleA:
-				weigth: 10
-			oracleB:
+			rifOracleA:
 				weigth: 70
-			oracleC:
-				weigth: 60
+			rifOracleB:
+				weigth: 70
 	xdai:
-		weight: 9
+		weight: 15
 		providers:
 			Lumino: 
-				weigth: 10
+				weigth: 100
 		oracles:
-			oracleA: 
-				weight: 20
+			xdaiOracleA: 
+				weight: 100
 	dai:
 		weight: 5
 		providers:
 			raiden:
-				weight: 80
+				weight: 100
 		oracles:
-			oracleC: 
-				weight: 30
-			oracleE:
-				weight: 20
+			daiOracleA: 
+				weight: 66
+			daiOracleB:
+				weight: 34
 	eth:
 		weight: 40
 		providers:
 			swap:
-				weight: 35
+				weight: 100
 		oracles:
-			oracleB:
+			ethOracleA:
 				weight: 90
-			oracleE:
+			ethOracleB:
 				weight: 10
 ```
+This list is resolved by the following algorithm: 
 
-It's important to mention that weights can be any numeric value and that they are normalized.
-
-The selection algorithm during handshake works like this:
-
-1. Based on the node configuration generate triplets of the form ```[currency, provider, oracle]``` and assign to the triplet the corresponding weight from the config file.
-2. Exchange the generated triplets with the peer.
-3. Each peer will eliminate triplets they don't have in common.
-4. Compute the weighted preference of each remaining triplet from node A and node B as:
+1. Based on the node configuration generate a set of triplets in the form ```[currency, provider, oracle]``` 
+As an example let's take from the previous configuration the ```rif``` entry. From that entry we can build the triplets `[rif, lumino, rifOracleA]`, `[rif, lumino, rifOracleB]`, `[rif, raiden, rifOracleA]`, `[rif, raiden, rifOracleB]`, but triplets are generated for the other currencies as well. 
+2. Exchange the generated set of triplets with the peer.
+3. Keep the set of triplets which are common (intersection between tripletsA and tripletsB). If no common set exist, choose the fallback option
+4. Compute the weighted preference of each remaining triplet as:
 
 	```golang
-	weightedPreference := normalized(dimensions.coin) * normalized(triplet[n].weight) + 
-						normalized(dimensions.provider) * normalized(triplet[n].provider.weight) + 
-						normalized(dimensions.oracle) * normalized(triplet[n].oracle.weight)
+	weightedPreference := normalized(dimensions.currency) * normalized(triplet[n].weight)+
+	normalized(dimensions.provider) * normalized(triplet[n].provider.weight) + 
+	normalized(dimensions.oracle) * normalized(triplet[n].oracle.weight)
 	```
-	
-	as an example let's take from the previous configuration the ```rif``` entry. From that entry we can build the triplet [rif, lumino, oracleB] with an assigned weight of 36. The coin, provider and oracle dimensions are 70, 20 and 10 respectively, Lumino has a weight of 15 and oracleB has a weight of 70. 
+As an example, let's take the first generated triplet (`[rif, lumino, rifOracleA]`)
+The normalized dimensions and weights are: 
 
-	Normalizing the dimensions (dividing each value by the sum of all values), we have:
+***Sum of all dimension values = 100***
+* Normalized currency dimension: 70 / 100 = 0.7
+* Normalized provider dimension: 20 / 100 = 0.2
+* Normalized oracle dimension: 10 / 100 = 0.1
 
+***Sum of all currency weights = 100***
+* RIF normalized weight = 40 / 100 = 0.4
 
-	***Sum of all dimension values = 100***
-	* Normalized currency dimension: 70 / 100 = 0.7
-	* Normalized provider dimension: 20 / 100 = 0.2
-	* Normalized oracle dimension: 10 / 100 = 0.1
+***Sum of all provider weights for RIF = 100***
+* Lumino normalized weight = 30 / 100 = 0.3
 
-	***Sum of all currency weights = 90***
-	* RIF normalized weight = 36 / 90 = 0.4
+***Sum of all oracle weights for RIF = 140***
+* rifOracleA normalized weight = 70 / 140 = 0.5
 
-	***Sum of all provider weights for RIF = 60***
-	* Lumino normalized weight = 15 / 60 = 0.25
-
-	***Sum of all oracle weights for RIF = 140***
-	* oracleB normalized weight = 70 / 140 = 0.5
-
-	Then the ```weightedPreference``` for this triplet is:
+Then the ```weightedPreference``` for this triplet is:
+```golang
+  weightedPreference := [0.7 * 0.4 + 0.2 * 0.3 + 0.1 * 0.5]
+  weightedPreference := 0.39
+```
+5. Add the weights of matching triplets from A and B and choose the one with the highest cumulative preference value:
 
 	```golang
-    weightedPreference := [0.7 * 0.4 + 0.2 * 0.25 + 0.1 * 0.5] // then
-	weightedPreference := 0.38
+	max(weightedPreference for triplet[0] from A + weightedPreference for triplet[0] from B, ..., weightedPreference for triplet[N] from A + weightedPreference for triplet[N] from B )
 	```
+where n is the number of intersecting triplets from A and B. 
 
-5. Add the weights of matching triplets from A and B and keep the one with the highest cumulative preference value:
-
-	```golang
-	max(weightedPreference for triplet[n] from A + weightedPreference for triplet[n] from B)
-	```
-
-6. If there are more than one triplet with the same ```weightedPreference``` value, both nodes will compute for each colliding triplet a tie breaker as follows:
+6. If there is more than one triplet with the same ```weightedPreference``` value, both nodes will compute for each colliding triplet a tie breaker as follows:
 
 	```golang
 	tieBreaker := hash(triplet.coin || triplet.provider || triplet.oracle)
 	```
-	
-	and then each node will select the triplet with the minimum ```tieBreaker``` value.
+and then each node will select the triplet with the minimum ```tieBreaker``` value.
 
-7. If there are no match between the triplets from A and the triplets from B then the fallback option for each dimension of the triplet will be used by the peers:
+The fallback option is defined as:
 
 	| Dimension  | Fallback option |
 	| ---------- | --------------- |
 	| Currency to use | Wei (Ether)                    |
 	| Price oracle    | HonMon oracle <SWIP reference> |
 	| Payment method  | Chequebook contract            |
-
-Please refer to the picture below to see how preferences are resolved during the handshake:
-
-![Handshake.svg](./../assets/multiple-payment_processing_support/Handshake.svg)
 
 ### Technical details
 
