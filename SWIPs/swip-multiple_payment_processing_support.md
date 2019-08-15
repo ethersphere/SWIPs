@@ -43,10 +43,12 @@ When it becomes possible for nodes to set their preference for a payment module,
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
+
 ### Generic payment module
 At high level a payment module is responsible for sending a payment to a recipient (a peer providing storage services) for services provided. How payments are actually performed will depend on the specific implementation of the payment module. The payment module is then responsible for:
 
 * Resolving the conversion from honey to money.
+* Ensuring that the user can engage in SWAP accounting for the chosen payment module before payment is due.
 * Sending a payment to the recipient.
 * Sending a message to the accounting module upon receipt of payment
 * Ensuring that the user can send payments with the chosen payment module before payment is due.
@@ -60,7 +62,7 @@ When allowing multiple payment modules, it is essential for nodes to communicate
 2. Price oracle to use
 3. Payment provider to use
 
-We propose a standardized way how to communicate these preferences and an algorithm to resolve any two preferences lists.
+We propose a standardized way to communicate these preferences and an algorithm to resolve any two preferences lists.
 
 For any dimension, nodes list the relative importance of them. Consequently, nodes specify their accepted options within each dimension. Importance is communicated through Swarm by any positive integer
 
@@ -75,104 +77,110 @@ dimensions:
 
 # Supported payment options by the node.
 # A payment module is defined by a currency, provider and oracle. Weights are the associated preferences.
-currency:
+currencies:
 	rif:
-		weight: 40
+		weight: 36
 		providers:
 			lumino:
-				weigth: 30
+				weigth: 15
 			raiden:
-				weight: 70
+				weight: 45
 		oracles:
 			rifOracleA:
-				weigth: 70
+				weigth: 10
 			rifOracleB:
 				weigth: 70
+			rifOracleC:
+				weigth: 60
 	xdai:
-		weight: 15
+		weight: 9
 		providers:
 			Lumino: 
-				weigth: 100
+				weigth: 10
 		oracles:
-			xdaiOracleA: 
-				weight: 100
+			xDaiOracle: 
+				weight: 20
 	dai:
 		weight: 5
 		providers:
 			raiden:
-				weight: 100
+				weight: 80
 		oracles:
 			daiOracleA: 
-				weight: 66
+				weight: 30
 			daiOracleB:
-				weight: 34
+				weight: 20
 	eth:
 		weight: 40
 		providers:
 			swap:
-				weight: 100
+				weight: 35
 		oracles:
 			ethOracleA:
 				weight: 90
 			ethOracleB:
 				weight: 10
 ```
-This list is resolved by the following algorithm: 
 
-1. Based on the node configuration generate a set of triplets in the form ```[currency, provider, oracle]``` 
-As an example let's take from the previous configuration the ```rif``` entry. From that entry we can build the triplets `[rif, lumino, rifOracleA]`, `[rif, lumino, rifOracleB]`, `[rif, raiden, rifOracleA]`, `[rif, raiden, rifOracleB]`, but triplets are generated for the other currencies as well. 
-2. Exchange the generated set of triplets with the peer.
-3. Keep the set of triplets which are common (intersection between tripletsA and tripletsB). If no common set exist, choose the fallback option
-4. Compute the weighted preference of each remaining triplet as:
+This configuration is used by the payment method selection algorithm in the following way: 
 
-	```golang
-	weightedPreference := normalized(dimensions.currency) * normalized(triplet[n].weight)+
-	normalized(dimensions.provider) * normalized(triplet[n].provider.weight) + 
-	normalized(dimensions.oracle) * normalized(triplet[n].oracle.weight)
-	```
-As an example, let's take the first generated triplet (`[rif, lumino, rifOracleA]`)
-The normalized dimensions and weights are: 
-
-***Sum of all dimension values = 100***
-* Normalized currency dimension: 70 / 100 = 0.7
-* Normalized provider dimension: 20 / 100 = 0.2
-* Normalized oracle dimension: 10 / 100 = 0.1
-
-***Sum of all currency weights = 100***
-* RIF normalized weight = 40 / 100 = 0.4
-
-***Sum of all provider weights for RIF = 100***
-* Lumino normalized weight = 30 / 100 = 0.3
-
-***Sum of all oracle weights for RIF = 140***
-* rifOracleA normalized weight = 70 / 140 = 0.5
-
-Then the ```weightedPreference``` for this triplet is:
-```golang
-  weightedPreference := [0.7 * 0.4 + 0.2 * 0.3 + 0.1 * 0.5]
-  weightedPreference := 0.39
-```
-5. Add the weights of matching triplets from A and B and choose the one with the highest cumulative preference value:
-
-	```golang
-	max(weightedPreference for triplet[0] from A + weightedPreference for triplet[0] from B, ..., weightedPreference for triplet[N] from A + weightedPreference for triplet[N] from B )
-	```
-where n is the number of intersecting triplets from A and B. 
-
-6. If there is more than one triplet with the same ```weightedPreference``` value, both nodes will compute for each colliding triplet a tie breaker as follows:
-
-	```golang
-	tieBreaker := hash(triplet.coin || triplet.provider || triplet.oracle)
-	```
-and then each node will select the triplet with the minimum ```tieBreaker``` value.
-
-The fallback option is defined as:
+1. Based on the node configuration generate a set of triplets in the form ```[currency, provider, oracle]```. As an example let's take from the previous configuration the ```rif``` entry. From that entry we can build the triplets `[rif, lumino, rifOracleA]`, `[rif, lumino, rifOracleB]`, `[rif, raiden, rifOracleA]`, `[rif, raiden, rifOracleB]`, but triplets are generated for the other currencies as well. 
+2. Exchange the generated set of triplets with the peer B.
+3. Keep the set of triplets which are common (intersection between tripletsA and tripletsB). If no common set exist, choose the fallback option for each dimension, as shown in the following table:
 
 	| Dimension  | Fallback option |
 	| ---------- | --------------- |
 	| Currency to use | Wei (Ether)                    |
 	| Price oracle    | HonMon oracle <SWIP reference> |
 	| Payment method  | Chequebook contract            |
+
+4. Compute the weighted preference of each remaining triplet from node A and node B as:
+
+	```golang
+	weightedPreference := normalized(dimensions.currency) * normalized(triplet[n].weight) + 
+		+ normalized(dimensions.provider) * normalized(triplet[n].provider.weight) + 
+		+ normalized(dimensions.oracle) * normalized(triplet[n].oracle.weight)
+	```
+
+	Since weights and dimensions do not need to add up to a particular value (e.g. 100) they need to be normalized.
+	As an example, let's take the first generated triplet (`[rif, lumino, rifOracleA]`). The normalized dimensions and weights are:
+	
+	***Sum of all dimension values = 100***
+	* Normalized currency dimension: 70 / 100 = 0.7
+	* Normalized provider dimension: 20 / 100 = 0.2
+	* Normalized oracle dimension: 10 / 100 = 0.1
+
+	***Sum of all currency weights = 90***
+	* RIF normalized weight = 36 / 90 = 0.4
+
+	***Sum of all provider weights for RIF = 60***
+	* Lumino normalized weight = 15 / 60 = 0.25
+
+	***Sum of all oracle weights for RIF = 140***
+	* oracleB normalized weight = 70 / 140 = 0.5
+
+	Then the ```weightedPreference``` for this triplet is:
+
+	```golang
+    weightedPreference := [0.7 * 0.4 + 0.2 * 0.25 + 0.1 * 0.5]
+	weightedPreference := 0.38
+	```
+
+5. Add the weights of matching triplets from A and B and choose the one with the highest cumulative preference value:
+
+	```golang
+	max(weightedPreference for triplet[0] from A + weightedPreference for triplet[0] from B, ..., weightedPreference for triplet[N] from A + weightedPreference for triplet[N] from B )
+	```
+
+	where n is the number of intersecting triplets from A and B. 
+
+6. If there is more than one triplet with the same ```weightedPreference``` value, both nodes will compute for each colliding triplet a tie breaker as follows:
+
+	```golang
+	tieBreaker := hash(triplet.coin || triplet.provider || triplet.oracle)
+	```
+	
+	and then each node will select the triplet with the minimum ```tieBreaker``` value.
 
 ### Technical details
 
