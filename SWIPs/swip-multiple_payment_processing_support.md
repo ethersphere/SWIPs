@@ -194,6 +194,8 @@ This configuration is used by the payment method selection algorithm in the foll
 
 This section describes the existing code and provides suggestions on how it could be modified to achieve the end goal of this SWIP. It is by no means an indication on how this feature should be implemented, the final design and implementation will be agreed with the community and it could differ completely from what it is described here.
 
+Payment modules are meant to be pluggable, thus, after negotiating the payment details as described in the previous section, nodes must load the corresponding payment module. Payment modules can be contributed by other development teams outside the Swarm team. As such, these payment modules will live outside Swarm main repository and users will decide which modules they want to install to their Swarm node either manually or automatically (e.g. by using a UI designed for such purpose). The Swarm node will include support for Swap as the default and fallback payment mechanism. If no additional payment module is installed by the user then the Swarm node will handle payments as it does today.
+
 Swarm defines a ```Balance``` interface in ```p2p/protocols/accounting.go``` as an abstraction for the accounting process:
 
 ```golang
