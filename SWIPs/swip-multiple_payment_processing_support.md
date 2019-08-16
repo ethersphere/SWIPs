@@ -47,7 +47,7 @@ When it becomes possible for nodes to set their preference for a payment module,
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
 
 ### Generic payment module
-At high level a payment module is responsible for sending a payment to a recipient (a peer providing storage services) for services provided. How payments are actually performed will depend on the specific implementation of the payment module. The payment module is then responsible for:
+At a high level a payment module is responsible for sending a payment to a recipient (a peer providing storage services) for services provided. How payments are actually performed will depend on the specific implementation of the payment module. The payment module is then responsible for:
 
 * Resolving the conversion from honey to money.
 * Ensuring that the user can engage in SWAP accounting for the chosen payment module before payment is due.
