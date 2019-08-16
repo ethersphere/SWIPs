@@ -175,10 +175,16 @@ This configuration is used by the payment method selection algorithm in the foll
 5. Add the weights of matching triplets from A and B and choose the one with the highest cumulative preference value:
 
 	```golang
-	max(weightedPreference for triplet[0] from A + weightedPreference for triplet[0] from B, ..., weightedPreference for triplet[n] from A + weightedPreference for triplet[n] from B )
+	highestPreference := 0
+	combinedWeightedPreference := 0
+	
+	for i, weightedPreferenceA := range weightedPreferencesA {
+		combinedWeightedPreference = weightedPreferenceA + weightedPreferencesB[i]
+		if highestPreference < combinedWeightedPreference {
+			highestPreference = combinedWeightedPreference
+		}
+	}
 	```
-
-	where n is the number of intersecting triplets from A and B. 
 
 6. If there is more than one triplet with the same ```weightedPreference``` value, both nodes will compute for each colliding triplet a tie breaker as follows:
 
