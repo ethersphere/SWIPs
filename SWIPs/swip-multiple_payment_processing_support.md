@@ -29,19 +29,19 @@ The payment module interface specifies the minimum requirements to allow differe
 
 Nodes need to keep track of the balances that result from consuming/servicing storage from/to other nodes. This leads to the need of an abstract accounting unit that can be used for storage and bandwidth. We define ```honey``` as the Swarm accounting unit. Since ```honey``` is not a currency in which nodes can settle their balances with each other there should exist a mechanism to convert honey to a given currency. For the full details on how ```honey``` works, please refer to [swip-message_to_honey](./swip-message_to_honey.md) and[swip-honey_to_money](./swip-honey_to_money.md).
 
-A minimal payment module needs to accept a price in ```honey```, converts this price to a currency via an agreed-upon price oracle, sends the payment and returns when the payment is processed (either successfully or unsuccessfully). Making it clear in the code that this is the minimum expected from a payment module will both increase the readability and audibility of the Swarm source code, but will also make it easier for other payment methods to implement the payment module interface, hereby allowing users to choose how they want to settle their payments, which increases the resilience of the network and enlarges the potential user base. 
+A minimal payment module needs to accept a price in ```honey```, converts this price to a currency via an agreed-upon price oracle, sends the payment and returns when the payment is processed (either successfully or unsuccessfully). Making it clear in the code that this is the minimum expected from a payment module will both increase the readability and auditability of the Swarm source code, but will also make it easier for other payment methods to implement the payment module interface, hereby allowing users to choose how they want to settle their payments, which increases the resilience of the network and enlarges the potential user base. 
 
 Incorporating the required abstractions to support payment modules will require modifying the handshake protocol, the message handling, and the accounting and payment strategies implemented at the moment.
 
 ## Motivation
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
-Currently, Swarm is implementing the chequebook contract (with a base currency of Ether). While the chequebook contract is beautiful in its simplicity, it is expected that users of Swarm might prefer a different way of compensation for their services provided, especially if they are already participating in a payment network (e.g. Lumino, Raiden or Lightning network). 
+Currently, Swarm is implementing the chequebook contract (with a base currency of Ether). While the chequebook contract is beautiful in its simplicity, it can be expected that users of Swarm might prefer a different way of compensation for their services provided, especially if they are already participating in a payment network (e.g. Lumino, Raiden or Lightning network). 
 
-Furthermore, storage providers might want to be compensated with a different currency or they might want to settle their payment using a different Blockchain altogether. 
+Furthermore, storage providers might want to be compensated with a different currency or they might want to settle their payment using a different blockchain altogether. 
 
 Finally, new users of Swarm could bootstrap its participation in a payment channel network by providing storage services with zero cost of entry, as described in [Generalised Swap Swear and Swindle games (Tron & Fischer, 2019).](https://www.sharelatex.com/read/yszmsdqyqbvc) 
 
-When it becomes possible for nodes to set their preference for a payment module, developers will be incentivized to implement payment modules on Swarm as it will be easy for users to choose to pay with this module. It will also seamlessly enable multicurrency support and foster interoperation across Blockchains without forcing participants to be tied to a single Blockchain or settlement technology.
+When it becomes possible for nodes to set their preference for a payment module, developers will be incentivized to implement payment modules on Swarm as it will be easy for users to choose to pay with this module. It will also seamlessly enable multicurrency support and foster interoperation across blockchains without forcing participants to be tied to a single blockchain or settlement technology.
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
@@ -57,17 +57,12 @@ At high level a payment module is responsible for sending a payment to a recipie
 * Handling any potential errors.
 * Optionally exposing other methods such as querying balances, topping up balances or sending payments (outside of Swarm). 
 
-<<<<<<< HEAD
 Payment module negotiation can occur either during handshake or at a later time, since the payment module is only needed when peers need to balance their debts (i.e. when the payment threshold is reached). Negotiating the payment module only when needed will help to reduce the network load when nodes build up a connection. The disadvantage is that it will be unclear in which currency nodes will going to get paid until they engage in the payment module negotiation. The fallback mechanism ensures that nodes will always be able to issue payments to balance their debts.
 
 Experimentation is needed to determine the best time for nodes to engage in payment module negotiation.
 
 ### Multiple payment modules support
 When allowing multiple payment modules, it is essential for nodes to communicate their preference. There are three dimensions to take into consideration for the payment preference:
-=======
-### Allowing multiple payment modules
-When allowing multiple payment modules, it is essential for nodes to communicate their preference. There are three dimensions to take into consideration for the payment preference: 
->>>>>>> review weighted payment preferences.
 
 1. Currency to use
 2. Price oracle to use
@@ -135,7 +130,7 @@ currencies:
 
 This configuration is used by the payment method selection algorithm in the following way: 
 
-1. Based on the node configuration generate a set of triplets in the form ```[currency, provider, oracle]```. As an example let's take from the previous configuration the ```rif``` entry. From that entry we can build the triplets `[rif, lumino, rifOracleA]`, `[rif, lumino, rifOracleB]`, `[rif, raiden, rifOracleA]`, `[rif, raiden, rifOracleB]`, but triplets are generated for the other currencies as well. 
+1. Based on the node configuration generate a set of triplets in the form ```[currency, provider, oracle]```. As an example let's take from the previous configuration the ```rif``` entry. From that entry we can build the triplets `[rif, lumino, rifOracleA]`, `[rif, lumino, rifOracleB]`, `[rif, lumino, rifOracleC]`,`[rif, raiden, rifOracleA]`, `[rif, raiden, rifOracleB]`, `[rif, raiden, rifOracleC]`, but triplets are generated for the other currencies as well. 
 2. Exchange the generated set of triplets with the peer B.
 3. Keep the set of triplets which are common (intersection between tripletsA and tripletsB). If no common set exist, choose the fallback option for each dimension, as shown in the following table:
 
@@ -180,7 +175,7 @@ This configuration is used by the payment method selection algorithm in the foll
 5. Add the weights of matching triplets from A and B and choose the one with the highest cumulative preference value:
 
 	```golang
-	max(weightedPreference for triplet[0] from A + weightedPreference for triplet[0] from B, ..., weightedPreference for triplet[N] from A + weightedPreference for triplet[N] from B )
+	max(weightedPreference for triplet[0] from A + weightedPreference for triplet[0] from B, ..., weightedPreference for triplet[n] from A + weightedPreference for triplet[n] from B )
 	```
 
 	where n is the number of intersecting triplets from A and B. 
