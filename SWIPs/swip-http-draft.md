@@ -18,12 +18,14 @@ The HTTP API is the primary API through which applications and client software a
 
 ## Motivation
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
+
 As Swarm is part of the strategy to radically decentralize the World Wide Web, it is essential to maintain as much compatibility with existing web standards as allowed by the substantial difference between Swarm's peer-to-peer model and the World Wide Web's client-server model. This API intends to mimic the API of `http`/`https` servers as closely as possible from the application developers perspective.
 
 ## Specification
-<!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.
+<!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
 
-<h1 id="http">HTTP</h1>
+The table below contains an exhaustive list of `HTTP` request and expected `HTTP` response specifications. Nodes that are not set up as Web gateways, should only respond to locally originating requests. Servicing some of these requests might incure costs to the node, so appropriate access control is essential to the security of the node.
+
 <table>
 <col width="4%" />
 <col width="2%" />
