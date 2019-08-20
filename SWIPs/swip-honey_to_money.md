@@ -28,18 +28,18 @@ This update process should be atomic: either all nodes upgrade or none of them d
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
-* An oracle is reachable at one specific endpoint and this endpoint is hardcoded in the Swarm source-code. 
-* No other factor besides time influences the answer which an oracle gives. That is: if nodes query the oracle at the same time, the oracle gives the same answer. 
-* A price oracle returns a `honeyPrice` object, specifying a `Time To Live (TTL)` in seconds and an array of `price` objects, each index specifying a `validFrom` filed as an UTCDate and a `honeyPrice`. To summarize, the oracle returns:
+* An oracle is reachable at one specific endpoint and this endpoint is hardcoded in the Swarm source code. 
+* No other factor besides time influences the answer which an oracle gives. That is: if two nodes query the oracle at the same time, the oracle will give the same answer to both of them. 
+* A price oracle returns a `honeyPrices` object, specifying a `Time To Live (TTL)` in seconds and an array of `price` objects, each index specifying a `validFrom` filed as an UTC date and a `honeyPrice`. To summarize, the oracle returns:
 ```typescript 
 honeyPrices: { 
  TTL,
- prices: [0: {validFrom, honeyPrice}, n: {validFrom, honeyPrice}]
+ prices: [0: {validFrom, honeyPrice}, ..., n: {validFrom, honeyPrice}]
 }
 ```
 * The applied price is the `price` where `validFrom` is in the most recent past. 
-* Upon receipt of a payment or intent to send a payment, nodes will check their local cache on the existence of a non-expired `honeyPrice` object. If this exists, the oracle will not be queried, if it does not exist, the oracle will be queried and the answer stored in the local cache of the node for `TTL` time. 
-* The number of payments received/sent, `TTL` of `honeyPrices`, as well as the costs to query the oracle (computational overload/time delay), should determine whether nodes actively keep their local cache up-to-date with `honeyPrices` or whether they will passively request a new `honeyPrices` object when needed.
+* Upon receipt of a payment or intent to send a payment, nodes will check their local cache on the existence of a non-expired `honeyPrice` object. If this exists, the oracle will not be queried; if it does not exist, the oracle will be queried and the answer stored in the local cache of the node for `TTL` time. 
+* The number of payments received/sent, `TTL` of `honeyPrices`, as well as the costs to query the oracle (computational overload/time delay) should determine whether nodes actively keep their local cache up-to-date with `honeyPrices` or whether they will passively request a new `honeyPrices` object when needed.
 
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
