@@ -56,7 +56,7 @@ As nobody benefits from price imbalances, both the sender and the receiver of a 
 
 ## Backwards Compatibility 
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
-Currently, Swarm is not running with a live tes net for settling prices, so no problems are expected with this SWIP if it is implemented before Swarm goes live with price-incentivization. 
+Currently, Swarm is not running with a live testnet for settling prices, so no problems are expected with this SWIP if it is implemented before Swarm goes live with price-incentivization. 
 
 ## Test Cases
 <!--Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.-->
@@ -64,9 +64,9 @@ Not currently available
 
 ## Implementations 
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
-* The Swarm source code will reference an Ethereum address of a `HoneyToMoney` price oracle smart-contract
-* The price oracle implements the `HoneyToMoney` interface (to-be specified). 
-* The `HoneyToMoney` contract will be initially governed such that a subset of stakeholders can make decisions which are not high-impact (i.e. decide on small price-changes), but all stakeholders are required to make high-impact decisions (such as changing the implementation of the oracle, changing governance, decide on big price-changes, etc). This semi-governance structure is in place to allow experimentation with an update process of honeyPrices and is not a recommendation for a price-update process when honey is quoted in a currency worth real money. 
+* The Swarm source code will reference an Ethereum address of a `HoneyToMoney` price oracle smart-contract.
+* The price oracle implements the `HoneyToMoney` interface (to be specified). 
+* The `HoneyToMoney` contract will initially be governed in such a way that a subset of stakeholders can make decisions which are not high-impact (i.e. decide on small price-changes) but the involvement of all stakeholders is required to make high-impact decisions (such as changing the implementation of the oracle, changing governance, deciding on big price-changes, etc). This semi-governance structure is in place to allow experimentation with an update process of honey prices and is not a recommendation for a price-update process when honey is quoted in a currency worth real money. 
 
 ## Copyright Waiver
  Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
