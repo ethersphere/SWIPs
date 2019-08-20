@@ -36,7 +36,7 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 * The Swarm source code references the address of a smart-contract which acts as a honey pricing oracle for messages.
 * The price oracle implements the `MsgToHoney` interface (to-be specified) 
 * The `MsgToHoney` contract will be initially owned by a governance structure of Swarm developers and stakeholders. The governance structure shall be simple to set up initially, but facilitate the possibility for upgrading to a more advanced governance structure. 
-* Nodes pro-actively keep track of updating their local cache of honey-prices. That is: upon startup, the
+* Nodes pro-actively keep track of updating their local cache of honey-prices.
 * Upon receiving/sending of a message, a node checks its local database if the cached price is valid. If not, the node will query the price oracle to get the current price. Subsequently, the node will apply the current price to the balance of its peer (see diagram below).
 * Nodes expect other nodes to apply the same price as they do themselves. Due to the asynchronicity of the network, this will not necessarily be true around the period that prices are updated, which causes accounting dust (pollen) to be collected. This SWIP does not facilitate a solution for this, as the expected amount of pollen is not high enough to cause disruptions in the network. 
 * The design of the oracle, as well as the interaction with the oracle, should minimize the interaction of swarm nodes and the oracle maintainers with the oracle. A design proposal is clarified under the header `Technical details`, and a high-level diagram is provided below. 
