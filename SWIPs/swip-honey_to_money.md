@@ -11,7 +11,7 @@ Created: 31-07-2019
 
 ## Simple summary 
 <!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
-Swarm needs a mechanism to set prices which makes sense relative to other (distributed storage) services in the market. As the absolute price of using Swarm is defined by the cost of honey (Swarm's internal accounting unit), this SWIP proposes a minimal interface to enable upgrading the honey prices network-wide for all nodes. The specifics on what an efficient price should reflect and how the update process looks like is *not* part of this SWIP.
+Swarm needs a mechanism to set prices which makes sense relative to other (distributed storage) services in the market. As the absolute price of using Swarm is defined by the cost of honey (Swarm's internal accounting unit), this SWIP proposes a minimal interface to enable upgrading honey prices, network-wide and for all nodes. The specifics on what an efficient price should reflect and how the update process looks like is *not* part of this SWIP.
 
 ## Abstract 
 <!--A short (~200 word) description of the technical issue being addressed.-->
