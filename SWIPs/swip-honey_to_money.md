@@ -56,7 +56,7 @@ As nobody benefits from price imbalances, both the sender and the receiver of a 
 
 ## Backwards Compatibility 
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
-Currently, the Swarm is not running with a live test net for settling prices, so no problems are expected with this SWIP if it is implemented before the Swarm will go live with price-incentivization. 
+Currently, Swarm is not running with a live tes net for settling prices, so no problems are expected with this SWIP if it is implemented before Swarm goes live with price-incentivization. 
 
 ## Test Cases
 <!--Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.-->
