@@ -8,31 +8,20 @@ type: Standards Track Interface
 created: 2019-11-07
 ---
 
-<!--You can leave these HTML comments in your merged SWIP and delete the visible duplicate text guides, they will not appear and may be helpful to refer to if you edit it again. This is the suggested template for new SWIPs. Note that a SWIP number will be assigned by an editor. When opening a pull request to submit your SWIP, please use an abbreviated title in the filename, `SWIP-draft_title_abbrev.md`. The title should be 44 characters or less.-->
-This is the suggested template for new SWIPs.
-
-Note that a SWIP number will be assigned by an editor. When opening a pull request to submit your SWIP, please use an abbreviated title in the filename, `SWIP-draft_title_abbrev.md`.
-
-The title should be 44 characters or less.
-
 ## Simple Summary
 <!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
-If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.
+Description of a HTTP-based API through which Swarm nodes can be accessed locally. Also forms the basis of web gateway specification.
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
-A short (~200 word) description of the technical issue being addressed.
+The HTTP API is the primary API through which applications and client software access data stored in Swarm. It provides access to two separate layers of Swarm, the `raw` layer storing binary blobs of arbitrary size without further metadata and the manifest-described virtual web server, turning Swarm collections identified by the root hash of their manifests, possibly registered in ENS, into virtual static web servers. Furthermore, it provides transparent access to *Swarm encryption* and *access control*.
 
 ## Motivation
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
-The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.
+As Swarm is part of the strategy to radically decentralize the World Wide Web, it is essential to maintain as much compatibility with existing web standards as allowed by the substantial difference between Swarm's peer-to-peer model and the World Wide Web's client-server model. This API intends to mimic the API of `http`/`https` servers as closely as possible from the application developers perspective.
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.
-
-## Rationale
-<!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
-
 
 <h1 id="http">HTTP</h1>
 <table>
@@ -447,6 +436,9 @@ The motivation is critical for SWIPs that want to change the Swarm protocol. It 
 </tr>
 </tbody>
 </table>
+
+## Rationale
+<!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
 
 ## Backwards Compatibility
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
