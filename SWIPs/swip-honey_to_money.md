@@ -1,6 +1,6 @@
 ---
-Title: Honey to money oracle
-Author: Aron Fischer <aron@ethswarm.org>, Deigo Masini <dmasini@iovlabs.org>, Fabio Barone <fabio@ethswarm.org>, Marcello Ortelli <mortelli@infuy.com>, Rinke Hendriksen <rinke@ethswarm.org>, Vojtech Simetka <vojtech@iovlabs.org>
+Title: Honey to Money Oracle
+Author: Aron Fischer <aron@ethswarm.org>, Deigo Masini <dmasini@iovlabs.org>, Fabio Barone <fabio@ethswarm.org>, Marcelo Ortelli <mortelli@infuy.com>, Rinke Hendriksen <rinke@ethswarm.org>, Vojtěch Šimetka <vojtech@iovlabs.org>
 Discussions-to: URL will be provided
 Status: Draft
 Type: Standards track
@@ -76,7 +76,7 @@ Nodes might apply different honey prices for the same payment, due to a time dif
 If there appears to be a problem with such imbalances, we see a possible solution: as nobody benefits from price imbalances, both the sender and the receiver of a payment are incentivized to apply a price which is not per their clock, but per the clock of the counterparty when they expect the counterparty to query or have queried the oracle. To assist in this, a payload might be sent with the transaction, specifying the clock with which the oracle price was applied.
 
 #### Temporary hard-forks
-An on-chain oracle *might* give a different answer to two nodes when queried at the same time if there exists a (temporary) fork in the blockchain. If a disbalance due to such forks become common and cause the disconnect threshold to be reached for a significant number of nodes, we may put up additional requirements. For example at minimum 12 blocks confirmations.
+An on-chain oracle *might* give a different answer to two nodes when queried at the same time if there exists a (temporary) fork in the blockchain. If a disbalance due to such forks becomes common and causes the disconnect threshold to be reached for a significant number of nodes, we may put up additional requirements. For example, a minimum of 12 blocks for confirmations.
 
 ## Backwards Compatibility
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
