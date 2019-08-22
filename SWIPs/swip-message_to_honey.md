@@ -1,7 +1,7 @@
 ---
 swip: 
 title: Message to honey oracle
-Author: Aron Fischer <aron@ethswarm.org>, Rinke Hendriksen <rinke@ethswarm.org>, Vojtech Simetka <vojtech@iovlabs.org>
+Author: Aron Fischer <aron@ethswarm.org>, Deigo Masini <dmasini@iovlabs.org>, Fabio Barone <fabio@ethswarm.org>, Marcello Ortelli <mortelli@infuy.com>, Rinke Hendriksen <rinke@ethswarm.org>, Vojtech Simetka <vojtech@iovlabs.org>
 Discussions-to: URL will be provided
 Status: Draft
 Type: Standards track
@@ -45,29 +45,48 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 ### Technical details
 This section describes the interaction between the nodes and the oracle in more detail.
 * Querying the oracle will return a `messagePrices` object, specifying a `Time to Live (TTL)` in seconds and `prices` object objects. The `prices` object contains an entry for each messageType (`swarmMessage`) and `swarmMessage` maps a `validFrom` to a respective `price`. Taken together, the oracle returns: 
-```typescript
-{messagePrices: 
+```json
+{
+  "messagePrices": 
   {
-    TTL, 
-    prices: {
-      swarmMessageX: {
-        validFrom0: price0, // at time validFrom0, price0 will be applied
-        ...,                // 
-        validFromN: priceN
+    "TTL": <TTLValue>, 
+    "prices": {
+      "swarmMessageX": {
+        "validFrom0": <price0>, 
+        ...,                
+        "validFromN": <priceN>
       }
       ...,
-      swarmMessageY: {
-        validFrom0: price0,
+      "swarmMessageY": {
+        "validFrom0": <price0>,
         ...,
-        validFromN: priceN
+        "validFromN": <priceN>
       }
     }
   }
 }
 ```
-* The applied price for a message is the price where `validFrom` is in the most recent past.
-* After `TTL` expires, nodes will query the price oracle for a new `messagePrices` object. 
-* Upon start-up, nodes will look at the contents of their local cache. If no `messagePrices` object is found, or the `TTL` of their cached `messagePrices` object has expired, the msgOracle will be queried. 
+An example of this could be:
+```json
+{
+   "messagePrices": {
+      "TTL": 3600,
+      "chunkRequest": {
+        "1566469257": 1000,             
+        "1566472857": 1010
+      },
+      "chunkDelivery": {
+        "1566469257": 500,
+        "1566476457": 400
+      }
+   }
+}
+```
+* Any answer from the oracle will be valid for the node for `TTL` seconds.
+* The applied price is chosen by looking up the price corresponding to the validFrom which is in the most recent past.
+* After the `messagePrices` object expires, nodes will query the price oracle for a new `messagePrices` object. 
+* The source-code should contain a fallback value for messagePrices which is updated every release to reflect the most up-to-date message prices at that time.
+* Upon start-up, nodes will look at the contents of their local cache. If no `messagePrices` object is found, or the `TTL` of their cached `messagePrices` object has expired, the msgOracle will be queried. If the oracle can't be reached the fallback value will be used.
 * The `TTL` is set as a variable inside the implementation of the oracle and can be updated.
 * To ensure that a new entry in the 'smarmMessage' object can't become valid before all nodes are updated, the smart-contract or update-policy must ensure that the `validFrom` of new prices must be at least `TTL` seconds in the future.
 * If the oracle cannot be reached when the `TTL` of the last `messagePrices` object is expired, nodes will continue to apply the `prices` as instructed by the expired `messagePrices` object and will start to query the oracle at a more regular interval to re-establish connection. 
