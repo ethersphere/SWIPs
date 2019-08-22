@@ -13,16 +13,16 @@ Created: 22-08-2019
 <!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
 Swarm needs a mechanism to set prices which makes sense relative to other (distributed storage) services in the market. As the absolute price of using Swarm is defined by the cost of honey (Swarm's internal accounting unit), this SWIP proposes a minimal interface to enable upgrading honey prices, network-wide and for all nodes. The specifics on what an efficient price should reflect and how the update process looks like is *not* part of this SWIP.
 
-## Abstract 
+## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
-It is expected that the price of using Swarm will change over time to reflect the changing economic landscape as well as to facilitate experimentation. Such price updates must happen atomically to prevent accounting unbalances from appearing. To lay the groundwork for enabling such price changes, this SWIP proposes a minimal interface for a *price-oracle*. Furthermore, this SWIP includes a proposal for implementing an *on-chain* price oracle, governed by Swarm developers and stakeholders to allow for experimentation. 
+It is expected that the price of using Swarm will change over time to reflect the changing economic landscape as well as to facilitate experimentation. Such price updates must happen atomically to prevent accounting unbalances from appearing. To lay the groundwork for enabling such price changes, this SWIP proposes a minimal interface for a *price-oracle*. Furthermore, this SWIP includes a proposal for implementing an *on-chain* price oracle, governed by Swarm developers and stakeholders to allow for experimentation.
 
 This SWIP is part of a series of SWIPs (but can be implemented on its own). To see the full picture, please refer to [swip-message_to_honey](./swip-message_to_honey.md), [swip-multiple](./swip-honey_to_money.md), [swip-multiple_payment_processing_support](./swip-multiple_payment_processing_support.md) and the diagram below:
 ![SWIP_Diagrams.svg](./../assets/swip-honey_to_money/SWIP_Diagrams.svg)
  
 ## Motivation
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
-Nodes keep track of balances relative to each other using an internal reference unit: honey. Since honey is not a currency in which nodes can settle their balances with each other–it is merely a unit of accounting–there is a requirement to facilitate converting honey to a currency. Furthermore, it is desirable that this conversion rate can fluctuate to reflect the changing economic landscape and facilitate experimentation. 
+Nodes keep track of balances relative to each other using an internal reference unit: honey. Since honey is not a currency in which nodes can settle their balances with each other–it is merely a unit of accounting–there is a requirement to facilitate converting honey to a currency. Furthermore, it is desirable that this conversion rate can fluctuate to reflect the changing economic landscape and facilitate experimentation.
 
 This update process should be atomic: either all nodes upgrade or none of them do. Current implementation hardcodes the honey prices in the source code. This violates the atomicity requirement as there is no guarantee that all Swarm nodes are on the same release. By externalizing the price to an oracle, Swarm completely decouples its core functions from price discovery. By building support for price oracles, it will be possible to coordinate price changes across the network and set the stage for future experimentation with various mechanisms for setting prices, from fixed prices to DAOs or to bonding curves.
 
@@ -77,7 +77,7 @@ An on-chain oracle *might* give a different answer to two nodes when queried at 
 
 ## Backwards Compatibility
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
-Currently, Swarm is not running with a live testnet for setting prices. Therefore, no compatibility problems are expected if the SWIP is implemented before the currently implemented Swarm incentivisation goes live. Should that not be the case and this SWIP is adopted at a later stage, non-up to date nodes may be over time dropped due to different honey prices. 
+Currently, Swarm is not running with a live testnet for setting prices. Therefore, no compatibility problems are expected if the SWIP is implemented before the currently implemented Swarm incentivisation goes live. Should that not be the case and this SWIP is adopted at a later stage, non-up to date nodes may be over time dropped due to different honey prices.
 
 ## Test Cases
 <!--Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.-->
@@ -87,7 +87,7 @@ Not currently available
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
 * The Swarm source code will reference an Ethereum address of a `HoneyToMoney` price oracle smart contract.
 * The price oracle implements the `HoneyToMoney` interface (to be specified). 
-* The `HoneyToMoney` contract will initially be governed in such a way that a subset of stakeholders can make decisions which are not high-impact (i.e. decide on small price changes) but the involvement of all stakeholders is required to make high-impact decisions (such as changing the implementation of the oracle, changing governance, deciding on big price changes, etc). This semi-governance structure is in place to allow experimentation with an update process of honey prices and is not a recommendation for a price update process when honey is quoted in a currency worth real money. 
+* The `HoneyToMoney` contract will initially be governed in such a way that a subset of stakeholders can make decisions which are not high-impact (i.e. decide on small price changes) but the involvement of all stakeholders is required to make high-impact decisions (such as changing the implementation of the oracle, changing governance, deciding on big price changes, etc). This semi-governance structure is in place to allow experimentation with an update process of honey prices and is not a recommendation for a price update process when honey is quoted in a currency worth real money.
 
 ## Copyright Waiver
 Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
