@@ -194,11 +194,13 @@ This configuration is used by the payment method selection algorithm in the foll
 	
 	and then each node will select the triplet with the minimum ```tieBreaker``` value.
 
+The oracle negotiated during this process will override the default oracle described in [swip-honey_to_money](./swip-honey_to_money.md).
+
 ### Technical details
 
 This section describes the existing code and provides suggestions on how it could be modified to achieve the end goal of this SWIP. It is by no means an indication on how this feature should be implemented, the final design and implementation will be agreed with the community and it could differ completely from what it is described here.
 
-Payment modules are meant to be pluggable, thus, after negotiating the payment details as described in the previous section, nodes must load the corresponding payment module. Payment modules can be contributed by other development teams outside the Swarm team. As such, these payment modules will live outside Swarm main repository and users will decide which modules they want to install to their Swarm node either manually or automatically (e.g. by using a UI designed for such purpose). The Swarm node will include support for Swap as the default and fallback payment mechanism. If no additional payment module is installed by the user then the Swarm node will handle payments as it does today.
+Payment modules are meant to be pluggable, thus, after negotiating the payment details as described in the previous section, nodes must load the corresponding payment module. Payment modules can be contributed by other development teams outside the Swarm team. As such, these payment modules will live outside Swarm main repository and users will decide which modules they want to install to their Swarm node, either manually or automatically (e.g. by using a UI designed for such purpose). The Swarm node will include support for Swap as the default and fallback payment mechanism. If no additional payment module is installed by the user then the Swarm node will handle payments as it does today.
 
 Swarm defines a ```Balance``` interface in ```p2p/protocols/accounting.go``` as an abstraction for the accounting process:
 
@@ -251,7 +253,7 @@ type Peer struct {
 }
 ```
 
-One option is to move the accounting responsibilities from ```Swap``` to a new component (from now on ```Accounting```), introduce it as a new member of the ```Peer``` struct and add a new collaborator on which we can delegate the payment processing. This collaborator (from now on ```SwarmPayments```) will provide access to the supported payment modules, being Swarm one of such modules. This design decouples the accounting from the payment processing. We refer to the concrete payment module implementations as a ```PaymentProcessor```s.
+One option is to move the accounting responsibilities from ```Swap``` to a new component (from now on ```Accounting```), introduce it as a new member of the ```Peer``` struct and add a new collaborator on which we can delegate the payment processing. This collaborator (from now on ```SwarmPayments```) will provide access to the supported payment modules, being ```Swap``` one of such modules. This design decouples the accounting from the payment processing. We refer to the concrete payment module implementations as a ```PaymentProcessor```s.
 
 ```golang
 // Peer is a devp2p peer for the Swap protocol
@@ -259,18 +261,98 @@ type Peer struct {
 	*protocols.Peer
 	accounting         *Accounting
 	payments           *SwarmPayments
-	backend            contract.Backend
-	beneficiary        common.Address
-	contractAddress    common.Address
-	lastReceivedCheque *Cheque
 }
 ```
 
-The ```payments``` member of the ```Peer``` struct holds the ```SwarmPayments``` component described previously, which is responsible of holding the particular ```PaymentProcessor``` implementations supported by the node and a mapping of:
+This option will severely change the current architecture of Swap and affect how accounting works. A better approach to preserve the accounting structure as defined in ```p2p/protocols/accounting.go``` and its related modules is to keep the relationship between the Swap ```Peer``` and the ```Swap``` accounting object and introduce the ```SwarmPayments``` object as a collaborator of ```Swap```. This way we keep the accounting structure as it is today and delegate all payment related logic from ```Swap``` to the corresponding payment module via  ```SwarmPayments```. Following this idea, all the payment related members from the ```Swap``` object should be moved to the Swap payment module implementation.
+
+```golang
+// Swap represents the Swarm Accounting Protocol
+// a peer to peer micropayment system
+// A node maintains an individual balance with every peer
+// Only messages which have a price will be accounted for
+type Swap struct {
+	api                 API
+	store               state.Store          	 // store is needed in order to keep balances and cheques across sessions
+	accountingLock      sync.RWMutex         	 // lock for data consistency in accounting-related functions
+	balances            map[enode.ID]int64   	 // map of balances for each peer
+	balancesLock        sync.RWMutex         	 // lock for balances map
+	peers               map[enode.ID]*Peer   	 // map of all swap Peers
+	peersLock           sync.RWMutex         	 // lock for peers map
+	paymentThreshold    int64               	 // balance difference required for sending cheque
+	disconnectThreshold int64              		 // balance difference required for dropping peer
+	payments            *SwapPaymentProcessor	 // SwapPaymentProcessor provides access to the supported payment modules
+}
+```
+
+The ```payments``` member of the ```Swap``` struct holds the ```SwarmPayments``` component described previously, which is responsible of holding the particular ```PaymentProcessor``` implementations supported by the node and a mapping of:
 
 * Peer (beneficiary) addressess.
 * The currency to use.
 * The ```PaymentProcessor``` negotiated during the handshake for the beneficiary.
+
+
+The ```Add``` function from the ```Balance``` interface can be reimplemented to delegate the payment phase to the ```SwarmPayments``` object (several checks were removed from the code for simplicity):
+
+```golang
+// Add is the (sole) accounting function
+// Swap implements the protocols.Balance interface
+func (s *Swap) Add(amount int64, peer *protocols.Peer) (err error) {
+	s.accountingLock.Lock()
+	defer s.accountingLock.Unlock()
+
+	newBalance, _ := s.updateBalance(peer.ID(), amount)
+
+	if newBalance <= -s.paymentThreshold {
+		swapPeer, _ := s.getPeer(peer.ID())
+
+		peerBalance, _ := s.getBalance(swapPeer.ID())
+
+		// Here the payments object will select the payment module negotiated with the swapPeer and emit a payment accordingly
+		s.payments.EmitPayment(swapPeer, peerBalance)
+
+		s.resetBalance(swapPeer.ID(), peerBalance)
+	}
+
+	return nil
+}
+```
+
+And following the same delegation idea, the ```Swap``` ```handleMessage``` function can be implemented as follows:
+
+```golang
+// handleMsg is for handling messages when receiving messages
+func (s *Swap) handleMsg(p *Peer) func(ctx context.Context, msg interface{}) error {
+	return func(ctx context.Context, msg interface{}) error {
+		switch msg := msg.(type) {
+		case *EmitChequeMsg:
+			go s.handlePaymentReceived(ctx, p, msg)
+		}
+		return nil
+	}
+}
+
+// handleEmitPayment should be handled by the creditor when it receives
+// a cheque from a debitor
+func (s *Swap) handlePaymentReceived(ctx context.Context, p *Peer, msg *EmitChequeMsg) error {
+	cheque := msg.Cheque
+
+	// Here the payments object will select the payment module negotiated with the swapPeer and execute the appropriate cash in logic 
+	s.payments.cashInPayment(ctx, p, msg)
+
+	// reset balance by amount
+	// as this is done by the creditor, receiving the cheque, the amount should be negative,
+	// so that updateBalance will calculate balance + amount which result in reducing the peer's balance
+	s.accountingLock.Lock()
+	err := s.resetBalance(p.ID(), 0-int64(cheque.Honey))
+	s.accountingLock.Unlock()
+	if err != nil {
+		return err
+	}
+
+	return err
+}
+```
 
 The use (if required) of a price oracle will be handled internally by the ```PaymentProcessor```.
 
@@ -306,7 +388,7 @@ type SwarmPayments struct {
 // PaymentProcessor is the general payment processor interface
 type PaymentProcessor interface {
     params() PaymentProcessorParams
-    pay(amount int64, beneficiary interface{}) error
+    pay(beneficiary interface{}, amount int64) error
 }
 
 /*
