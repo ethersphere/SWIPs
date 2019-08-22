@@ -1,3 +1,36 @@
+---
+SWIP: <to be assigned>
+title: Swarm node implementer spec - 
+author: Louis Holbrook @nolash <dev@holbrook.no>
+status: Draft
+type: Track Specs
+created: 2019-
+---
+
+## Abstract
+
+This SWIP is a part of a general specification of a Swarm node. The SWIP system is used for convenience only.
+
+## Motivation
+
+Enable other implementations of the swarm node.
+
+## Backwards Compatibility
+
+N/A
+
+## Test Cases
+
+N/A
+
+## Implementation
+
+N/A
+
+## Copyright
+
+Copyright and related rights waived via CC0
+
 # introduction
 
 ## data representations
@@ -101,7 +134,7 @@ data types:
 
 All other data is encoded as RLP lists.
 
-The outermost element of a serialization is always a LIST item \[1\]
+The outermost element of a serialization is always a LIST item [1]
 
 ## example
 
@@ -112,6 +145,7 @@ to `0xc4 83 66 6f 6f`, which breaks down to:
     LIST:   0xc4 (list, 4 bytes long)
     3OCTET: 0x83 (string, 3 bytes long)
     data:   0x66 0x6f 0x6f
+
 
 1.  This is due to the fact that the reference implementation is written
     in golang, and the default RLP deserialization of golang structs
