@@ -27,9 +27,9 @@ This SWIP is part of a series of SWIPs (but can be implemented on its own). To s
 <!--A short (~200 word) description of the technical issue being addressed.-->
 The payment module interface specifies the minimum requirements to allow different implementations to be supported by Swarm. An implementation of this interface will be responsible for handling payments, hiding the specifics of the underlying payment processing and providing a unified API, thus decoupling the distributed storage service from the actual payment system used by participants. 
 
-Nodes need to keep track of the balances that result from consuming/servicing storage from/to other nodes. This leads to the need of an abstract accounting unit that can be used for storage and bandwidth. We define ```honey``` as the Swarm accounting unit. Since ```honey``` is not a currency in which nodes can settle their balances with each other there should exist a mechanism to convert honey to a given currency. For the full details on how ```honey``` works, please refer to [swip-message_to_honey](./swip-message_to_honey.md) and[swip-honey_to_money](./swip-honey_to_money.md).
+Nodes need to keep track of the balances that result from consuming/servicing storage from/to other nodes. This leads to the need of an abstract accounting unit that can be used for storage and bandwidth. We define ```honey``` as the Swarm accounting unit. Since ```honey``` is not a currency in which nodes can settle their balances with each other there should exist a mechanism to convert honey to a given currency. For the full details on how ```honey``` works, please refer to [swip-message_to_honey](./swip-message_to_honey.md) and [swip-honey_to_money](./swip-honey_to_money.md).
 
-A minimal payment module needs to accept a price in ```honey```, converts this price to a currency via an agreed-upon price oracle, sends the payment and returns when the payment is processed (either successfully or unsuccessfully). Making it clear in the code that this is the minimum expected from a payment module will both increase the readability and auditability of the Swarm source code, but will also make it easier for other payment methods to implement the payment module interface, hereby allowing users to choose how they want to settle their payments, which increases the resilience of the network and enlarges the potential user base. 
+A minimal payment module receives a price in ```honey```, converts this price to a currency via an agreed-upon price oracle, sends the payment and returns when the payment is processed (either successfully or unsuccessfully). Making it clear in the code that this is the minimum expected from a payment module will both increase the readability and auditability of the Swarm source code, but will also make it easier for other payment methods to implement the payment module interface, hereby allowing users to choose how they want to settle their payments, which increases the resilience of the network and enlarges the potential user base. 
 
 Incorporating the required abstractions to support payment modules will require modifying the handshake protocol, the message handling, and the accounting and payment strategies implemented at the moment.
 
@@ -66,7 +66,7 @@ When allowing multiple payment modules, it is essential for nodes to communicate
 
 We propose a standardized way to communicate these preferences and an algorithm to resolve any two preferences lists.
 
-For any dimension, nodes list the relative importance of them. Consequently, nodes specify their accepted options within each dimension. Importance is communicated through Swarm by any positive integer
+For any dimension, nodes list the relative importance of them. Consequently, nodes specify their accepted options within each dimension. Importance is communicated through Swarm by any positive integer.
 
 The following is an example of the proposed configuration:
 
@@ -128,7 +128,7 @@ This configuration is used by the payment method selection algorithm in the foll
 
 1. Based on the node configuration generate a set of triplets in the form ```[currency, provider, oracle]```. As an example let's take from the previous configuration the ```rif``` entry. From that entry we can build the triplets `[rif, lumino, rifOracleA]`, `[rif, lumino, rifOracleB]`, `[rif, lumino, rifOracleC]`,`[rif, raiden, rifOracleA]`, `[rif, raiden, rifOracleB]`, `[rif, raiden, rifOracleC]`, but triplets are generated for the other currencies as well. 
 2. Exchange the generated set of triplets with the peer B.
-3. Keep the set of triplets which are common (intersection between tripletsA and tripletsB). If no common set exist, choose the fallback option for each dimension, as shown in the following table:
+3. Keep the set of triplets which are common (intersection between peer A's triplets and peer B's triplets). If no common set exists, choose the fallback option for each dimension, as shown in the following table:
 
 	| Dimension  | Fallback option |
 	| ---------- | --------------- |
@@ -262,7 +262,7 @@ type Peer struct {
 }
 ```
 
-The ```payments``` member of the ```Peer``` struct holds the ```SwarmPayments``` component described previously, which is responsible to hold the particular ```PaymentProcessor``` implementations supported by the node and a mapping of:
+The ```payments``` member of the ```Peer``` struct holds the ```SwarmPayments``` component described previously, which is responsible of holding the particular ```PaymentProcessor``` implementations supported by the node and a mapping of:
 
 * Peer (beneficiary) addressess.
 * The currency to use.
@@ -329,7 +329,7 @@ func (p TokenPaymentProcessorParams) currency() string {
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
 
-The current Swap implementation uses Ether to settle debts and requires interactions with the chequebook smart contract. The settlement process is tightly coupled with the Swarm node, making hard to support other currencies besides Ether or other settlement methods such as payment channels. Moreover, this coupling tights Swarm to Ethereum-like blockchains, impeding other blockchain solutions to benefit from the integration of Swarm as a distributed storage solution. Several options were considered to decouple the payments technology to use from Swarm:
+The current Swap implementation uses Ether to settle debts and requires interactions with the chequebook smart contract. The settlement process is tightly coupled with the Swarm node, making hard to support other currencies besides Ether or other settlement methods such as payment channels. Moreover, this coupling ties Swarm to Ethereum-like blockchains, impeding other blockchain solutions to benefit from the integration of Swarm as a distributed storage solution. Several options were considered to decouple the payments technology to use from Swarm:
 
 * Introduce ERC20 support directly into the chequebook smart contract: It seems feasible to follow this path, however for each new token to be supported a new chequebook needs to be deployed or multiple token support needs to be introduced to the chequebook. While this is possible, it might introduce unwanted complexity to the SWAP chequebook and not enough flexibility to support other means of payment.
 * Introduce support for payment channels directly into the chequebook smart contract: This idea requires an additional level of abstraction for the cheques and the chequebook. The chequebook smart contract should be modified to directly interact with different on-chain payment mechanisms. In the case of payment channel networks cheques should be generalized to allow modeling Balance Proof. The interaction between the chequebook and the payment channel network will occur during the on-chain settlement when the chequebook smart contract should send the Balance Proof to the payment channel smart contract being used. As with the previous approach, this requires several changes to the SWAP chequebook smart contract. For every payment system to be supported a different chequebook should be designed. Having a single chequebook to handle multiple payment systems will result in a smart contract too difficult to maintain and keep secure.
