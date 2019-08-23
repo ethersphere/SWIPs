@@ -50,9 +50,8 @@ When it becomes possible for nodes to set their preference for a payment module,
 At a high level a payment module is responsible for sending a payment to a recipient (a peer providing storage services) for services provided. How payments are actually performed will depend on the specific implementation of the payment module. The payment module is then responsible for:
 
 * Resolving the conversion from honey to money.
-* Ensuring that the user can engage in SWAP accounting for the chosen payment module before payment is due.
 * Sending a payment to the recipient.
-* Sending a message to the accounting module upon receipt of payment
+* Sending a message to the accounting module upon receipt of payment.
 * Ensuring that the user can send payments with the chosen payment module before payment is due.
 * Handling any potential errors.
 * Optionally exposing other methods such as querying balances, topping up balances or sending payments (outside of Swarm). 
@@ -82,53 +81,41 @@ dimensions:
 	oracle: 10
 
 # Supported payment options by the node.
-# A payment module is defined by a currency, provider and oracle. Weights are the associated preferences.
+# A payment module is defined by a currency, the supported providers and oracles. Weights are the values associated to each provider.
+# or oracle and it indicates the preference for that option.
 currencies:
 	rif:
 		weight: 36
 		providers:
-			lumino:
-				weigth: 15
-			raiden:
-				weight: 45
+			lumino: 15
+			raiden: 45
 		oracles:
-			rifOracleA:
-				weigth: 10
-			rifOracleB:
-				weigth: 70
-			rifOracleC:
-				weigth: 60
+			rifOracleA: 10
+			rifOracleB: 70
+			rifOracleC: 60
 	xdai:
 		weight: 9
 		providers:
-			Lumino: 
-				weigth: 10
+			lumino: 10
 		oracles:
-			xDaiOracle: 
-				weight: 20
+			xDaiOracle: 20
 	dai:
 		weight: 5
 		providers:
-			raiden:
-				weight: 80
+			raiden: 80
 		oracles:
-			daiOracleA: 
-				weight: 30
-			daiOracleB:
-				weight: 20
+			daiOracleA: 30
+			daiOracleB: 20
 	eth:
 		weight: 40
 		providers:
-			swap:
-				weight: 35
+			swap: 90
 		oracles:
-			ethOracleA:
-				weight: 90
-			ethOracleB:
-				weight: 10
+			ethOracleA: 90
+			ethOracleB: 10
 ```
 
-This configuration is used by the payment method selection algorithm in the following way: 
+When two nodes (A and B) establish a connection they independently execute the following payment method selection algorithm, using as input the configuration defined previoulsy:
 
 1. Based on the node configuration generate a set of triplets in the form ```[currency, provider, oracle]```. As an example let's take from the previous configuration the ```rif``` entry. From that entry we can build the triplets `[rif, lumino, rifOracleA]`, `[rif, lumino, rifOracleB]`, `[rif, lumino, rifOracleC]`,`[rif, raiden, rifOracleA]`, `[rif, raiden, rifOracleB]`, `[rif, raiden, rifOracleC]`, but triplets are generated for the other currencies as well. 
 2. Exchange the generated set of triplets with the peer B.
