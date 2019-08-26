@@ -45,20 +45,20 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 
 ### Technical details
 This section describes the interaction between the nodes and the oracle in more detail.
-* Querying the oracle will return a `messagePrices` object, specifying a `Time to Live (TTL)` in seconds and `prices` object objects. The `prices` object contains an entry for each message type (`SwarmMessage`) and `SwarmMessage` maps a `validFrom` to a respective price. Taken together, the oracle returns: 
+* Querying the oracle will return a `messagePrices` object, specifying a `Time to Live (TTL)` in seconds and `prices` object objects. The `prices` object contains an entry for each message type (`SwarmMessageType`) and `SwarmMessageType` maps a `validFrom` to a respective price. Taken together, the oracle returns:
 ```json
 {
   "messagePrices": 
   {
     "TTL": <TTLValue>, 
     "prices": {
-      "SwarmMessageX": {
+      "SwarmMessageTypeX": {
         "validFrom0": <price0>, 
         ...,                
         "validFromN": <priceN>
       }
       ...,
-      "SwarmMessageY": {
+      "SwarmMessageTypeY": {
         "validFrom0": <price0>,
         ...,
         "validFromN": <priceN>
