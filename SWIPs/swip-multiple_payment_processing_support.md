@@ -17,7 +17,7 @@ In the current Swarm design, accounting of the data exchanged between peers and 
 
 This SWIP proposes decoupling the accounting for services provided via Swarm from the actual handling of the payment. A generic payment module will be defined as an interface for handling the payments; the existing SWAP chequebook will be the first implementation of this interface. Doing this will pave the way for enabling other currencies to define their implementation of the payment module, which will increase the resilience of the Swarm network (i.e. if one payment module fails, others might still work) while making Swarm attractive to a wider user base by allowing nodes to pay in their currency of preference.
 
-To allow multiple payment modules to co-exist on the same network, nodes must be able to come to an agreement on which payment module (or modules) to use. We propose a mechanism for nodes to indicate these preferences during handshake; such preferences should be normalized and weighted. Furthermore, there must be a fallback option provided for the payment module to ensure that nodes can always connect. Finally, there should be a mechanism for each node to keep track of the payment methods negotiated with its peers.
+To allow multiple payment modules to co-exist on the same network, nodes must be able to come to an agreement on which payment module (or modules) to use. We propose a mechanism for nodes to indicate these preferences. Furthermore, there must be a fallback option provided for the payment module to ensure that nodes can always connect. Finally, there should be a mechanism for each node to keep track of the payment methods negotiated with its peers.
 
 This SWIP is part of a series of SWIPs (but can be implemented on its own). To see the full picture, please refer to [swip-message_to_honey](./swip-message_to_honey.md), [swip-honey_to_money](./swip-honey_to_money.md) and the diagram below:
 
@@ -31,7 +31,7 @@ Nodes need to keep track of the balances that result from consuming/servicing st
 
 A minimal payment module receives a price in ```honey```, converts this price to a currency via an agreed-upon price oracle, sends the payment and returns when the payment is processed (either successfully or unsuccessfully). Making it clear in the code that this is the minimum expected from a payment module will both increase the readability and auditability of the Swarm source code, but will also make it easier for other payment methods to implement the payment module interface, hereby allowing users to choose how they want to settle their payments, which increases the resilience of the network and enlarges the potential user base. 
 
-Incorporating the required abstractions to support payment modules will require modifying the handshake protocol, the message handling, and the accounting and payment strategies implemented at the moment.
+Incorporating the required abstractions to support payment modules will require modifying, the message handling, and the accounting and payment strategies implemented at the moment.
 
 ## Motivation
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
@@ -56,12 +56,12 @@ At a high level a payment module is responsible for sending a payment to a recip
 * Handling any potential errors.
 * Optionally exposing other methods such as querying balances, topping up balances or sending payments (outside of Swarm). 
 
-Payment module negotiation can occur either during handshake or at a later time, since the payment module is only needed when peers need to balance their debts (i.e. when the payment threshold is reached). Negotiating the payment module only when needed will help to reduce the network load when nodes build up a connection. The disadvantage is that it will be unclear in which currency nodes will going to get paid until they engage in the payment module negotiation. The fallback mechanism ensures that nodes will always be able to issue payments to balance their debts.
+Payment module negotiation can occur either during handshake or at a later time, since the payment module is only needed when peers need to balance their debts (i.e. when the payment threshold is reached). Negotiating the payment module only when needed will help to reduce the network load when nodes build up a connection. The disadvantage is that it will be unclear in which currency nodes will going to get paid until they engage in the payment module negotiation. The fallback mechanism ensures that nodes will always be able to issue payments to balance their debts. 
 
 Experimentation is needed to determine the best time for nodes to engage in payment module negotiation.
 
 ### Multiple payment modules support
-When allowing multiple payment modules, it is essential for nodes to communicate their preference. There are three dimensions to take into consideration for the payment preference:
+When allowing multiple payment modules, it is essential for nodes to communicate their preference. There are three dimensions to take into consideration for the payment preference: 
 
 1. Currency to use
 2. Price oracle to use
@@ -76,23 +76,23 @@ The following is an example of the proposed configuration:
 ```yaml
 # The relative importance of each dimension for the node
 dimensions:
-	currency: 70
-	provider: 20
-	oracle: 10
+    currency: 70
+    provider: 20
+    oracle: 10
 
 # Supported payment options by the node.
 # A payment module is defined by a currency, the supported providers and oracles. Weights are the values associated to each provider.
 # or oracle and it indicates the preference for that option.
 currencies:
-	rif:
-		weight: 36
-		providers:
-			lumino: 15
-			raiden: 45
-		oracles:
-			rifOracleA: 10
-			rifOracleB: 70
-			rifOracleC: 60
+    rif:
+	    weight: 36
+	    providers:
+		    lumino: 15
+		    raiden: 45
+        oracles:
+            rifOracleA: 10
+            rifOracleB: 70
+            rifOracleC: 60
 	xdai:
 		weight: 9
 		providers:
@@ -181,9 +181,9 @@ When two nodes (A and B) establish a connection they independently execute the f
 	
 	and then each node will select the triplet with the minimum ```tieBreaker``` value.
 
-The oracle negotiated during this process will override the default oracle described in [swip-honey_to_money](./swip-honey_to_money.md).
+The payment module negotiated during this process could include an oracle, in that case this oracle will override the default one described in [swip-honey_to_money](./swip-honey_to_money.md).
 
-### Technical details
+### Proposed changes to the existing code 
 
 This section describes the existing code and provides suggestions on how it could be modified to achieve the end goal of this SWIP. It is by no means an indication on how this feature should be implemented, the final design and implementation will be agreed with the community and it could differ completely from what it is described here.
 
@@ -251,7 +251,7 @@ type Peer struct {
 }
 ```
 
-This option will severely change the current architecture of Swap and affect how accounting works. A better approach to preserve the accounting structure as defined in ```p2p/protocols/accounting.go``` and its related modules is to keep the relationship between the Swap ```Peer``` and the ```Swap``` accounting object and introduce the ```SwarmPayments``` object as a collaborator of ```Swap```. This way we keep the accounting structure as it is today and delegate all payment related logic from ```Swap``` to the corresponding payment module via  ```SwarmPayments```. Following this idea, all the payment related members from the ```Swap``` object should be moved to the Swap payment module implementation.
+This option will drastically change the current architecture of Swap and affect how accounting works. A better approach to preserve the accounting structure as defined in ```p2p/protocols/accounting.go``` and its related modules is to keep the relationship between the Swap ```Peer``` and the ```Swap``` accounting object and introduce the ```SwarmPayments``` object as a collaborator of ```Swap```. This way we keep the accounting structure as it is today and delegate all payment related logic from ```Swap``` to the corresponding payment module via  ```SwarmPayments```. Following this idea, all the payment related members from the ```Swap``` object should be moved to the Swap payment module implementation.
 
 ```golang
 // Swap represents the Swarm Accounting Protocol
@@ -276,7 +276,7 @@ The ```payments``` member of the ```Swap``` struct holds the ```SwarmPayments```
 
 * Peer (beneficiary) addressess.
 * The currency to use.
-* The ```PaymentProcessor``` negotiated during the handshake for the beneficiary.
+* The ```PaymentProcessor``` negotiated with the beneficiary.
 
 
 The ```Add``` function from the ```Balance``` interface can be reimplemented to delegate the payment phase to the ```SwarmPayments``` object (several checks were removed from the code for simplicity):
@@ -363,12 +363,12 @@ type Payment struct {
 }
 ```
 
-Upon connection and during the handshake, each peer should indicate its supported ```PaymentProcessor```s, being the SWAP ```PaymentProcessor``` the default and fallback payment method to use. The ```PaymentProcessor``` implementation negotiated during the handshake with a given Peer will be registered in the  ```SwarmPayments``` component. To support multiple payment methods this information could be stored in a map where the key will be each beneficiary address, and the value a list of supported ```PaymentProcessor```s:
+Each peer should indicate its supported ```PaymentProcessor```s, being the SWAP ```PaymentProcessor``` the default and fallback payment method to use. The ```PaymentProcessor``` implementation negotiated with a given Peer will be registered in the  ```SwarmPayments``` component. To support multiple payment methods this information could be stored in a map where the key will be each beneficiary address, and the value a list of supported ```PaymentProcessor```s:
 
 ```golang
 // SwarmPayments registers the negotiated payment processors for each peer plus the default payment processor
 type SwarmPayments struct {
-    PaymentProcessors        map[common.Address][]PaymentProcessor // payment processors negotiated with each peer during handshake 
+    PaymentProcessors        map[common.Address][]PaymentProcessor // payment processors negotiated with each peer 
     DefaultPaymentProcessor  SwapPaymentProcessor                  // Swap PaymentProcessor implementation used as the default payment method
 }
 
