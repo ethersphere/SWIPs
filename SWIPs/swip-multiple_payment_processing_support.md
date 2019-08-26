@@ -399,6 +399,42 @@ func (p TokenPaymentProcessorParams) currency() string {
 }
 ```
 
+Selection of the appropriate payment module for cash in a payment in:
+
+```golang
+...
+s.payments.cashInPayment(ctx, p, msg)
+...
+```
+
+or for sending a payment in:
+
+```golang
+...
+s.payments.EmitPayment(swapPeer, peerBalance)
+...
+```
+
+will be done by performing a lookup using the peer address (or some other unique identifier) on the ```PaymentProcessors``` map:
+
+```golang
+// SwarmPayments registers the negotiated payment processors for each peer plus the default payment processor
+type SwarmPayments struct {
+    PaymentProcessors        map[common.Address][]PaymentProcessor // payment processors negotiated with each peer 
+    DefaultPaymentProcessor  SwapPaymentProcessor                  // Swap PaymentProcessor implementation used as the default payment method
+}
+```
+
+If no payment processor is found for the peer then the ```DefaultPaymentProcessor``` will be used. The ```PaymentProcessors``` map will be populated during payment module negotiation. The ```PaymentProcessor```s can be implemented as plugins by using the [HashiCorp Golang plugin system over RPC](https://github.com/hashicorp/go-plugin) or the [Golang plugin package](https://golang.org/pkg/plugin/). 
+
+The Golang plugin package only runs on Linux and macOS and it depends on dynamic library loading. The HashiCorp Golang plugin system does not rely on dynamic library loading, providing a more secure approach with added benefits:
+
+* Plugins can't crash the host process.
+* Plugins are easy to develop and they can be written in any language with RPC support.
+* Plugins only has access to the interfaces and args given to it, not to the entire memory space of the process.
+
+When implementing the support for multiple payment modules the most adequate option for plugin development should be selected. However, due to its flexibility it is recommended to use the [HashiCorp Golang plugin system over RPC](https://github.com/hashicorp/go-plugin) or at least a similar approach.
+
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
 
