@@ -28,18 +28,19 @@ This update process should be atomic: either all nodes upgrade or none of them d
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
-* An oracle is reachable at one specific endpoint and this endpoint is hardcoded in the Swarm source-code as a default parameter.
+* An oracle is reachable at one specific endpoint and this endpoint is hardcoded in the Swarm source-code as a default parameter, but can be adjusted by the node if so desired (e.g. via config and/or flag).
 * If nodes query the oracle at the same time, the oracle gives the same answer.
-* A price oracle returns a `honeyPrice` object, specifying a `Time To Live (TTL)` in seconds and a `price` object. The `price` object maps all `validFrom` entries to their respective `honeyPriceWei`. `validFrom` is a UNIX timestamp and `honeyPriceWei` is the price of one honey unit, denominated in Wei. To summarize, the oracle returns:
+* A price oracle returns a `honeyPrice` object, specifying a `Time To Live (TTL)` in seconds and a `price` object. The `price` object maps all `validFrom` entries to their respective `price`. `validFrom` is a UNIX timestamp and `price` is the price of one honey unit, denominated in `currency`. To summarize, the oracle returns:
 ```json
 {
    "honeyPrices": {
        "TTL": <TTLValue>,
        "price": {
-           "validFrom0": <priceInWei0>,
+           "validFrom0": <price0>,
 		…,
-           "validFromN": <priceInWeiN>
-       }
+           "validFromN": <priceN>
+       },
+       "currency": "currencyX"
    }
 }
 ```
@@ -51,7 +52,8 @@ An example of this could be:
        "price": {
            "1566396921": 80000,
            "1566400521": 80800
-       }
+       },
+       "currency": "wei"
    }
 }
 ```
@@ -89,6 +91,7 @@ Not currently available
 ## Implementations
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
 * The Swarm source code will reference an Ethereum address of a `HoneyToMoney` price oracle smart contract.
+* The currency in which the oracle quotes it's price is Wei.
 * The price oracle implements the `HoneyToMoney` interface (to be specified). 
 * The `HoneyToMoney` contract will initially be governed in such a way that a subset of stakeholders can make decisions which are not high-impact (i.e. decide on small price changes) but the involvement of all stakeholders is required to make high-impact decisions (such as changing the implementation of the oracle, changing governance, deciding on big price changes, etc). This semi-governance structure is in place to allow experimentation with an update process of honey prices and is not a recommendation for a price update process when honey is quoted in a currency worth real money.
 
