@@ -85,34 +85,34 @@ dimensions:
 # or oracle and it indicates the preference for that option.
 currencies:
     rif:
-	    weight: 36
-	    providers:
-		    lumino: 15
-		    raiden: 45
+        weight: 36
+        providers:
+            lumino: 15
+            raiden: 45
         oracles:
             rifOracleA: 10
             rifOracleB: 70
             rifOracleC: 60
-	xdai:
-		weight: 9
-		providers:
-			lumino: 10
-		oracles:
-			xDaiOracle: 20
-	dai:
-		weight: 5
-		providers:
-			raiden: 80
-		oracles:
-			daiOracleA: 30
-			daiOracleB: 20
-	eth:
-		weight: 40
-		providers:
-			swap: 90
-		oracles:
-			ethOracleA: 90
-			ethOracleB: 10
+    xdai:
+        weight: 9
+        providers:
+            lumino: 10
+        oracles:
+            xDaiOracle: 20
+    dai:
+        weight: 5
+        providers:
+            raiden: 80
+        oracles:
+            daiOracleA: 30
+            daiOracleB: 20
+    eth:
+        weight: 40
+        providers:
+            swap: 90
+        oracles:
+            ethOracleA: 90
+            ethOracleB: 10
 ```
 
 When two nodes (A and B) establish a connection they independently execute the following payment method selection algorithm, using as input the configuration defined previoulsy:
