@@ -87,14 +87,31 @@ An example of this could be:
 * The applied price is chosen by looking up the price corresponding to the `validFrom` which is in the most recent past.
 * After the `messagePrices` object expires, nodes will query the price oracle for a new `messagePrices` object. 
 * The source code should contain a fallback value for `messagePrices` which is updated every release to reflect the most up-to-date message prices at that time.
-* Upon start-up, nodes will look at the contents of their local cache. If no `messagePrices` object is found, or the `TTL` of their cached `messagePrices` object has expired, the message oracle will be queried. If the oracle can't be reached the fallback value will be used.
+* Upon start-up, nodes will look at the contents of their local cache. If no `messagePrices` object is found, or the `TTL` of their cached `messagePrices` object has expired, the message oracle will be queried.
 * The `TTL` is set as a variable inside the implementation of the oracle and can be updated.
 * To ensure that a new entry in the `smarmMessage` object can't become valid before all nodes are updated, the smart contract or update policy must ensure that the `validFrom` of new prices must be at least `TTL` seconds in the future.
-* If the oracle cannot be reached when the `TTL` of the last `messagePrices` object is expired, nodes will continue to apply the `prices` as instructed by the expired `messagePrices` object and will start to query the oracle at a more regular interval to re-establish connection. 
+* If the oracle cannot be reached, nodes will continue to apply the `prices` as instructed by the expired `messagePrices` object or the `fallback value`—whichever is more recent. Subsequently, the node will attempt to establish a connection at regular intervals.  
 
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
+### Comparable solutions
 No alternative solutions to updating the *relative* message pricing were considered. It is perhaps worthy to look at how op-code prices (in gas) are updated in Ethereum. Here we also have relative prices and the developers are tweaking the gas-prices on almost every hard-fork (see [opcode re-price discussion](https://ethereum-magicians.org/t/opcode-repricing/3024)). Using an oracle, updatable by a governance structure of Swarm developers and stakeholders, effectively also allows the developers to set prices (just as in Ethereum with ether opcodes). However, the Ethereum opcode upgrade mechanism must also be approved by the majority of the hashing power of the Ethereum network (to have a successful hard-fork). This check is missing in the current design for the `MsgToHoney` price oracle. 
+
+### Non-reachable oracle
+When an oracle is not reachable upon startup or during normal operation, two situations can be the case:
+1) The node has no oracle response cached.
+2) The node has an an oracle response cached, but the response is invalid (TTL expired).
+In both cases, the node can continue operations, even if this means using a price which is not guaranteed to be the same as his peers: in the first case, the fallback value can be used, in the second case the fallback value or the expired oracle response can be used (whichever is more recent). When this situation occurs, the node will accrue accounting imbalances with his peers which will eventually lead to a disconnect (when the accounting imbalance reaches the disconnect treshold). optionally, the node can undo any accounting differences when connection is re-established by looking up which prices have been applied and which prices should have been applied and accounting for the difference (note that for this to work, the node must keep a log of all messages he accounted for and their respective price).
+Three other options were considered:
+- Threating the situation as fatal and shut down the node immediately.
+- Ask your neighbours for the price which they apply and if there is a consensus on the price by a significant majority (i.e. 80%), apply that price.
+- Use a bogus value (i.e. 1) for all messages and account with this value.
+With regards to the first option:
+Treating an unreachable oracle as described is better than threating the situation as fatal as the node can still engage with his peers for a foreseable time—which gives the node operator or the Ethereum network time to recover, while Swarm operations can continue uninterupted. If the situation would be considered fatal, a bug in the Ethereum client, for example, could result in a significant amount of Swarm nodes going offline. 
+With regards to the second option:
+This situation is potential vulnerable for an attack, as an attacker might occupy the connections of a node. Furthermore, in case of a systematic failure of the oracle for the whole network, there is no guarantee that a significant majority will quote the same price and it is unclear what happens if this is the case. 
+With regards to the third option:
+Using the fallback or the cached oracle response is always better than a bogus value, as the bogus value might create price incentives which are completely off, causing nodes to start behaving erratically, while not applying the same price as his peers. 
 
 ## Backwards Compatibility 
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
