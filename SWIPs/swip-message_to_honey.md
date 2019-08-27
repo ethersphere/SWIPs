@@ -87,7 +87,7 @@ An example of this could be:
 * Any answer from the oracle will be valid for the node for `TTL` seconds.
 * The applied price is chosen by looking up the price corresponding to the `validFrom` which is in the most recent past.
 * After the `messagePrices` object expires, nodes will query the price oracle for a new `messagePrices` object. 
-* The source code should contain a fallback value for `messagePrices` which is updated every release to reflect the most up-to-date message prices at that time.
+* On every regular code release, the default `messagePrices` will be updated so that a fallback value is always available to nodes
 * Upon start-up, nodes will look at the contents of their local cache. If no `messagePrices` object is found, or the `TTL` of their cached `messagePrices` object has expired, the message oracle will be queried.
 * The `TTL` is set as a variable inside the implementation of the oracle and can be updated.
 * To ensure that a new entry in the `smarmMessage` object can't become valid before all nodes are updated, the smart contract or update policy must ensure that the `validFrom` of new prices must be at least `TTL` seconds in the future.
