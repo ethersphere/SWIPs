@@ -29,7 +29,7 @@ To enable changing the relative prices of Swarm messages for all nodes simultane
 
 ## Motivation
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
-In Swarm, nodes send various types of messages; chunk requests, chunk delivery, PSS… to name a few. Every message is priced differently to reflect the different load such messages have on the system. To ensure optimal usage and health of the network it is essential that these prices are quoted relative to the load they induce on the network. If this is not the case certain messages may be too cheap, resulting in unprofitability for service providers— while others may be too expensive, causing users to avoid the service. The Swarm network must be used by real nodes to get insights on how messages should be priced relative to each other. Hence, there is a need for an update process of the relative message price on a live network. This update process should be atomic: either all nodes upgrade or none. This us urrently not facilitated by the hardcoded values in the Swarm source code. Therefore, if prices change in the current implementation, nodes running different releases will account for messages differently. Eventually, this will result in disconnects due to balance differences between nodes. This SWIP proposes an on-chain price oracle to enable an atomic update process of message prices.
+In Swarm, nodes send various types of messages; chunk requests, chunk delivery, PSS… to name a few. Every message is priced differently to reflect the different load such messages have on the system. To ensure optimal usage and health of the network it is essential that these prices are quoted relative to the load they induce on the network. If this is not the case certain messages may be too cheap, resulting in unprofitability for service providers—while others may be too expensive, causing users to avoid the service. The Swarm network must be used by real nodes to get insights on how messages should be priced relative to each other. Hence, there is a need for an update process of the relative message price on a live network. This update process should be atomic: either all nodes upgrade or none. This is currently not facilitated by the hardcoded values in the Swarm source code. Therefore, if prices change in the current implementation, nodes running different releases will account for messages differently. Eventually, this will result in disconnects due to balance differences between nodes. This SWIP proposes an on-chain price oracle to enable an atomic update process of message prices.
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
@@ -45,7 +45,7 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 
 ### Technical details
 This section describes the interaction between the nodes and the oracle in more detail.
-* Querying the oracle will return a `messagePrices` object, specifying a `Time to Live (TTL)` in seconds and `prices` object objects. The `prices` object contains an entry for each message type (`SwarmMessageType`) and `SwarmMessageType` maps a `validFrom` to a respective price. Taken together, the oracle returns:
+* Querying the oracle will return a `messagePrices` object, specifying a `Time to Live (TTL)` in seconds and a `prices` object. The `prices` object contains an entry for each message type (`SwarmMessageType`) and `SwarmMessageType` maps a `validFrom` to a respective price. Taken together, the oracle returns:
 ```json
 {
   "messagePrices": 
@@ -90,7 +90,7 @@ An example of this could be:
 * On every regular code release, the default `messagePrices` will be updated so that a fallback value is always available to nodes
 * Upon start-up, nodes will look at the contents of their local cache. If no `messagePrices` object is found, or the `TTL` of their cached `messagePrices` object has expired, the message oracle will be queried.
 * The `TTL` is set as a variable inside the implementation of the oracle and can be updated.
-* To ensure that a new entry in the `smarmMessage` object can't become valid before all nodes are updated, the smart contract or update policy must ensure that the `validFrom` of new prices must be at least `TTL` seconds in the future.
+* To ensure that a new entry in the `swarmMessage` object can't become valid before all nodes are updated, the smart contract or update policy must ensure that the `validFrom` of new prices must be at least `TTL` seconds in the future.
 * If the oracle cannot be reached, nodes will continue to apply the `prices` as instructed by the expired `messagePrices` object or the `fallback value`—whichever is more recent. Subsequently, the node will attempt to establish a connection at regular intervals.  
 
 ## Rationale
