@@ -72,7 +72,8 @@ An example of this could be:
 {
    "messagePrices": {
       "TTL": 3600,
-      "chunkRequest": {
+      "prices": {
+        "chunkRequest": {
         "1566469257": 1000,             
         "1566472857": 1010
       },
