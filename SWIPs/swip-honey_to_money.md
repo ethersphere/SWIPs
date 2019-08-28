@@ -30,14 +30,14 @@ This update process should be atomic: either all nodes upgrade or none of them d
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
 * An oracle is reachable at one specific endpoint and this endpoint is hardcoded in the Swarm source-code as a default parameter, but can be adjusted by the node if so desired (e.g. via config and/or flag).
 * If nodes query the oracle at the same time, the oracle gives the same answer.
-* A price oracle returns a `honeyPrice` object, specifying a `Time To Live (TTL)` in seconds and a `price` object. The `price` object maps all `validFrom` entries to their respective `price`. `validFrom` is a UNIX timestamp and `price` is the price of one honey unit, denominated in `currency`. To summarize, the oracle returns:
+* A price oracle returns a strucure like the `honeyPrice` object, specifying a `Time To Live (TTL)` in seconds and a `price` object. The `price` object maps all `validFrom` entries to their respective `price`. `validFrom` is a UNIX timestamp and `price` is the price of one honey unit, denominated in `currency`. It is up to the implementation to decide on the actual structure to use. To summarize, the oracle may return:
 ```json
 {
    "honeyPrices": {
        "TTL": <TTLValue>,
        "price": {
            "validFrom0": <price0>,
-		…,
+        …,
            "validFromN": <priceN>
        },
        "currency": "currencyX"
@@ -53,7 +53,7 @@ An example of this could be:
            "1566396921": 80000,
            "1566400521": 80800
        },
-       "currency": "wei"
+       "currency": "Wei"
    }
 }
 ```
@@ -90,9 +90,9 @@ Not currently available
  
 ## Implementations
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
-* Swarm's initial implementation of the honey to money contract is composed of two pieces: a `honeyToMoneyContract` (which runs as a smart-contract on the Ethereum blockchain), and a `honeyToMoneyOracleWrapper` (which runs locally by the node). The responsibility of the `honeyToMoneyContract` is to emit all relevant information, while the responsibility of the `honeyToMoneyOracleWrapper` is to piece all this information together into a structure which is usefull for the node. 
+* Swarm's initial implementation of the honey to money contract is composed of two pieces: a `honeyToMoneyContract` (which runs as a smart-contract on the Ethereum blockchain), and a `honeyToMoneyOracleWrapper` (which runs locally by the node). The responsibility of the `honeyToMoneyContract` is to emit all relevant information, while the responsibility of the `honeyToMoneyOracleWrapper` is to piece all this information together into a structure which is useful for the node. 
 * The Swarm source code will reference an Ethereum address of a `HoneyToMoney` price oracle smart contract.
-* The currency in which the oracle quotes it's price is Wei.
+* The currency in which the oracle quotes its price is Wei.
 * The `honeyToMoneyContract` implements the `HoneyToMoney` interface (to be specified). 
 * The `HoneyToMoney` contract will initially be governed in such a way that a subset of stakeholders can make decisions which are not high-impact (i.e. decide on small price changes) but the involvement of all stakeholders is required to make high-impact decisions (such as changing the implementation of the oracle, changing governance, deciding on big price changes, etc). This semi-governance structure is in place to allow experimentation with an update process of honey prices and is not a recommendation for a price update process when honey is quoted in a currency worth real money.
 
