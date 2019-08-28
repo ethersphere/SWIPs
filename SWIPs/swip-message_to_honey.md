@@ -33,9 +33,9 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
-* The Swarm source code references the address of a smart contract which acts as a honey pricing oracle for messages.
-* The price oracle implements the `MsgToHoney` interface (to be specified) 
-* The `MsgToHoney` contract will be initially owned by a governance structure of Swarm developers and stakeholders. The governance structure shall be simple to set up initially, but facilitate the possibility for upgrading to a more advanced governance structure. 
+* The Swarm source code references the address of a message to honey smart contract (`msgToHoneyContract`) which emits the prices of Swarm messages at regular intervals.
+* The price`msgToHoneyContract`implements the `MsgToHoney` interface (to be specified). 
+* The `MsgToHoneyContract` will be initially owned by a governance structure of Swarm developers and stakeholders. The governance structure shall be simple to set up initially, but facilitate the possibility for upgrading to a more advanced governance structure. 
 * Nodes pro-actively keep track of updating their local cache of honey-prices.
 * Upon sending or receiving a message, a node checks if the cached price is valid in its local database. If not, the node will query the price oracle to get the current price. Subsequently, the node will apply the current price to the balance of its peer (see diagram below).
 * Nodes expect other nodes to apply the same price as they do themselves. Due to the asynchronicity of the network, this will not necessarily be true around the period that prices are updated, which causes accounting imbalances. This SWIP does not facilitate a solution for this, as it is not expected that accounting imbalances will be high enough to cause disruptions in the network. Additional analysis of the network has to confirm this statement. 
@@ -44,8 +44,9 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 ![message_pricing.svg](./../assets/swip-message_to_honey/message_pricing.svg)
 
 ### Technical details
-This section describes the interaction between the nodes and the oracle in more detail.
-* Querying the oracle will return a `messagePrices` object, specifying a `Time to Live (TTL)` in seconds and a `prices` object. The `prices` object contains an entry for each message type (`SwarmMessageType`) and `SwarmMessageType` maps a `validFrom` to a respective price. Taken together, the oracle returns:
+This section describes the interaction between the nodes and the oracle in more detail. 
+* The message to honey oracle is composed of two pieces: the `oracleContract` (which runs as a smart contract on the Etheruem blockchain) and a `oracleWrapper` (which runs locally by the node).  The responsibility of the `oracleContract` is to emit all relevant information, while the responsibility of the `oracleWrapper` is to piece this information together to return a structure which is usefull for the node.
+* Querying the oracle will return enough information such that a `messagePrices` object, specifying a `Time to Live (TTL)` in seconds and a `prices` object can be build. The `prices` object contains an entry for each message type (`SwarmMessageType`) and `SwarmMessageType` maps a `validFrom` to a respective price. Taken together, the oracle may return:
 ```json
 {
   "messagePrices": 
