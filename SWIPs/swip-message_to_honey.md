@@ -125,7 +125,7 @@ This SWIP is backward compatible as long as the price oracle quotes the same pri
 No test cases for this SWIP are provided at this moment.
 ## Implementations
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
-No implementation for this SWIP is provided at this moment. 
+No implementation for this SWIP is provided at this moment, but please have a look at the [msgToHoney smart contracts](https://github.com/Eknir/msgOracle/) to get a feeling on how the messageToHoneyContract , as well as the simple governance around them could look like.
 
 ## Copyright Waiver
  Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
