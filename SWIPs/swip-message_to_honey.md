@@ -45,8 +45,8 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 
 ### Technical details
 This section describes the interaction between the nodes and the oracle in more detail. 
-* The message to honey oracle is composed of two pieces: the `oracleContract` (which runs as a smart contract on the Etheruem blockchain) and a `oracleWrapper` (which runs locally by the node).  The responsibility of the `oracleContract` is to emit all relevant information, while the responsibility of the `oracleWrapper` is to piece this information together to return a structure which is usefull for the node.
-* Querying the oracle will return enough information such that a `messagePrices` object, specifying a `Time to Live (TTL)` in seconds and a `prices` object can be build. The `prices` object contains an entry for each message type (`SwarmMessageType`) and `SwarmMessageType` maps a `validFrom` to a respective price. Taken together, the oracle may return:
+* The message to honey oracle is composed of two pieces: the `messageToHoneyContract` (which runs as a smart contract on the Etheruem blockchain) and a `messageToHoneyWrapper` (which runs locally by the node).  The responsibility of the `messageToHoneyContract` is to emit all relevant information, while the responsibility of the `messageToHoneyWrapper` is to piece this information together to return a structure which is usefull for the node.
+* The interface of the wrapper nor the contract is described in this SWIP. However, it should be possible through the wrapper to easily create a json like the `messagePrices` object. The `messagePrices` object specifies a `Time to Live (TTL)` in seconds and a `prices` object can be build. The `prices` object contains an entry for each message type (`SwarmMessageType`) and `SwarmMessageType` maps a `validFrom` to a respective price. Taken together, the oracle may return:
 ```json
 {
   "messagePrices": 
