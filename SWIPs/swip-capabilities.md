@@ -1,7 +1,7 @@
 ---
 SWIP: 18
 title: Swarm node implementer spec - 
-author: Louis Holbrook @nolash <dev@holbrook.no>
+author: Louis Holbrook <dev@holbrook.no> (https://holbrook.no)
 status: Draft
 type: Track Specs
 created: 2019-08-23
