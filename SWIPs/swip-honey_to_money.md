@@ -90,9 +90,10 @@ Not currently available
  
 ## Implementations
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
+* Swarm's initial implementation of the honey to money contract is composed of two pieces: a `honeyToMoneyContract` (which runs as a smart-contract on the Ethereum blockchain), and a `honeyToMoneyOracleWrapper` (which runs locally by the node). The responsibility of the `honeyToMoneyContract` is to emit all relevant information, while the responsibility of the `honeyToMoneyOracleWrapper` is to piece all this information together into a structure which is usefull for the node. 
 * The Swarm source code will reference an Ethereum address of a `HoneyToMoney` price oracle smart contract.
 * The currency in which the oracle quotes it's price is Wei.
-* The price oracle implements the `HoneyToMoney` interface (to be specified). 
+* The `honeyToMoneyContract` implements the `HoneyToMoney` interface (to be specified). 
 * The `HoneyToMoney` contract will initially be governed in such a way that a subset of stakeholders can make decisions which are not high-impact (i.e. decide on small price changes) but the involvement of all stakeholders is required to make high-impact decisions (such as changing the implementation of the oracle, changing governance, deciding on big price changes, etc). This semi-governance structure is in place to allow experimentation with an update process of honey prices and is not a recommendation for a price update process when honey is quoted in a currency worth real money.
 
 ## Copyright Waiver
