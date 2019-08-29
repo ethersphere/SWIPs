@@ -33,11 +33,12 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
-* The Swarm source code references the address of a message to honey smart contract (`msgToHoneyContract`) which emits the prices of Swarm messages.
-* The price`msgToHoneyContract`implements the `MsgToHoney` interface (to be specified). 
+* The `messageToHoneyOracle` (being an instance which runs on the Swarm node) has the responsibility of returning the most up-to-date honey price to the other Swarm components.
+* the `messageToHoneyOracle` references the address of a message to honey smart contract (`msgToHoneyContract`) from which the prices of Swarm messages are fetched.
+* The `messageToHoneyOracle` pro-actively keeps track of updating its local cache of honey-prices.
+* The price`msgToHoneyContract` implements the `MsgToHoney` interface (to be specified). 
 * The `MsgToHoneyContract` will be initially owned by a governance structure of Swarm developers and stakeholders. The governance structure shall be simple to set up initially, but facilitate the possibility for upgrading to a more advanced governance structure. 
-* Nodes pro-actively keep track of updating their local cache of honey-prices.
-* Upon sending or receiving a message, a node checks if the cached price is valid in its local database. If not, the node will query the price oracle to get the current price. Subsequently, the node will apply the current price to the balance of its peer (see diagram below).
+* Upon receiving or sending a payment, the node a request a message price from the `messageToHoneyOracle`, who on its turn checks if it has a valid cached price. If not, the `messageToHoneyOracle` will query `msgToHoneyContract` to get the current price. The most up-to-date price is returned and subsequently, the node will apply the price to the balance of its peer (see diagram below).
 * Nodes expect other nodes to apply the same price as they do themselves. Due to the asynchronicity of the network, this will not necessarily be true around the period that prices are updated, which causes accounting imbalances. This SWIP does not facilitate a solution for this, as it is not expected that accounting imbalances will be high enough to cause disruptions in the network. Additional analysis of the network has to confirm this statement. 
 * The design of the oracle should minimize the interaction of Swarm nodes and the oracle maintainers with the oracle. 
 * A design proposal is clarified under the header `Technical details`, and a high-level diagram is provided below. 
@@ -45,8 +46,8 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 
 ### Technical details
 This section describes the interaction between the nodes and the oracle in more detail. 
-* The message to honey oracle is composed of two pieces: the `messageToHoneyContract` (which runs as a smart contract on the Etheruem blockchain) and a `messageToHoneyWrapper` (which runs locally by the node).  The responsibility of the `messageToHoneyContract` is to emit all relevant information, while the responsibility of the `messageToHoneyWrapper` is to piece this information together to return a structure which is usefull for the node.
-* The interface of the wrapper nor the contract is described in this SWIP. However, it should be possible through the wrapper to easily create a json like the `messagePrices` object. The `messagePrices` object specifies a `Time to Live (TTL)` in seconds and a `prices` object. The `prices` object contains an entry for each message type (`SwarmMessageType`) and `SwarmMessageType` maps a `validFrom` to a respective price. Taken together, the oracle may return:
+* The message to honey oracle is composed of two pieces: the `MsgToHoneyContract` (which runs as a smart contract on the Etheruem blockchain) and a `messageToHoneyOracle` (which runs locally by the node).  The responsibility of the `messageToHoneyContract` is to emit all relevant information, while the responsibility of the `messageToHoneyOracle` is to cache this information and return the most-recent price to the node when requested.
+* To always return the most up-to-date price, as well as to minimize the interaction with the `msgToHoneyContract`, the `messageToHoneyOracle` internally builds a structure such as the `messagePrices` object. The `messagePrices` object specifies a `Time to Live (TTL)` in seconds and a `prices` object. The `prices` object contains an entry for each message type (`SwarmMessageType`) and `SwarmMessageType` maps a `validFrom` to a respective price. which may look like this:
 ```json
 {
   "messagePrices": 
@@ -85,14 +86,14 @@ An example of this could be:
    }
 }
 ```
-* Any answer from the oracle will be valid for the node for `TTL` seconds.
-* The applied price is chosen by looking up the price corresponding to the `validFrom` which is in the most recent past.
-* After the `messagePrices` object expires, nodes will query the price oracle for a new `messagePrices` object. 
-* On every regular code release, the default `messagePrices` will be updated so that a fallback value is always available to nodes
-* Upon start-up, nodes will look at the contents of their local cache. If no `messagePrices` object is found, or the `TTL` of their cached `messagePrices` object has expired, the message oracle will be queried.
-* The `TTL` is set as a variable inside the implementation of the oracle and can be updated.
+* Any answer from the `msgToHoneyContract` will be valid for the `messageToHoneyOracle` for `TTL` seconds.
+* The returned price is chosen by looking up the price corresponding to the `validFrom` which is in the most recent past.
+* After the `messagePrices` object expires, the `messageToHoneyOracle` will query the `msgToHoneyContract` for a new `messagePrices` object. 
+* There exists a fallback `messagePrices` object, which is updated on every regular code release.
+* Upon start-up, the `messageToHoneyOracle` will look at the contents of its local cache. If no `messagePrices` object is found, or the `TTL` of their cached `messagePrices` object has expired, the message oracle will be queried.
+* The `TTL` is set as a variable inside the implementation of the `msgToHoneycontract` and can be updated.
 * To ensure that a new entry in the `swarmMessage` object can't become valid before all nodes are updated, the smart contract or update policy must ensure that the `validFrom` of new prices must be at least `TTL` seconds in the future.
-* If the oracle cannot be reached, nodes will continue to apply the `prices` as instructed by the expired `messagePrices` object or the `fallback value`—whichever is more recent. Subsequently, the node will attempt to establish a connection at regular intervals.  
+* If the oracle cannot be reached, the `messageToHoneyOracle` will return the price as instructed by the latest response of the `msgToHoneyContract` or the `fallback value`—whichever is more recent. Subsequently, the node will attempt to establish a connection at regular intervals.  
 
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
@@ -111,7 +112,7 @@ Three other options were considered as a response to an unreachable oracle. Belo
 With regards to the first option:
 Not treating an unreachable oracle as fatal error gives the node opportunity to still engage with his peers for a foreseeable time. This gives the node operator or the Ethereum network time to recover, while Swarm operations can continue uninterrupted. If the situation would be considered fatal, a bug in the Ethereum client, for example, could result in a significant amount of Swarm nodes going offline.
 With regards to the second option:
-This situation is potential vulnerable for an attack, as an attacker might occupy the connections of a node. Furthermore, in the case of a systematic failure of the oracle for the whole network, there is no guarantee that a significant majority will quote the same price and it is unclear what happens if this is the case.
+This situation is potentially vulnerable for an attack, as an attacker might occupy the connections of a node. Furthermore, in the case of a systematic failure of the oracle for the whole network, there is no guarantee that a significant majority will quote the same price and it is unclear what happens if this is the case.
 With regards to the third option:
 Using the fallback or the cached oracle response is always better than a bogus value, as the bogus value might create price incentives which are completely off, causing nodes to start behaving erratically, while not applying the same price as his peers.
 
@@ -125,7 +126,7 @@ This SWIP is backward compatible as long as the price oracle quotes the same pri
 No test cases for this SWIP are provided at this moment.
 ## Implementations
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
-No implementation for this SWIP is provided at this moment, but please have a look at the [msgToHoney smart contracts](https://github.com/Eknir/msgOracle/) to get a feeling on how the messageToHoneyContract , as well as the simple governance around them could look like.
+No implementation for this SWIP is provided at this moment, but please have a look at the [msgToHoney smart contracts](https://github.com/Eknir/msgOracle/) to get a feeling on how the msgToHoneyContract , as well as the simple governance around it could look like.
 
 ## Copyright Waiver
  Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
