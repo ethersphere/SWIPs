@@ -28,12 +28,13 @@ This update process should be atomic: either all nodes upgrade or none of them d
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
-* An oracle is reachable at one specific endpoint and this endpoint is hardcoded in the Swarm source-code as a default parameter, but can be adjusted by the node if so desired (e.g. via config and/or flag).
-* If nodes query the oracle at the same time, the oracle gives the same answer.
-* A price oracle returns a strucure like the `honeyPrice` object, specifying a `Time To Live (TTL)` in seconds and a `price` object. The `price` object maps all `validFrom` entries to their respective `price`. `validFrom` is a UNIX timestamp and `price` is the price of one honey unit, denominated in `currency`. It is up to the implementation to decide on the actual structure to use. To summarize, the oracle may return:
+* The `honeyToMoneyOracle` (being an instance which runs on the Swarm node) fetches its data from one specific endpoint (the external oracle). This endpoint is included as a part of the `honeyToMoneyOracle` implementation in the Swarm source-code, but can be adjusted by the node if so desired (e.g. via config and/or flag).
+* If two nodes query the external oracle at the same time, the external oracle gives the same answer.
+* A `honeyToMoneyOracle` returns the most up-to-date `honeyPrice` to other components of the Swarm.
+* Internally, the `honeyPrice` is decided by the `honeyToMoneyOracle` by building a strucure like the `honeyPrice` object. `honeyPrice` specifies a `Time To Live (TTL)` in seconds and a `price` object. The `price` object maps all `validFrom` entries to their respective `price`. `validFrom` is a UNIX timestamp and `price` is the price of one honey unit, denominated in `currency`. It is up to the implementation of the `honeyToMoneyOracle` to decide on the actual structure to use. To summarize, the oracle may return:
 ```json
 {
-   "honeyPrices": {
+   "honeyPrice": {
        "TTL": <TTLValue>,
        "price": {
            "validFrom0": <price0>,
@@ -47,7 +48,7 @@ This update process should be atomic: either all nodes upgrade or none of them d
 An example of this could be:
 ```json
 {
-   "honeyPrices": {
+   "honeyPrice": {
       "TTL": 3600,
        "price": {
            "1566396921": 80000,
@@ -57,16 +58,16 @@ An example of this could be:
    }
 }
 ```
-where we see that the TTL is `3600` (1 hour), and that the oracle has quoted a total of two prices. If the current time is in between`1566396921` and `1566400521`, the node will apply the price of `80000`, if the time is after `1566400521`, the nodes will apply the price of `80800`. Since the `TTL` is `3600`, nodes are guaranteed to have queried the oracle in between this time, thus ensuring that they all update simultaneously.
-* Any answer from the oracle will be valid for the node for `TTL` seconds.
+where we see that the TTL is `3600` (1 hour), and that the oracle has quoted a total of two prices. If the current time is in between `1566396921` and `1566400521`, the `honeyToMoneyOracle` will return the price of `80000`, if the time is after `1566400521`, it will return the price of `80800`. Since the `TTL` is `3600`, `honeyToMoneyOracle`s are guaranteed to have queried the external oracle in between this time, thus ensuring that they all update simultaneously.
+* Any answer from the external oracle will be valid to the `honeyToMoneyOracle` for `TTL` seconds.
 * The applied price is chosen by looking up the price corresponding to the `validFrom` which is in the most recent past.
-* Upon receipt of payment or intent to send a payment, nodes will check their local cache for the `honeyPrice` object. If it is not valid anymore or non-existent, the oracle will be queried. Otherwise, the cached price will be applied.
+* Upon receipt of payment or intent to send a payment, nodes will query the `honeyToMoneyOracle` who checks its local cache for the `honeyPrice` object. If it is not valid anymore or non-existent, the external oracle will be queried. Otherwise, the cached price which is in the most recent past will be returned.
 
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
 ### General rationale for choosing oracles
 There exists a need for the price of Swarm to change over time. However, due to the nature of Swarm, there is a need for this price to be decided network-wide, instead of peer-to-peer. Specifically:
-- The requirement on connectivity in the local bin and far-away bins means that nodes *must agree* with all nodes in their local bin and at least one node in a far-away bin on the price.
+- In order for a node to have Kademlia connectivity, it must be connected to all peers in his most proximate bin and *at least* one peer for each proximity order up to the saturation depth (see [architecture docs](https://swarm-guide.readthedocs.io/en/latest/architecture.html#overlay-network)). For SWAP to work, nodes must have the certainty that they will be able to reach an agreement on the price when they have to settle their balance. Hence, in the situation that nodes agree on the price peer-to-peer, this price *must* be decided upon the point when nodes connect. As it might happen that they don't come to an agreement on price and hence don't connect, Kademlia connectivity cannot be guaranteed when prices are to be decided peer-to-peer—in particular because of the requirement of connectivity to all nodes in the most proximate bin.
 - Zero marginal costs of serving data with perfect competition means that when nodes would engage in peer-to-peer price discovery, the price will tend to zero and a sub-optimal equilibrium of near-zero prices will be reached.
 - The high-quantity of transactions implies that nodes cannot engage in price-discovery for every byte of data transacted, meaning they have to agree *beforehand* on how they will come to a price *at a later time*.
 - Nodes are most of the time just conduits for data and payments, meaning that most of the time data requests (and thus also payments) will take place because nodes want to send data to a peer who requested this data from them.
@@ -90,11 +91,11 @@ Not currently available
  
 ## Implementations
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
-* Swarm's initial implementation of the honey to money contract is composed of two pieces: a `honeyToMoneyContract` (which runs as a smart-contract on the Ethereum blockchain), and a `honeyToMoneyOracleWrapper` (which runs locally by the node). The responsibility of the `honeyToMoneyContract` is to emit all relevant information, while the responsibility of the `honeyToMoneyOracleWrapper` is to piece all this information together into a structure which is useful for the node. 
-* The Swarm source code will reference an Ethereum address of a `HoneyToMoney` price oracle smart contract.
+* Swarm's initial implementation of the `honeyTo MoneyOracle` is composed of two pieces: a `honeyToMoneyContract` (which runs as a smart-contract on the Ethereum blockchain), and a `honeyToMoneyOracleWrapper` (which runs locally by the node). The responsibility of the `honeyToMoneyContract` is to emit all relevant information, while the responsibility of the `honeyToMoneyOracleWrapper` is to piece all this information together into a structure which is useful for the node. 
+* The Swarm `honeyToMoneyOracle` will reference an Ethereum address of a `HoneyToMoney` price oracle smart contract. This smart contract will fulfill the role of the external oracle.
 * The currency in which the oracle quotes its price is Wei.
 * The `honeyToMoneyContract` implements the `HoneyToMoney` interface (to be specified). 
-* The `HoneyToMoney` contract will initially be governed in such a way that a subset of stakeholders can make decisions which are not high-impact (i.e. decide on small price changes) but the involvement of all stakeholders is required to make high-impact decisions (such as changing the implementation of the oracle, changing governance, deciding on big price changes, etc). This semi-governance structure is in place to allow experimentation with an update process of honey prices and is not a recommendation for a price update process when honey is quoted in a currency worth real money.
+* The `HoneyToMoneyContract` will initially be governed in such a way that a subset of stakeholders can make decisions which are not high-impact (i.e. decide on small price changes) but the involvement of all stakeholders is required to make high-impact decisions (such as changing the implementation of the oracle, changing governance, deciding on big price changes, etc). This semi-governance structure is in place to allow experimentation with an update process of honey prices and is not a recommendation for a price update process when honey is quoted in a currency worth real money.
 
 ## Copyright Waiver
 Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
