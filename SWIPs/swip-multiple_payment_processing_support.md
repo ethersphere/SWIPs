@@ -21,7 +21,7 @@ To allow multiple payment modules to co-exist on the same network, nodes must be
 
 This SWIP is part of a series of SWIPs (but can be implemented on its own). To see the full picture, please refer to [swip-message_to_honey](./swip-message_to_honey.md), [swip-honey_to_money](./swip-honey_to_money.md) and the diagram below:
 
-![SWIP_Diagrams.svg](./../assets/multiple-payment_processing_support/SWIP_Diagrams.svg)
+![SWIP_Diagrams.png](./../assets/multiple-payment_processing_support/SWIP_Diagrams.png)
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
