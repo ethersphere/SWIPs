@@ -62,6 +62,7 @@ where we see that the TTL is `3600` (1 hour), and that the oracle has quoted a t
 * Any answer from the external oracle will be valid to the `honeyToMoneyOracle` for `TTL` seconds.
 * The applied price is chosen by looking up the price corresponding to the `validFrom` which is in the most recent past.
 * Upon receipt of payment or intent to send a payment, nodes will query the `honeyToMoneyOracle` who checks its local cache for the `honeyPrice` object. If it is not valid anymore or non-existent, the external oracle will be queried. Otherwise, the cached price which is in the most recent past will be returned.
+
 ![sequence.png](./../assets/swip-honey_to_money/sequence.png)
 
 
