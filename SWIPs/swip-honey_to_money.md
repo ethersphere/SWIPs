@@ -18,7 +18,7 @@ Swarm needs a mechanism to set prices which makes sense relative to other (distr
 It is expected that the price of using Swarm will change over time to reflect the changing economic landscape as well as to facilitate experimentation. Such price updates must happen atomically to prevent accounting unbalances from appearing. To lay the groundwork for enabling such price changes, this SWIP proposes a minimal interface for a *price-oracle*. Furthermore, this SWIP includes a proposal for implementing an *on-chain* price oracle, governed by Swarm developers and stakeholders to allow for experimentation.
  
 This SWIP is part of a series of SWIPs (but can be implemented on its own). To see the full picture, please refer to [swip-message_to_honey](./swip-message_to_honey.md), [swip-multiple](./swip-honey_to_money.md), [swip-multiple_payment_processing_support](./swip-multiple_payment_processing_support.md) and the diagram below:
-![SWIP_Diagrams.svg](./../assets/swip-honey_to_money/SWIP_Diagrams.svg)
+![SWIP_Diagrams.png](./../assets/swip-honey_to_money/SWIP_Diagrams.png)
  
 ## Motivation
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
@@ -62,6 +62,7 @@ where we see that the TTL is `3600` (1 hour), and that the oracle has quoted a t
 * Any answer from the external oracle will be valid to the `honeyToMoneyOracle` for `TTL` seconds.
 * The applied price is chosen by looking up the price corresponding to the `validFrom` which is in the most recent past.
 * Upon receipt of payment or intent to send a payment, nodes will query the `honeyToMoneyOracle` who checks its local cache for the `honeyPrice` object. If it is not valid anymore or non-existent, the external oracle will be queried. Otherwise, the cached price which is in the most recent past will be returned.
+
 
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
