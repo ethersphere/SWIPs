@@ -35,7 +35,7 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
 * The `messageToHoneyOracle` (being an instance which runs on the Swarm node) has the responsibility of returning the most up-to-date honey price to the other Swarm components.
 * the `messageToHoneyOracle` references the address of a message to honey smart contract (`msgToHoneyContract`) from which the prices of Swarm messages are fetched.
-* The `messageToHoneyOracle` pro-actively keeps track of updating its local cache of honey-prices.
+* The `messageToHoneyOracle` pro-actively keeps track of updating its local cache of message-prices.
 * The price`msgToHoneyContract` implements the `MsgToHoney` interface (to be specified). 
 * The `MsgToHoneyContract` will be initially owned by a governance structure of Swarm developers and stakeholders. The governance structure shall be simple to set up initially, but facilitate the possibility for upgrading to a more advanced governance structure. 
 * Upon receiving or sending a payment, the node a request a message price from the `messageToHoneyOracle`, who on its turn checks if it has a valid cached price. If not, the `messageToHoneyOracle` will query `msgToHoneyContract` to get the current price. The most up-to-date price is returned and subsequently, the node will apply the price to the balance of its peer (see diagram below).
