@@ -21,7 +21,7 @@ Currently, Swarm developers have no empirical data nor theoretical references av
 An on-chain price oracle, managed by a multi-signature wallet of Swarm stakeholders, provides a clean way for updating relative prices; the Swarm source code will never require an update but instead references the address of the oracle which updates its quoted prices at predictable times.
 This SWIP is part of a series of SWIPs (but can be implemented on its own). To see the full picture, please refer to [swip-multiple_payment_processing_support](./swip-multiple_payment_processing_support.md), [swip-honey_to_money](./swip-honey_to_money.md) and the diagram below:
 
-![SWIP_Diagrams.svg](./../assets/swip-message_to_honey/SWIP_Diagrams.svg)
+![SWIP_Diagrams.png](./../assets/swip-message_to_honey/SWIP_Diagrams.png)
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
@@ -42,7 +42,7 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 * Nodes expect other nodes to apply the same price as they do themselves. Due to the asynchronicity of the network, this will not necessarily be true around the period that prices are updated, which causes accounting imbalances. This SWIP does not facilitate a solution for this, as it is not expected that accounting imbalances will be high enough to cause disruptions in the network. Additional analysis of the network has to confirm this statement. 
 * The design of the oracle should minimize the interaction of Swarm nodes and the oracle maintainers with the oracle. 
 * A design proposal is clarified under the header `Technical details`, and a high-level diagram is provided below. 
-![message_pricing.svg](./../assets/swip-message_to_honey/message_pricing.svg)
+![message_pricing.png](./../assets/swip-message_to_honey/message_pricing.png)
 
 ### Technical details
 This section describes the interaction between the nodes and the oracle in more detail. 
@@ -94,6 +94,8 @@ An example of this could be:
 * The `TTL` is set as a variable inside the implementation of the `msgToHoneycontract` and can be updated.
 * To ensure that a new entry in the `swarmMessage` object can't become valid before all nodes are updated, the smart contract or update policy must ensure that the `validFrom` of new prices must be at least `TTL` seconds in the future.
 * If the oracle cannot be reached, the `messageToHoneyOracle` will return the price as instructed by the latest response of the `msgToHoneyContract` or the `fallback value`—whichever is more recent. Subsequently, the node will attempt to establish a connection at regular intervals.  
+
+![sequence.png](./../assets/swip-message_to_honey/sequence.png)
 
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
