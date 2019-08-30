@@ -1,7 +1,7 @@
 ---
-SWIP: <to be assigned>
+SWIP: 12
 title: Adaptive nodes capabilities protocol
-author: Louis Holbrook @nolash <dev@holbrook.no>, Tim Bansemer (editorial) @FantasticoFox <tim@ethswarm.org>
+author: Louis Holbrook <dev@holbrook.no> (https://holbrook.no), Tim Bansemer (editorial) @FantasticoFox <tim@ethswarm.org>
 status: Draft
 type: Track Networking
 created: 2019-07-11
@@ -44,24 +44,38 @@ PSS:
 - relay		0x0l0110
 ```
 
-We define a new protocol message for the `bzz` protocol called `Capabilities`. This message contains one field holding all module capability bit vectors.
+In the golang implementation a bitvector of capabilities will be represented as a key-value pair:
+
+type Capability struct {
+	Id  CapabilityID
+	Cap []bool
+}
+
+We define a new protocol message for the `bzz` protocol called `Capabilities`. This message contains one field holding the individual module bitvectors. This protocol message can be sent at any time to inform peers of _changes_ to the node's capabilities. 
 
 ```
 Capabilities {
-	Module [][]byte
+	Caps []Capability
 }
 ```
 
-This protocol message can be sent at any time to inform peers of _changes_ to the node's capabilities. 
+_Note that the RLP serialization of this structure in the golang implementation adds an extra list entry for every struct encapsulation. This "list of capabilities" will in reality be a "list of list of capabilities," where the former list only has one element._
 
-Furthermore, the bzz handshake message itself should also embed this message instead of the `Light` field that is currently there. The `HandshakeMsg` message this becomes:
+Furthermore, the bzz handshake message itself should also embed this message instead of the `Light` field that is currently there. Incidentally, in the golang implementation, the `BzzAddr` object transmitted in the bzz handshake is also (part of) the peer record stored by the kademlia peer database. A practical approach is therefore to embed the `Capabilities` information in the same structure. `BzzAddr` thus becomes:
+
+type BzzAddr struct {
+	OAddr        []byte
+	UAddr        []byte
+	Capabilities *Capabilities
+}
+
+Consequently the `LightNode` flag is removed from the `HandshakeMsg` message.
 
 ```
 HandshakeMsg {
 	Version		uint64
 	NetworkID	uint64
 	Addr		*BzzAddr
-	Capabilities	Capabilities
 }
 ```
 
