@@ -17,7 +17,7 @@ Swarm needs a mechanism to set prices which makes sense relative to other (distr
 <!--A short (~200 word) description of the technical issue being addressed.-->
 It is expected that the price of using Swarm will change over time to reflect the changing economic landscape as well as to facilitate experimentation. Such price updates must happen atomically to prevent accounting unbalances from appearing. To lay the groundwork for enabling such price changes, this SWIP proposes a minimal interface for a *price-oracle*. Furthermore, this SWIP includes a proposal for implementing an *on-chain* price oracle, governed by Swarm developers and stakeholders to allow for experimentation.
  
-This SWIP is part of a series of SWIPs (but can be implemented on its own). To see the full picture, please refer to [swip-message_to_honey](https://github.com/Eknir/SWIPs/blob/SWIP-message_to_honey/SWIPs/swip-message_to_honey.md), [swip-multiple](https://github.com/Eknir/SWIPs/blob/SWIP-multiple_payment_processing_support/SWIPs/swip-multiple_payment_processing_support.md), [swip-multiple_payment_processing_support](./swip-multiple_payment_processing_support.md) and the diagram below:
+This SWIP is part of a series of SWIPs (but can be implemented on its own). To see the full picture, please refer to [swip-message_to_honey](https://github.com/Eknir/SWIPs/blob/SWIP-message_to_honey/SWIPs/swip-message_to_honey.md), [swip-multiple_payment_processing_support](https://github.com/Eknir/SWIPs/blob/SWIP-multiple_payment_processing_support/SWIPs/swip-multiple_payment_processing_support.md) and the diagram below:
 ![SWIP_Diagrams.png](./../assets/swip-honey_to_money/SWIP_Diagrams.png)
  
 ## Motivation
