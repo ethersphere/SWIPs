@@ -19,7 +19,7 @@ Nodes in the Swarm network can send various types of messages. Every message typ
 Currently, Swarm developers have no empirical data nor theoretical references available to determine the optimal price of these messages relative to each other. We expect extensive experimentation and as a result, will have to progressively adjust the relative prices of messages. It is important that an update of the prices happens simultaneously on all nodes in the network or otherwise accounting imbalances between nodes will arise, potentially severely harming the connectivity of the network. 
 
 An on-chain price oracle, managed by a multi-signature wallet of Swarm stakeholders, provides a clean way for updating relative prices; the Swarm source code will never require an update but instead references the address of the oracle which updates its quoted prices at predictable times.
-This SWIP is part of a series of SWIPs (but can be implemented on its own). To see the full picture, please refer to [swip-multiple_payment_processing_support](./swip-multiple_payment_processing_support.md), [swip-honey_to_money](./swip-honey_to_money.md) and the diagram below:
+This SWIP is part of a series of SWIPs (but can be implemented on its own). To see the full picture, please refer to [swip-multiple_payment_processing_support](https://github.com/Eknir/SWIPs/blob/SWIP-multiple_payment_processing_support/SWIPs/swip-multiple_payment_processing_support.md), [swip-honey_to_money](https://github.com/Eknir/SWIPs/blob/SWIP-honey_to_money/SWIPs/swip-honey_to_money.md) and the diagram below:
 
 ![SWIP_Diagrams.png](./../assets/swip-message_to_honey/SWIP_Diagrams.png)
 
