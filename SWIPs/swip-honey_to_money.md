@@ -1,4 +1,5 @@
 ---
+SWIP: 20
 Title: Honey to Money Oracle
 Author: Aron Fischer <aron@ethswarm.org>, Deigo Masini <dmasini@iovlabs.org>, Fabio Barone <fabio@ethswarm.org>, Marcelo Ortelli <mortelli@infuy.com>, Rinke Hendriksen <rinke@ethswarm.org>, Vojtěch Šimetka <vojtech@iovlabs.org>
 Discussions-to: URL will be provided
@@ -32,7 +33,7 @@ This update process should be atomic: either all nodes upgrade or none of them d
 * If two nodes query the external oracle at the same time, the external oracle gives the same answer.
 * A `honeyToMoneyOracle` returns the most up-to-date `honeyPrice` to other components of the Swarm.
 * Internally, the `honeyPrice` is decided by the `honeyToMoneyOracle` by building a strucure like the `honeyPrice` object. `honeyPrice` specifies a `Time To Live (TTL)` in seconds and a `price` object. The `price` object maps all `validFrom` entries to their respective `price`. `validFrom` is a UNIX timestamp and `price` is the price of one honey unit, denominated in `currency`. It is up to the implementation of the `honeyToMoneyOracle` to decide on the actual structure to use. To summarize, the oracle may return:
-```json
+```
 {
    "honeyPrice": {
        "TTL": <TTLValue>,
