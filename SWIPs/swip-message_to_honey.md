@@ -48,7 +48,7 @@ In Swarm, nodes send various types of messages; chunk requests, chunk delivery, 
 This section describes the interaction between the nodes and the oracle in more detail. 
 * The message to honey oracle is composed of two pieces: the `MsgToHoneyContract` (which runs as a smart contract on the Etheruem blockchain) and a `messageToHoneyOracle` (which runs locally by the node).  The responsibility of the `messageToHoneyContract` is to emit all relevant information, while the responsibility of the `messageToHoneyOracle` is to cache this information and return the most-recent price to the node when requested.
 * To always return the most up-to-date price, as well as to minimize the interaction with the `msgToHoneyContract`, the `messageToHoneyOracle` internally builds a structure such as the `messagePrices` object. The `messagePrices` object specifies a `Time to Live (TTL)` in seconds and a `prices` object. The `prices` object contains an entry for each message type (`SwarmMessageType`) and `SwarmMessageType` maps a `validFrom` to a respective price. which may look like this:
-```json
+```
 {
   "messagePrices": 
   {
