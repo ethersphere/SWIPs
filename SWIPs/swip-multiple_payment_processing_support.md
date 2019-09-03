@@ -1,5 +1,5 @@
 ---
-SWIP: <to be assigned>
+SWIP: 22
 title: Introduce support for multiple payment modules in Swarm
 author: Aron Fischer <aron@ethswarm.org>, Rinke Hendriksen <rinke@ethswarm.org>, Vojtech Simetka <vojtech@iovlabs.org>, Diego Masini <dmasini@iovlabs.org>
 discussions-to: <https://swarmresear.ch/>
