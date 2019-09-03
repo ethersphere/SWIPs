@@ -119,7 +119,7 @@ When two nodes (A and B) establish a connection they independently execute the f
 
 1. Based on the node configuration generate a set of triplets in the form ```[currency, provider, oracle]```. As an example let's take from the previous configuration the ```rif``` entry. From that entry we can build the triplets `[rif, lumino, rifOracleA]`, `[rif, lumino, rifOracleB]`, `[rif, lumino, rifOracleC]`,`[rif, raiden, rifOracleA]`, `[rif, raiden, rifOracleB]`, `[rif, raiden, rifOracleC]`, but triplets are generated for the other currencies as well. 
 2. Exchange the generated set of triplets with the peer B.
-3. Keep the set of triplets which are common (intersection between peer A's triplets and peer B's triplets). If no common set exists, choose the fallback option for each dimension, as shown in the following table:
+3. Keep the set of triplets which are common to both peers (the intersection between peer A's triplets and peer B's triplets). If no common set exists, choose the fallback option for each dimension, as shown in the following table:
 
 	| Dimension  | Fallback option |
 	| ---------- | --------------- |
