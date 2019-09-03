@@ -1,5 +1,5 @@
 ---
-swip: 
+SWIP: 21
 title: Message to Honey Oracle
 Author: Aron Fischer <aron@ethSwarm.org>, Diego Masini <dmasini@iovlabs.org>, Fabio Barone <fabio@ethSwarm.org>, Marcelo Ortelli <mortelli@infuy.com>, Rinke Hendriksen <rinke@ethSwarm.org>, Vojtěch Šimetka <vojtech@iovlabs.org>
 Discussions-to: URL will be provided
