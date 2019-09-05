@@ -27,11 +27,11 @@ request that you fix the issues in the draft before trying again.
 
 # SWIP Status Terms
 
-* **Draft** - an SWIP that is undergoing rapid iteration and changes.
-* **Last Call** - an SWIP that is done with its initial iteration and ready for review by a wide audience.
-* **Accepted** - a core SWIP that has been in Last Call for at least 2 weeks and any technical changes that were requested have been addressed by the author. The process for Core Devs to decide whether to encode an SWIP into their clients as part of a mandatory update is not part of the SWIP process. If such a decision is made, the SWIP will move to final.
-* **Final (non-Core)** - an SWIP that has been in Last Call for at least 2 weeks and any technical changes that were requested have been addressed by the author.
-* **Final (Core)** - an SWIP that the Core Devs have decided to implement and release in a future mandatory update or has already been released as such. 
-* **Deferred** - an SWIP that is not being considered for immediate adoption. May be reconsidered in the future.
+* **Draft** - a SWIP that is undergoing rapid iteration and changes.
+* **Last Call** - a SWIP that is done with its initial iteration and ready for review by a wide audience.
+* **Accepted** - a core SWIP that has been in Last Call for at least 2 weeks and any technical changes that were requested have been addressed by the author. The process for Core Devs to decide whether to encode a SWIP into their clients as part of a mandatory update is not part of the SWIP process. If such a decision is made, the SWIP will move to final.
+* **Final (non-Core)** - a SWIP that has been in Last Call for at least 2 weeks and any technical changes that were requested have been addressed by the author.
+* **Final (Core)** - a SWIP that the Core Devs have decided to implement and release in a future mandatory update or has already been released as such. 
+* **Deferred** - a SWIP that is not being considered for immediate adoption. May be reconsidered in the future.
 
 
