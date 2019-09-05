@@ -7,9 +7,9 @@ A browsable version of all current and draft SWIPs can be found on [GitHub](http
 
 # Contributing
 
- 1. Review [SWIP-0](SWIPS/swip-0.md).
+ 1. Review [SWIP-0](SWIPs/swip-0.md).
  2. Fork the repository by clicking "Fork" in the top right.
- 3. Add your SWIP to your fork of the repository. There is a [template SWIP here](swip-X.md).
+ 3. Add your SWIP to your fork of the repository. There is a [template SWIP here](SWIPs/swip-X.md).
  4. Submit a Pull Request to Swarm's [SWIPs repository](https://github.com/ethersphere/SWIPs).
 
 Your first PR should be a first draft of the final SWIP. It must meet the formatting criteria. An editor will manually review the 
