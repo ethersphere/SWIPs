@@ -70,7 +70,7 @@ between the two addresses.
 
 For example, an address \(0101\) will have a Proximity Order of \(0\)
 compared to \(1101\), a proximity Order of \(1\) compared to \(0011\),
-and a Proximity Order of \(3\) compared to \(0110\). 
+and a Proximity Order of \(3\) compared to \(0100\). 
 
 #### Proximity Bin
 
