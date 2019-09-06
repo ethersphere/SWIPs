@@ -1,0 +1,454 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:dc="http://purl.org/dc/elements/1.1/" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xl="http://www.w3.org/1999/xlink" viewBox="278 344 1190 1210" width="1190" height="1210">
+  <defs>
+    <font-face font-family="Avenir" font-size="13" panose-1="2 11 7 3 2 2 3 2 2 4" units-per-em="1000" underline-position="-75" underline-thickness="50" slope="0" x-height="480" cap-height="708" ascent="1e3" descent="-365.9973" font-weight="800">
+      <font-face-src>
+        <font-face-name name="Avenir-Heavy"/>
+      </font-face-src>
+    </font-face>
+    <font-face font-family="Avenir" font-size="20" panose-1="2 11 7 3 2 2 3 2 2 4" units-per-em="1000" underline-position="-75" underline-thickness="50" slope="0" x-height="480" cap-height="708" ascent="1e3" descent="-365.9973" font-weight="800">
+      <font-face-src>
+        <font-face-name name="Avenir-Heavy"/>
+      </font-face-src>
+    </font-face>
+    <marker orient="auto" overflow="visible" markerUnits="strokeWidth" id="FilledArrow_Marker" stroke-linejoin="miter" stroke-miterlimit="10" viewBox="-1 -4 10 8" markerWidth="10" markerHeight="8" color="black">
+      <g>
+        <path d="M 8 0 L 0 -3 L 0 3 Z" fill="currentColor" stroke="currentColor" stroke-width="1"/>
+      </g>
+    </marker>
+    <font-face font-family="Avenir" font-size="15" panose-1="2 11 7 3 2 2 3 2 2 4" units-per-em="1000" underline-position="-75" underline-thickness="50" slope="0" x-height="480" cap-height="708" ascent="1e3" descent="-365.9973" font-weight="800">
+      <font-face-src>
+        <font-face-name name="Avenir-Heavy"/>
+      </font-face-src>
+    </font-face>
+  </defs>
+  <metadata> Produced by OmniGraffle 7.11.2 
+    <dc:date>2019-08-30 15:03:28 +0000</dc:date>
+  </metadata>
+  <g id="MSG2HON__Sequence_diagram" stroke-opacity="1" stroke="none" fill="none" fill-opacity="1" stroke-dasharray="none">
+    <title>MSG2HON: Sequence diagram</title>
+    <rect fill="white" x="278" y="344" width="1190" height="1210"/>
+    <g id="MSG2HON__Sequence_diagram: Layer 1">
+      <title>Layer 1</title>
+      <g id="Graphic_150">
+        <rect x="456.37796" y="433.7008" width="406.77166" height="51.02362" fill="white"/>
+        <path d="M 456.37796 433.7008 L 863.1496 433.7008 L 863.1496 484.7244 L 456.37796 484.7244 Z" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4.0,4.0" stroke-width="1"/>
+      </g>
+      <g id="Graphic_151">
+        <rect x="1050.2362" y="433.7008" width="417.1254" height="51.02362" fill="white"/>
+        <path d="M 1050.2362 433.7008 L 1467.3616 433.7008 L 1467.3616 484.7244 L 1050.2362 484.7244 Z" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4.0,4.0" stroke-width="1"/>
+      </g>
+      <g id="Graphic_144">
+        <path d="M 279.2126 986.6704 L 1461.607 986.6704 L 1461.607 1058.54 L 279.2126 1058.54 Z" stroke="#f9ba00" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2.0,2.0" stroke-width=".5"/>
+      </g>
+      <g id="Graphic_142">
+        <path d="M 279.2126 517.32284 L 1461.607 517.32284 L 1461.607 634.9606 L 279.2126 634.9606 Z" stroke="#f9ba00" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2.0,2.0" stroke-width=".5"/>
+      </g>
+      <g id="Graphic_143">
+        <path d="M 279.2126 827.2346 L 1461.607 827.2346 L 1461.607 962.3622 L 279.2126 962.3622 Z" stroke="#f9ba00" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2.0,2.0" stroke-width=".5"/>
+      </g>
+      <g id="Graphic_145">
+        <path d="M 279.2126 1085.5347 L 1461.607 1085.5347 L 1461.607 1220.6623 L 279.2126 1220.6623 Z" stroke="#f9ba00" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2.0,2.0" stroke-width=".5"/>
+      </g>
+      <g id="Graphic_146">
+        <path d="M 284.96733 1443.2307 L 1467.3616 1443.2307 L 1467.3616 1495.2756 L 284.96733 1495.2756 Z" stroke="#f9ba00" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2.0,2.0" stroke-width=".5"/>
+      </g>
+      <g id="Graphic_147">
+        <path d="M 284.96733 1499.7083 L 1467.3616 1499.7083 L 1467.3616 1551.7532 L 284.96733 1551.7532 Z" stroke="#f9ba00" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="2.0,2.0" stroke-width=".5"/>
+      </g>
+      <g id="Graphic_3">
+        <rect x="746.5359" y="442.20473" width="108.10977" height="35.43307" fill="white"/>
+        <rect x="746.5359" y="442.20473" width="108.10977" height="35.43307" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(751.5359 450.92126)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="3.912386" y="13">Oracle Module</tspan>
+        </text>
+      </g>
+      <g id="Graphic_4">
+        <rect x="462.04725" y="442.20473" width="98.35158" height="35.43307" fill="white"/>
+        <rect x="462.04725" y="442.20473" width="98.35158" height="35.43307" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(467.04725 450.92126)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="6.488793" y="13">Pricing code</tspan>
+        </text>
+      </g>
+      <g id="Graphic_5">
+        <rect x="1058.8147" y="442.20473" width="62.28766" height="35.43307" fill="white"/>
+        <rect x="1058.8147" y="442.20473" width="62.28766" height="35.43307" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(1063.8147 450.92126)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="6.156329" y="13">Oracle</tspan>
+        </text>
+      </g>
+      <g id="Line_9">
+        <line x1="510.51495" y1="477.7998" x2="510.51495" y2="1505.1969" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8.0,5.0" stroke-width="1"/>
+      </g>
+      <g id="Line_10">
+        <line x1="799.8827" y1="477.7998" x2="799.8827" y2="1505.1969" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8.0,5.0" stroke-width="1"/>
+      </g>
+      <g id="Line_11">
+        <line x1="1089.2505" y1="477.7998" x2="1089.2505" y2="1505.1969" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8.0,5.0" stroke-width="1"/>
+      </g>
+      <g id="Graphic_21">
+        <text transform="translate(296.77904 349.40945)" fill="#515556">
+          <tspan font-family="Avenir" font-size="20" font-weight="800" fill="#515556" x="0" y="20">Node’s cached prices update sequence</tspan>
+        </text>
+      </g>
+      <g id="Graphic_27">
+        <rect x="1295.0114" y="441.49607" width="166.59554" height="35.43307" fill="white"/>
+        <rect x="1295.0114" y="441.49607" width="166.59554" height="35.43307" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(1300.0114 450.2126)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="7.499768" y="13">Oracle Update Multisig</tspan>
+        </text>
+      </g>
+      <g id="Line_28">
+        <line x1="1377.601" y1="476.92914" x2="1377.601" y2="1504.3262" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8.0,5.0" stroke-width="1"/>
+      </g>
+      <g id="Line_44">
+        <line x1="517.9287" y1="765.409" x2="783.569" y2="765.409" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_45">
+        <rect x="595.5593" y="751.909" width="120.279" height="28" fill="white"/>
+        <text transform="translate(600.5593 756.909)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Get current prices</tspan>
+        </text>
+      </g>
+      <g id="Line_46">
+        <line x1="793.469" y1="793.409" x2="527.8287" y2="793.409" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_47">
+        <rect x="594.1033" y="779.909" width="123.191" height="28" fill="white"/>
+        <text transform="translate(599.1033 784.909)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Return valid prices</tspan>
+        </text>
+      </g>
+      <g id="Graphic_50">
+        <rect x="811.839" y="835.0244" width="146.76" height="28" fill="white"/>
+        <text transform="translate(816.839 840.0244)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">EVENT: prices expired</tspan>
+        </text>
+      </g>
+      <g id="Line_51">
+        <line x1="805.9287" y1="877.3228" x2="1071.569" y2="877.3228" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_52">
+        <rect x="917.0311" y="863.3228" width="66.836" height="28" fill="white"/>
+        <text transform="translate(922.0311 868.3228)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Get price</tspan>
+        </text>
+      </g>
+      <g id="Line_53">
+        <line x1="1081.469" y1="900.3306" x2="815.8287" y2="900.3306" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_54">
+        <rect x="865.6161" y="886.3306" width="142.665" height="28" fill="white"/>
+        <text transform="translate(870.6161 891.3306)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="42632564e-20" y="13">Return prices and TTL</tspan>
+        </text>
+      </g>
+      <g id="Graphic_56">
+        <rect x="793.0313" y="765.409" width="14.555732" height="27.740463" fill="white"/>
+        <rect x="793.0313" y="765.409" width="14.555732" height="27.740463" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_58">
+        <rect x="1082.4726" y="554.39055" width="14.555732" height="28" fill="white"/>
+        <rect x="1082.4726" y="554.39055" width="14.555732" height="28" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_59">
+        <rect x="1081.469" y="877.3228" width="14.555732" height="24.00771" fill="white"/>
+        <rect x="1081.469" y="877.3228" width="14.555732" height="24.00771" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_60">
+        <rect x="793.3129" y="835.0244" width="14.555732" height="110.35356" fill="white"/>
+        <rect x="793.3129" y="835.0244" width="14.555732" height="110.35356" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_61">
+        <path d="M 808.1667 920.0244 L 847.4421 920.0244 L 847.4421 942.7315 L 817.19645 942.7315" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_62">
+        <rect x="853.8559" y="917.378" width="121.943" height="28" fill="white"/>
+        <text transform="translate(858.8559 922.378)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Store prices &amp; TTL</tspan>
+        </text>
+      </g>
+      <g id="Graphic_73">
+        <rect x="811.839" y="508.5142" width="128.651" height="28" fill="white"/>
+        <text transform="translate(816.839 513.5142)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">EVENT: node starts</tspan>
+        </text>
+      </g>
+      <g id="Line_74">
+        <line x1="805.9887" y1="558.38284" x2="1071.629" y2="558.38284" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_75">
+        <rect x="917.0911" y="544.38284" width="66.836" height="28" fill="white"/>
+        <text transform="translate(922.0911 549.38284)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Get price</tspan>
+        </text>
+      </g>
+      <g id="Line_76">
+        <line x1="1081.529" y1="581.39055" x2="815.8887" y2="581.39055" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_77">
+        <rect x="865.6761" y="567.39055" width="142.665" height="28" fill="white"/>
+        <text transform="translate(870.6761 572.39055)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="42632564e-20" y="13">Return prices and TTL</tspan>
+        </text>
+      </g>
+      <g id="Graphic_78">
+        <rect x="793.3729" y="516.0844" width="14.555732" height="110.35356" fill="white"/>
+        <rect x="793.3729" y="516.0844" width="14.555732" height="110.35356" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_79">
+        <path d="M 808.2267 601.0844 L 847.5021 601.0844 L 847.5021 623.7915 L 817.25645 623.7915" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_80">
+        <rect x="853.9159" y="598.43796" width="121.943" height="28" fill="white"/>
+        <text transform="translate(858.9159 603.43796)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Store prices &amp; TTL</tspan>
+        </text>
+      </g>
+      <g id="Line_86">
+        <line x1="517.9287" y1="676.409" x2="783.569" y2="676.409" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_87">
+        <rect x="595.5593" y="662.909" width="120.279" height="28" fill="white"/>
+        <text transform="translate(600.5593 667.909)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Get current prices</tspan>
+        </text>
+      </g>
+      <g id="Line_88">
+        <line x1="793.469" y1="704.409" x2="527.8287" y2="704.409" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_89">
+        <rect x="594.1033" y="690.909" width="123.191" height="28" fill="white"/>
+        <text transform="translate(599.1033 695.909)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Return valid prices</tspan>
+        </text>
+      </g>
+      <g id="Graphic_90">
+        <rect x="793.0313" y="676.14945" width="14.555732" height="28" fill="white"/>
+        <rect x="793.0313" y="676.14945" width="14.555732" height="28" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_91">
+        <rect x="503.37297" y="676.409" width="14.555732" height="29" fill="white"/>
+        <rect x="503.37297" y="676.409" width="14.555732" height="29" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_92">
+        <rect x="503.37297" y="765.409" width="14.555732" height="29" fill="white"/>
+        <rect x="503.37297" y="765.409" width="14.555732" height="29" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_95">
+        <line x1="1371.6959" y1="1005.698" x2="1106.0556" y2="1005.698" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_96">
+        <rect x="1163.9258" y="992.198" width="140" height="28" fill="white"/>
+        <text transform="translate(1168.9258 997.198)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Set new future prices</tspan>
+        </text>
+      </g>
+      <g id="Graphic_99">
+        <rect x="811.839" y="1095.8462" width="146.76" height="28" fill="white"/>
+        <text transform="translate(816.839 1100.8462)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">EVENT: prices expired</tspan>
+        </text>
+      </g>
+      <g id="Line_100">
+        <line x1="805.9287" y1="1138.1446" x2="1071.569" y2="1138.1446" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_101">
+        <rect x="917.0311" y="1124.1446" width="66.836" height="28" fill="white"/>
+        <text transform="translate(922.0311 1129.1446)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Get price</tspan>
+        </text>
+      </g>
+      <g id="Line_102">
+        <line x1="1081.469" y1="1161.1523" x2="815.8287" y2="1161.1523" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_103">
+        <rect x="865.6161" y="1147.1523" width="142.665" height="28" fill="white"/>
+        <text transform="translate(870.6161 1152.1523)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="42632564e-20" y="13">Return prices and TTL</tspan>
+        </text>
+      </g>
+      <g id="Graphic_104">
+        <rect x="1081.469" y="1138.1446" width="14.555732" height="24.00771" fill="white"/>
+        <rect x="1081.469" y="1138.1446" width="14.555732" height="24.00771" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_105">
+        <rect x="793.3129" y="1095.8462" width="14.555732" height="110.35356" fill="white"/>
+        <rect x="793.3129" y="1095.8462" width="14.555732" height="110.35356" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_106">
+        <path d="M 808.1667 1180.8462 L 847.4421 1180.8462 L 847.4421 1203.5533 L 817.19645 1203.5533" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_107">
+        <rect x="853.8559" y="1178.1997" width="121.943" height="28" fill="white"/>
+        <text transform="translate(858.8559 1183.1997)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Store prices &amp; TTL</tspan>
+        </text>
+      </g>
+      <g id="Graphic_108">
+        <rect x="811.839" y="1232.2548" width="146.76" height="28" fill="white"/>
+        <text transform="translate(816.839 1237.2548)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">EVENT: prices expired</tspan>
+        </text>
+      </g>
+      <g id="Line_109">
+        <line x1="805.9287" y1="1274.5533" x2="1071.569" y2="1274.5533" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_110">
+        <rect x="917.0311" y="1260.5533" width="66.836" height="28" fill="white"/>
+        <text transform="translate(922.0311 1265.5533)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Get price</tspan>
+        </text>
+      </g>
+      <g id="Line_111">
+        <line x1="1081.469" y1="1297.561" x2="815.8287" y2="1297.561" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_112">
+        <rect x="865.6161" y="1283.561" width="142.665" height="28" fill="white"/>
+        <text transform="translate(870.6161 1288.561)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="42632564e-20" y="13">Return prices and TTL</tspan>
+        </text>
+      </g>
+      <g id="Graphic_113">
+        <rect x="1081.469" y="1274.5533" width="14.555732" height="24.00771" fill="white"/>
+        <rect x="1081.469" y="1274.5533" width="14.555732" height="24.00771" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_114">
+        <rect x="793.3129" y="1232.2548" width="14.555732" height="110.35356" fill="white"/>
+        <rect x="793.3129" y="1232.2548" width="14.555732" height="110.35356" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_115">
+        <path d="M 808.1667 1317.2548 L 847.4421 1317.2548 L 847.4421 1339.962 L 817.19645 1339.962" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_116">
+        <rect x="853.8559" y="1314.6084" width="121.943" height="28" fill="white"/>
+        <text transform="translate(858.8559 1319.6084)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Store prices &amp; TTL</tspan>
+        </text>
+      </g>
+      <g id="Graphic_117">
+        <rect x="800.8827" y="1459.5936" width="157.836" height="28" fill="white"/>
+        <text transform="translate(805.8827 1464.5936)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">EVENT: new prices valid</tspan>
+        </text>
+      </g>
+      <g id="Line_118">
+        <line x1="517.9287" y1="1387.2307" x2="783.569" y2="1387.2307" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_119">
+        <rect x="595.5593" y="1373.7307" width="120.279" height="28" fill="white"/>
+        <text transform="translate(600.5593 1378.7307)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Get current prices</tspan>
+        </text>
+      </g>
+      <g id="Line_120">
+        <line x1="793.469" y1="1415.2307" x2="527.8287" y2="1415.2307" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_121">
+        <rect x="594.1033" y="1401.7307" width="123.191" height="28" fill="white"/>
+        <text transform="translate(599.1033 1406.7307)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Return valid prices</tspan>
+        </text>
+      </g>
+      <g id="Graphic_122">
+        <rect x="793.0313" y="1387.2307" width="14.555732" height="27.740463" fill="white"/>
+        <rect x="793.0313" y="1387.2307" width="14.555732" height="27.740463" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_123">
+        <rect x="503.37297" y="1387.2307" width="14.555732" height="29" fill="white"/>
+        <rect x="503.37297" y="1387.2307" width="14.555732" height="29" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_124">
+        <line x1="517.9287" y1="1511.2307" x2="783.569" y2="1511.2307" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_125">
+        <rect x="595.5593" y="1497.7307" width="120.279" height="28" fill="white"/>
+        <text transform="translate(600.5593 1502.7307)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Get current prices</tspan>
+        </text>
+      </g>
+      <g id="Line_126">
+        <line x1="793.469" y1="1539.2307" x2="527.8287" y2="1539.2307" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_127">
+        <rect x="594.1033" y="1525.7307" width="123.191" height="28" fill="white"/>
+        <text transform="translate(599.1033 1530.7307)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Return valid prices</tspan>
+        </text>
+      </g>
+      <g id="Graphic_128">
+        <rect x="793.0313" y="1511.2307" width="14.555732" height="27.740463" fill="white"/>
+        <rect x="793.0313" y="1511.2307" width="14.555732" height="27.740463" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_129">
+        <rect x="503.37297" y="1511.2307" width="14.555732" height="29" fill="white"/>
+        <rect x="503.37297" y="1511.2307" width="14.555732" height="29" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_132">
+        <rect x="1081.469" y="1005.698" width="14.555732" height="41.579205" fill="white"/>
+        <rect x="1081.469" y="1005.698" width="14.555732" height="41.579205" stroke="gray" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Line_133">
+        <path d="M 1098.1667 1021.9236 L 1137.4421 1021.9236 L 1137.4421 1044.6307 L 1107.1965 1044.6307" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_134">
+        <rect x="1143.8559" y="1019.2772" width="144.823" height="28" fill="white"/>
+        <text transform="translate(1148.8559 1024.2772)" fill="#515556">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">Emit event new prices</tspan>
+        </text>
+      </g>
+      <g id="Graphic_135">
+        <rect x="287.71654" y="524.0167" width="135.255" height="46" fill="white"/>
+        <text transform="translate(292.71654 529.0167)" fill="#f9ba00">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="0" y="13">Initial price querying</tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="0" y="31">when node starts</tspan>
+        </text>
+      </g>
+      <g id="Graphic_136">
+        <rect x="288.50954" y="839.0107" width="157.381" height="28" fill="white"/>
+        <text transform="translate(293.50954 844.0107)" fill="#f9ba00">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="0" y="13">Updating expired prices</tspan>
+        </text>
+      </g>
+      <g id="Graphic_137">
+        <rect x="291.77904" y="998.6307" width="156.588" height="46" fill="white"/>
+        <text transform="translate(296.77904 1003.6307)" fill="#f9ba00">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="0" y="13">On-chain oracle owners </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="0" y="31">schedule new prices </tspan>
+        </text>
+      </g>
+      <g id="Graphic_138">
+        <rect x="288.50954" y="1086.8462" width="178.987" height="46" fill="white"/>
+        <text transform="translate(293.50954 1091.8462)" fill="#f9ba00">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="0" y="13">Updating expired prices</tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="0" y="31">Node gets the future prices</tspan>
+        </text>
+      </g>
+      <g id="Graphic_139">
+        <rect x="288.50954" y="1459.5936" width="163.127" height="28" fill="white"/>
+        <text transform="translate(293.50954 1464.5936)" fill="#f9ba00">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="0" y="13">New prices become valid</tspan>
+        </text>
+      </g>
+      <g id="Graphic_141">
+        <text transform="translate(293.50954 1512.7307)" fill="#f9ba00">
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="0" y="13">The next pricing query</tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#f9ba00" x="0" y="31">returns new prices</tspan>
+        </text>
+      </g>
+      <g id="Graphic_148">
+        <rect x="606.8238" y="401.10237" width="97.75" height="30" fill="white"/>
+        <text transform="translate(611.8238 406.10237)" fill="#515556">
+          <tspan font-family="Avenir" font-size="15" font-weight="800" fill="#515556" x="0" y="15">Swarm node</tspan>
+        </text>
+      </g>
+      <g id="Graphic_149">
+        <rect x="1191.6958" y="401.10237" width="84.46" height="30" fill="white"/>
+        <text transform="translate(1196.6958 406.10237)" fill="#515556">
+          <tspan font-family="Avenir" font-size="15" font-weight="800" fill="#515556" x="0" y="15">Blockchain</tspan>
+        </text>
+      </g>
+    </g>
+  </g>
+</svg>
