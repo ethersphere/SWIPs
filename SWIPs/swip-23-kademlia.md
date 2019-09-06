@@ -213,6 +213,8 @@ address to more than one recipient.\[5\] The procedure is as follows.
 
 <!-- end list -->
 
+---
+
 1.  Note that it is technically possible for a kademlia to be healthy
     even though the Depth is \(0\).
 
