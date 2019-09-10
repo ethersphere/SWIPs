@@ -325,8 +325,8 @@
         <rect x="471" y="1336.5" width="125" height="47" fill="white"/>
         <rect x="471" y="1336.5" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
         <text transform="translate(476 1342)" fill="#515556">
-          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="6.9495" y="13">Get latest honey </tspan>
-          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="11.5255" y="31">to money price</tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="6.9495" y="13">Get latest msg </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="11.5255" y="31">price in honey</tspan>
         </text>
       </g>
       <g id="Line_67">

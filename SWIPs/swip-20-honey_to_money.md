@@ -2,7 +2,7 @@
 SWIP: 20
 Title: Honey to Money Oracle
 Author: Aron Fischer <aron@ethswarm.org>, Deigo Masini <dmasini@iovlabs.org>, Fabio Barone <fabio@ethswarm.org>, Marcelo Ortelli <mortelli@infuy.com>, Rinke Hendriksen <rinke@ethswarm.org>, Vojtěch Šimetka <vojtech@iovlabs.org>
-Discussions-to: URL will be provided
+Discussions-to: <https://swarmresear.ch/>
 Status: Draft
 Type: Standards track
 Category: Core
