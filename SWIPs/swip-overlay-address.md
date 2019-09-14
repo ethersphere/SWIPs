@@ -1,7 +1,7 @@
 ---
 SWIP: <to be assigned>
 title: Swarm node implementer spec - 
-author: Louis Holbrook @nolash <dev@holbrook.no>
+author: Louis Holbrook <dev@holbrook.no> (https://holbrook.no)
 status: Draft
 type: Track Specs
 created: 2019-08-12
@@ -33,24 +33,31 @@ Copyright and related rights waived via CC0
 
 ## Specification
 
+### Base Hash
+
+Swarm uses `KECCAK256` as its `Base Hash` algorithm. `KECCAK256` has a
+digest size of 32 bytes.
+
 ### Swarm Overlay Address
 
-Swarm addresses all content and all nodes with 32-byte hashes. A node
-address is called its Swarm Overlay Address. It is derived from the
-public key of the Ethereum account used to operate the node.
+Swarm addresses all content and all nodes using algorithms designed
+around its `Base Hash`.
 
-To obtain the Swarm Overlay Address, hash the *uncompressed* form of the
-public key, *including* its \(04\) (uncompressed) prefix, using the
-KECCAK256 hashing algorithm.   
+A node address is called its `Swarm Overlay Address`. It is derived from
+the `ECDSA Public Key` of the Ethereum account used to operate the node.
 
-Formally we define the Swarm Overlay Address thus:
+To obtain the `Swarm Overlay Address`, calculate the `Base Hash` of the
+*uncompressed* form of the `ECDSA Public Key`, *including* its \(04\)
+(uncompressed) prefix. 
+
+Formally we define the `Swarm Overlay Address` thus:
 
     OVERLAYADDRESS = 32*(%x00-ff)
 
-### Swarm Address Pair
+#### Swarm Address Pair
 
 To enable peers to locate the a node on the network, the aforementioned
-Swarm Overlay Address is paired with an Underlay Address.
+`Swarm Overlay Address` is paired with an Underlay Address.
 
 The Underlay Address is a string representation of the node’s network
 location on the underlying transport layer, and *MUST* contain
