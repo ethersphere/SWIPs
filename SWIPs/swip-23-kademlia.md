@@ -1,6 +1,6 @@
 ---
 SWIP: 23
-title: Swarm node implementer spec - Kademlia
+title: Swarm node implementer spec - 
 author: Louis Holbrook <dev@holbrook.no> (https://holbrook.no)
 status: Draft
 type: Track Specs
@@ -37,6 +37,14 @@ The Kademlia is both a database (DHT) of known and connected peers on
 the network, as well as a component for routing and forwarding content
 on the network.
 
+### Records
+
+A peer record *ALWAYS* contains the `Address Pair` and the
+`Capabilities` of the peer. This data structure is known as the
+`BzzAddress`. It serializes as follows:
+
+    BZZADDRESS = LIST(OVERLAYADDRESS UNDERLAYADDRESS CAPABILITIES)
+
 ### Connectivity
 
 #### Address matching
@@ -70,16 +78,21 @@ between the two addresses.
 
 For example, an address \(0101\) will have a Proximity Order of \(0\)
 compared to \(1101\), a proximity Order of \(1\) compared to \(0011\),
-and a Proximity Order of \(3\) compared to \(0100\). 
+and a Proximity Order of \(3\) compared to \(0110\). 
 
 #### Proximity Bin
 
 A Proximity Bin is the table row in the kademlia that contains all peers
 that have the corresponding proximity to the node.
-[0.1.2](#sec:distance-and-proximity)
+[0.2.2](#sec:distance-and-proximity)
 
-As with the Proximity value itself, a *closer* bin has a higher numeric
-value, and a *farther* bin has a lower numeric value.
+As with the Proximity Order, a *closer* Proximity Bin has a higher
+numeric value, and a *farther* Proximity Bin has a lower numeric value.
+
+#### Neighborhood
+
+The Neighborhood of a node are the peers in the two closest Proximity
+Bins in which peers are known to the node.
 
 #### Depth
 
@@ -94,11 +107,6 @@ The Depth of a node’s kademlia is found by the following method:
 3.  If found, the Depth is the numeric value of that bin plus one.
 
 4.  If not found, the depth is \(0\).
-
-#### Neighborhood
-
-The Neighborhood of a node are the peers in the two closest Proximity
-Bins in which peers are known to the node.
 
 #### Health
 
@@ -184,15 +192,15 @@ bytes of the intended recipient node.
 
 ### Evaluating recipients
 
-Any node receiving content has to evaluate whether itself can be the
+Any node receiving content has to evaluate whether it can be the
 intended recipient, or one of the indended recipients, of the content.
 
 The first condition that must be fulfilled is a matching recipient
-address on the content. Matching may happen in one of two forms.
+address on the content. Matching may happen in one of two forms:
 
-#### Literal matching
+##### Literal matching
 
-As described in [0.2.1](#sec:routing-with-full-address), if the full
+As described in [0.3.1](#sec:routing-with-full-address), if the full
 32-byte recipient address matches the node address, the node is the only
 intended recipient and *MUST* process the content.
 
@@ -200,7 +208,7 @@ If the recipient address is a partial address, and it matches the node
 address, the node *may* be one of the intended recipients and *MUST*
 process the content.
 
-#### Proximity matching
+##### Proximity matching
 
 This method provides a way to send content with a full 32 byte recipient
 address to more than one recipient.\[5\] The procedure is as follows.
@@ -212,8 +220,6 @@ address to more than one recipient.\[5\] The procedure is as follows.
     one of the intended recipient and *MUST* process the content.
 
 <!-- end list -->
-
----
 
 1.  Note that it is technically possible for a kademlia to be healthy
     even though the Depth is \(0\).
