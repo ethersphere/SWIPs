@@ -46,7 +46,7 @@ The implementation should have no compabitility issues
 
 * Given `m` requests to `n`  peers in a bin, after `m*n` requests the peers will have made `m` requests each.
 * Given `m` requests to `n` peers within the neighborhood, after `m*n` requests the peers will have made `m` requests each.
-* Given `m` requests for no capability and `ma` requests for capability `a` to peers `n` with all capabilities and `peers `na` with capability `a`, after `n*n + ma*na` requests the `ma` peers will have made `ma+m` requests each.
+* Given `m` requests for no capability and `ma` requests for capability `a` to peers `n` with all capabilities and peers `na` with capability `a`, after `n*n + ma*na` requests the `ma` peers will have made `ma+m` requests each.
 
 ## Implementation
 
