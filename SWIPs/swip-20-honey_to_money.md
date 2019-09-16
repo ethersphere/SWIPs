@@ -12,7 +12,7 @@ Created: 30-08-2019
  
 ## Simple summary
 <!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
-Swarm needs a mechanism to set prices which makes sense relative to other (distributed storage) services in the market. As the absolute price of using Swarm is defined by the cost of honey (Swarm's internal accounting unit), this SWIP proposes a minimal interface to enable upgrading honey prices, network-wide and for all nodes. The specifics on what an efficient price should reflect and how the update process looks like is *not* part of this SWIP.
+Swarm needs a mechanism to set prices which makes sense relative to other (distributed storage) services in the market. As the absolute price of using Swarm is defined by the cost of honey (Swarm's internal accounting unit), this SWIP proposes a minimal interface to enable updating honey prices, network-wide and for all nodes. The specifics on what an efficient price should reflect and how the update process looks like is *not* part of this SWIP.
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
@@ -25,7 +25,7 @@ This SWIP is part of a series of SWIPs (but can be implemented on its own). To s
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
 Nodes keep track of balances relative to each other using an internal reference unit: honey. Since honey is not a currency in which nodes can settle their balances with each other—it is merely a unit of account—there is a requirement to facilitate converting honey to a currency. Furthermore, it is desirable that this conversion rate can fluctuate to reflect the changing economic landscape and facilitate experimentation.
 
-This update process should be atomic: either all nodes upgrade or none of them do. The current implementation hardcodes honey prices in the source code. This violates the atomicity requirement as there is no guarantee that all Swarm nodes are on the same release. By externalizing the price to an oracle, Swarm completely decouples its core functions from price discovery. By building support for price oracles, it will be possible to coordinate price changes across the network and set the stage for future experimentation with various mechanisms for setting prices, from fixed prices to DAOs or to bonding curves.
+This update process should be atomic: either all nodes update or none of them do. The current implementation hardcodes honey prices in the source code. This violates the atomicity requirement as there is no guarantee that all Swarm nodes are on the same release. By externalizing the price to an oracle, Swarm completely decouples its core functions from price discovery. By building support for price oracles, it will be possible to coordinate price changes across the network and set the stage for future experimentation with various mechanisms for setting prices, from fixed prices to DAOs or to bonding curves.
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
@@ -81,7 +81,7 @@ Nodes might apply different honey prices for the same payment, due to a time dif
 If there appears to be a problem with such imbalances, we see a possible solution: as nobody benefits from price imbalances, both the sender and the receiver of a payment are incentivized to apply a price which is not per their clock, but per the clock of the counterparty when they expect the counterparty to query or have queried the oracle. To assist in this, a payload might be sent with the transaction, specifying the clock with which the oracle price was applied.
 
 #### Temporary hard forks
-An on-chain oracle *might* give a different answer to two nodes when queried at the same time if there exists a (temporary) fork in the blockchain. If a disbalance due to such forks becomes common and causes the disconnect threshold to be reached for a significant number of nodes, we may put up additional requirements. For example, a minimum of 12 blocks for confirmations.
+An on-chain oracle *might* give a different answer to two nodes when queried at the same time if there exists a (temporary) fork in the blockchain. If a imbalance due to such forks becomes common and causes the disconnect threshold to be reached for a significant number of nodes, we may require that any price update by the oracle is only valid after it has received a certain number of confirmations (i.e. has happened a certain number of blocks ago).
 
 ## Backwards Compatibility
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
