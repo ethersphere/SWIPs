@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg xmlns:xl="http://www.w3.org/1999/xlink" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns="http://www.w3.org/2000/svg" version="1.1" viewBox="-286 413 2765 1055" width="2765" height="1055">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:dc="http://purl.org/dc/elements/1.1/" version="1.1" xmlns:xl="http://www.w3.org/1999/xlink" viewBox="-286 413 2765 1055" width="2765" height="1055">
   <defs>
     <font-face font-family="Avenir" font-size="13" panose-1="2 11 7 3 2 2 3 2 2 4" units-per-em="1000" underline-position="-75" underline-thickness="50" slope="0" x-height="480" cap-height="708" ascent="1e3" descent="-365.9973" font-weight="800">
       <font-face-src>
@@ -23,22 +23,14 @@
       </font-face-src>
     </font-face>
   </defs>
-  <metadata> Produced by OmniGraffle 7.11.1 
-    <dc:date>2019-08-08 13:14:13 +0000</dc:date>
+  <metadata> Produced by OmniGraffle 7.11.3 
+    <dc:date>2019-09-17 10:11:03 +0000</dc:date>
   </metadata>
-  <g id="Canvas_9" stroke-opacity="1" fill="none" stroke-dasharray="none" fill-opacity="1" stroke="none">
+  <g id="Canvas_9" stroke-dasharray="none" stroke="none" fill="none" stroke-opacity="1" fill-opacity="1">
     <title>Canvas 9</title>
     <rect fill="white" x="-286" y="413" width="2765" height="1055"/>
     <g id="Canvas_9: Layer 1">
       <title>Layer 1</title>
-      <g id="Graphic_84">
-        <rect x="224" y="717" width="1228" height="250" fill="white"/>
-        <rect x="224" y="717" width="1228" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
-      </g>
-      <g id="Graphic_86">
-        <rect x="224" y="467" width="1228" height="250" fill="white"/>
-        <rect x="224" y="467" width="1228" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
-      </g>
       <g id="Graphic_132">
         <rect x="1121" y="484" width="195" height="241" fill="#e7ffe7"/>
       </g>
@@ -51,35 +43,11 @@
       <g id="Graphic_142">
         <rect x="892" y="761.092" width="302.91446" height="150.07897" fill="#e7ffe7"/>
       </g>
-      <g id="Graphic_88">
-        <rect x="1535.988" y="717" width="942" height="250" fill="white"/>
-        <rect x="1535.988" y="717" width="942" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
-      </g>
-      <g id="Graphic_93">
-        <rect x="1535.988" y="1217" width="942" height="250" fill="white"/>
-        <rect x="1535.988" y="1217" width="942" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
-      </g>
-      <g id="Graphic_94">
-        <rect x="1535.988" y="467" width="942" height="250" fill="white"/>
-        <rect x="1535.988" y="467" width="942" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
-      </g>
-      <g id="Graphic_95">
-        <rect x="1535.988" y="967" width="942" height="250" fill="white"/>
-        <rect x="1535.988" y="967" width="942" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
-      </g>
       <g id="Graphic_137">
         <rect x="2139.976" y="808.6366" width="205.024" height="241" fill="#e7ffe7"/>
       </g>
       <g id="Graphic_138">
         <rect x="1566.7428" y="1020" width="778.2572" height="373" fill="#e7ffe7"/>
-      </g>
-      <g id="Graphic_85">
-        <rect x="224" y="1217" width="1228" height="250" fill="white"/>
-        <rect x="224" y="1217" width="1228" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
-      </g>
-      <g id="Graphic_87">
-        <rect x="224" y="967" width="1228" height="250" fill="white"/>
-        <rect x="224" y="967" width="1228" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
       </g>
       <g id="Graphic_129">
         <rect x="744.494" y="1020" width="688.506" height="373" fill="#ffe6e7"/>
@@ -87,37 +55,57 @@
       <g id="Graphic_130">
         <rect x="1242" y="808.6366" width="191" height="213.36345" fill="#ffe6e7"/>
       </g>
+      <g id="Graphic_85">
+        <rect x="224" y="1217" width="1228" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
+      </g>
+      <g id="Graphic_84">
+        <rect x="224" y="717" width="1228" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
+      </g>
+      <g id="Graphic_86">
+        <rect x="224" y="467" width="1228" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
+      </g>
+      <g id="Graphic_88">
+        <rect x="1535.988" y="717" width="942" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
+      </g>
+      <g id="Graphic_93">
+        <rect x="1535.988" y="1217" width="942" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
+      </g>
+      <g id="Graphic_94">
+        <rect x="1535.988" y="467" width="942" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
+      </g>
+      <g id="Graphic_95">
+        <rect x="1535.988" y="967" width="942" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
+      </g>
+      <g id="Graphic_87">
+        <rect x="224" y="967" width="1228" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
+      </g>
       <g id="Graphic_75">
-        <rect x="-242" y="717" width="376" height="250" fill="white"/>
-        <rect x="-242" y="717" width="376" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="-242" y="717" width="376" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_52">
         <rect x="-285" y="1217" width="43.5" height="250" fill="#dadada"/>
-        <rect x="-285" y="1217" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="-285" y="1217" width="43.5" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_53">
         <rect x="-285" y="467" width="43.5" height="250" fill="#dadada"/>
-        <rect x="-285" y="467" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="-285" y="467" width="43.5" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_54">
         <rect x="-285" y="717" width="43.5" height="250" fill="#dadada"/>
-        <rect x="-285" y="717" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="-285" y="717" width="43.5" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_55">
         <rect x="-285" y="967" width="43.5" height="250" fill="#dadada"/>
-        <rect x="-285" y="967" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="-285" y="967" width="43.5" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_40">
-        <rect x="-242" y="1217" width="376" height="250" fill="white"/>
-        <rect x="-242" y="1217" width="376" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="-242" y="1217" width="376" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_3">
-        <rect x="-242" y="467" width="376" height="250" fill="white"/>
-        <rect x="-242" y="467" width="376" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="-242" y="467" width="376" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_39">
-        <rect x="-242" y="967" width="376" height="250" fill="white"/>
-        <rect x="-242" y="967" width="376" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="-242" y="967" width="376" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_2">
         <text transform="translate(-272.25 645.7875) rotate(-90)" fill="#515556">
@@ -191,7 +179,7 @@
       </g>
       <g id="Graphic_24">
         <rect x="455.53244" y="788.5" width="28.278" height="28" fill="white"/>
-        <text transform="translate(460.53243 793.5)" fill="#515556">
+        <text transform="translate(460.53244 793.5)" fill="#515556">
           <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">No</tspan>
         </text>
       </g>
@@ -252,11 +240,11 @@
         </text>
       </g>
       <g id="Line_35">
-        <path d="M 1073.0855 779.5 L 1073.0855 699.2959 L 1012.5855 699.2959 L 1012.5855 627.9" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <path d="M 1073.0855 779.5 L 1073.0855 699.2959 L 1027.6 699.2959 L 1027.6 627.9" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
       </g>
       <g id="Graphic_36">
-        <rect x="1058.9465" y="737.69584" width="28.278" height="28" fill="white"/>
-        <text transform="translate(1063.9465 742.6958)" fill="#515556">
+        <rect x="1058.9465" y="739.5763" width="28.278" height="28" fill="white"/>
+        <text transform="translate(1063.9465 744.5763)" fill="#515556">
           <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="0" y="13">No</tspan>
         </text>
       </g>
@@ -325,8 +313,8 @@
         <rect x="471" y="1336.5" width="125" height="47" fill="white"/>
         <rect x="471" y="1336.5" width="125" height="47" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
         <text transform="translate(476 1342)" fill="#515556">
-          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="6.9495" y="13">Get latest msg </tspan>
-          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="11.5255" y="31">price in honey</tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="12.845" y="13">Get latest msg </tspan>
+          <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#515556" x="14.522" y="31">price in honey</tspan>
         </text>
       </g>
       <g id="Line_67">
@@ -334,9 +322,6 @@
       </g>
       <g id="Line_69">
         <path d="M 596 1360 L 632.6579 1360 L 632.6579 991.3257 L 558.37615 991.3257 L 558.37615 963.4" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="4.0,4.0" stroke-width="1"/>
-      </g>
-      <g id="Graphic_71">
-        <path d="M 330.5 725 L 660.5 725 L 660.5 1420 L 330.5 1420 Z" stroke="#f9ba00" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8.0,8.0" stroke-width="2"/>
       </g>
       <g id="Graphic_73">
         <rect x="325.465" y="683.75" width="206.885" height="28" fill="white"/>
@@ -365,11 +350,11 @@
       </g>
       <g id="Graphic_90">
         <rect x="1492.988" y="467" width="43.5" height="250" fill="#dadada"/>
-        <rect x="1492.988" y="467" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="1492.988" y="467" width="43.5" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_91">
         <rect x="1492.988" y="717" width="43.5" height="250" fill="#dadada"/>
-        <rect x="1492.988" y="717" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="1492.988" y="717" width="43.5" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_96">
         <text transform="translate(1505.738 645.7875) rotate(-90)" fill="#515556">
@@ -448,7 +433,7 @@
       </g>
       <g id="Graphic_89">
         <rect x="1492.988" y="1217" width="43.5" height="250" fill="#dadada"/>
-        <rect x="1492.988" y="1217" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="1492.988" y="1217" width="43.5" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_99">
         <text transform="translate(1505.738 1368.861) rotate(-90)" fill="#515556">
@@ -460,7 +445,7 @@
       </g>
       <g id="Graphic_92">
         <rect x="1492.988" y="967" width="43.5" height="250" fill="#dadada"/>
-        <rect x="1492.988" y="967" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="1492.988" y="967" width="43.5" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_98">
         <text transform="translate(1505.738 1143.636) rotate(-90)" fill="#515556">
@@ -469,19 +454,19 @@
       </g>
       <g id="Graphic_116">
         <rect x="180.5" y="1217" width="43.5" height="250" fill="#dadada"/>
-        <rect x="180.5" y="1217" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="180.5" y="1217" width="43.5" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_117">
         <rect x="180.5" y="467" width="43.5" height="250" fill="#dadada"/>
-        <rect x="180.5" y="467" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="180.5" y="467" width="43.5" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_118">
         <rect x="180.5" y="717" width="43.5" height="250" fill="#dadada"/>
-        <rect x="180.5" y="717" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="180.5" y="717" width="43.5" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_119">
         <rect x="180.5" y="967" width="43.5" height="250" fill="#dadada"/>
-        <rect x="180.5" y="967" width="43.5" height="250" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <rect x="180.5" y="967" width="43.5" height="250" stroke="#a5a5a5" stroke-linecap="round" stroke-linejoin="round" stroke-width=".5"/>
       </g>
       <g id="Graphic_120">
         <text transform="translate(193.25 645.7875) rotate(-90)" fill="#515556">
@@ -537,7 +522,7 @@
         </text>
       </g>
       <g id="Line_141">
-        <path d="M 829.8611 816 L 829.8611 699.30556 L 1013.0855 699.30556 L 1012.5855 632.9 L 1012.5855 627.9" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <path d="M 829.5 816 L 829.5 806 L 830 700.9756 L 923.4146 700.4878 L 997.5711 700.4878 L 997.5711 627.9" marker-end="url(#FilledArrow_Marker)" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
       </g>
       <g id="Graphic_143">
         <rect x="830" y="664" width="116.145" height="28" fill="white"/>
@@ -545,6 +530,10 @@
           <tspan font-family="Avenir" font-size="13" font-weight="800" fill="#ee220c" x="22026825e-20" y="13">Debitor flow only</tspan>
         </text>
       </g>
+      <g id="Graphic_71">
+        <path d="M 330.5 725 L 660.5 725 L 660.5 1420 L 330.5 1420 Z" stroke="#f9ba00" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="8.0,8.0" stroke-width="2"/>
+      </g>
+      <g id="Graphic_145"/>
     </g>
   </g>
 </svg>
