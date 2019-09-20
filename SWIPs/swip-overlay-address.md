@@ -1,6 +1,6 @@
 ---
 SWIP: <to be assigned>
-title: Swarm node implementer spec - 
+title: Swarm node implementer spec - Swarm Overlay Address
 author: Louis Holbrook <dev@holbrook.no> (https://holbrook.no)
 status: Draft
 type: Track Specs
@@ -33,15 +33,10 @@ Copyright and related rights waived via CC0
 
 ## Specification
 
-### Base Hash
-
-Swarm uses `KECCAK256` as its `Base Hash` algorithm. `KECCAK256` has a
-digest size of 32 bytes.
-
 ### Swarm Overlay Address
 
-Swarm addresses all content and all nodes using algorithms designed
-around its `Base Hash`.
+Swarm addresses all content\[1\] and all nodes using the `Base Hash`
+directly, or algorithms employing multiple `Base Hash` operations.
 
 A node address is called its `Swarm Overlay Address`. It is derived from
 the `ECDSA Public Key` of the Ethereum account used to operate the node.
@@ -57,11 +52,14 @@ Formally we define the `Swarm Overlay Address` thus:
 #### Swarm Address Pair
 
 To enable peers to locate the a node on the network, the aforementioned
-`Swarm Overlay Address` is paired with an Underlay Address.
+`Swarm Overlay Address` is paired with a `Swarm Underlay Address`.
 
-The Underlay Address is a string representation of the node’s network
-location on the underlying transport layer, and *MUST* contain
+The `Swarm Underlay Address` is a string representation of the node’s
+network location on the underlying transport layer, and *MUST* contain
 sufficient data to enable peers to initiate new connections to the node.
 
     UNDERLAYADDRESS = VCHAR
     ADDRESSPAIR=2#2list(OVERLAYADDRESS UNDERLAYADDRESS)
+
+1.  See [\[sec:chunk-reference\]](#sec:chunk-reference) for content
+    addressed data
