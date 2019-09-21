@@ -25,15 +25,19 @@ The capability array length is set to 8 bits.
 
 PSS capabilities are expressed with combinations of the following flags:
 
-|flag|bit|description|
-|:---|:--|:---|
-|send|0|new messages may originate from node|
-|receive|1|node processed messages that is _may_ be the recipient for|
-|(unused)|2| |
-|(unused)|3| |
-|forward|4|node forwards messages on behalf of the network, _even if_ it may not be the intended recipient|
-|partial|5|if not set, node will ignore partially addressed messages|
-|empty|6|if not set, node will ignore messages with zero-length address|
+|flag|abbr|bit|description|
+|:---|:--|:--|:---|
+|send|send|0|new messages may originate from node|
+|receive|recv|1|node processed messages that is _may_ be the recipient for|
+|(unused)| |2| |
+|(unused)| |3| |
+|forward| |4|node forwards messages on behalf of the network, _even if_ it may not be the intended recipient|
+|partial|part|5|if not set, node will ignore partially addressed messages|
+|empty|empt|6|if not set, node will ignore messages with zero-length address|
+|(unused)| |7| |
+
+The consequences of the flags settings should both be enforced by the node for its own internal processing, as well as on behalf of peers honoring their wishes for traffic limitations.
+
 
 ## Backwards Compatibility
 
@@ -64,6 +68,25 @@ Using combinations of these flags it is possible to express relevant use cases f
   2. Send API calls will fail and return error
 
 *TODO: Refer to SWIP for pss specification when it is available*
+
+### Practical implications for internal operations
+
+The flags affect the node's internal behavior as such:
+
+* **send**: Will not originate messages
+* **recv**: Will not evaluate registered topic handlers
+* **fwd**: Will enqueue messages not originating from node
+* **part**: Affects any incoming and outgoing message
+* **empty**: Affects any incoming and outgoing message
+
+### Practical mplications for peer operations
+
+* **send**: No effect
+* **recv**: Send if peer _may_ be recipient
+* **fwd**: If _not_ set and message _should_ be forwarded, must continue forwarding to at least one peer with this flag set
+* **part**: Do not forward partially addressed messages to peer.
+* **empty**: Do not forward messages with empty address to peer.
+
 
 ### Roadmap
 
