@@ -55,12 +55,12 @@ Using combinations of these flags it is possible to express relevant use cases f
 |send|recv|fwd|part|empty| |enqueue|handle|forward|
 |---|---|---|---|---|---|---|---|---|
 | X |   |   | - | - | | explicit send only | - | - |
-| X | X |   |(X)|(X)| | explicit send only | end rcpt only [1] | - | 
-|   | X |   |(X)|(X)| | - | end rcpt only [1] | - |
-|   | X | X |(X)|(X)| | fwd only [1] [2] | all [1] | all [1] |
-|   |   | X |(X)|(X)| | fwd only | - | all[1] | 
-| X |   | X |(X)|(X)| | all[1] | - | all[1] | 
-| X | X | X |(X)|(X)| | explicit send only | all [1] | all [1] |
+| X | X |   |(X)|(X)| | explicit send only | end rcpt only [i] | - | 
+|   | X |   |(X)|(X)| | - | end rcpt only [i] | - |
+|   | X | X |(X)|(X)| | fwd only [i] [ii] | all [i] | all [i] |
+|   |   | X |(X)|(X)| | fwd only | - | all[i] | 
+| X |   | X |(X)|(X)| | all[i] | - | all[i] | 
+| X | X | X |(X)|(X)| | explicit send only | all [i] | all [i] |
 
 * notes:
   1. Will only accept partially addressed / empty addressed messages if explicitly set
