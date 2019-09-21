@@ -52,7 +52,7 @@ TODO pending discussion and consensus on **Specification** part
 
 Using combinations of these flags it is possible to express relevant use cases for behavior:
 
-|send|recv|fwd|part|empty|enqueue|handle|forward|
+|send|recv|fwd|part|empty| |enqueue|handle|forward|
 |---|---|---|---|---|---|---|---|---|
 | X |   |   | - | - | | explicit send only | - | - |
 | X | X |   |(X)|(X)| | explicit send only | end rcpt only [1] | - | 
