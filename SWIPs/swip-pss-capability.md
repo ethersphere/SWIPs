@@ -34,9 +34,6 @@ PSS capabilities are expressed with combinations of the following flags:
 |forward|4|node forwards messages on behalf of the network, _even if_ it may not be the intended recipient|
 |partial|5|if not set, node will ignore partially addressed messages|
 |empty|6|if not set, node will ignore messages with zero-length address|
-|(unused)|7| |
-
-
 
 ## Backwards Compatibility
 
@@ -50,7 +47,7 @@ TODO pending discussion and consensus on **Specification** part
 
 ## Implementation
 
-Using combinations of these flags it is possible to express relevant use cases for behavior:
+Using combinations of these flags it is possible to express relevant use cases for behavior.
 
 |send|recv|fwd|part|empty| |enqueue|handle|forward|
 |---|---|---|---|---|---|---|---|---|
@@ -60,15 +57,20 @@ Using combinations of these flags it is possible to express relevant use cases f
 |   | X | X |(X)|(X)| | fwd only [i] [ii] | all [i] | all [i] |
 |   |   | X |(X)|(X)| | fwd only | - | all [i] | 
 | X |   | X |(X)|(X)| | all [i] | - | all [i] | 
-| X | X | X |(X)|(X)| | explicit send only | all [i] | all [i] |
+| X | X | X |(X)|(X)| | all [i] | all [i] | all [i] |
 
 * notes:
   1. Will only accept partially addressed / empty addressed messages if explicitly set
   2. Send API calls will fail and return error
 
+*TODO: Refer to SWIP for pss specification when it is available*
+
 ### Roadmap
 
-Implementation will be done in two stages, where in the _first_ stage the partial and empty address modifiers will be inactive.
+Implementation of the capability combinations will be done in two stages:
+
+* send, receive, forward
+* part, empty
 
 
 ## Copyright
