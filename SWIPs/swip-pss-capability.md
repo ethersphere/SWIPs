@@ -58,8 +58,8 @@ Using combinations of these flags it is possible to express relevant use cases f
 | X | X |   |(X)|(X)| | explicit send only | end rcpt only [i] | - | 
 |   | X |   |(X)|(X)| | - | end rcpt only [i] | - |
 |   | X | X |(X)|(X)| | fwd only [i] [ii] | all [i] | all [i] |
-|   |   | X |(X)|(X)| | fwd only | - | all[i] | 
-| X |   | X |(X)|(X)| | all[i] | - | all[i] | 
+|   |   | X |(X)|(X)| | fwd only | - | all [i] | 
+| X |   | X |(X)|(X)| | all [i] | - | all [i] | 
 | X | X | X |(X)|(X)| | explicit send only | all [i] | all [i] |
 
 * notes:
