@@ -11,11 +11,13 @@ created: 2019-09-21
 
 Description of which capability settings that apply in PSS, and how they affect the module's behavior.
 
+
 ## Motivation
 
 The capability settings of PSS need to be documented.
 
 To meet use cases where PSS even can be used as the sole active component of Swarm (even without chunk data), it is important that the operation of PSS is as adaptive and flexible as possible.
+
 
 ## Specification
 
@@ -38,11 +40,14 @@ PSS capabilities are expressed with combinations of the following flags:
 
 The consequences of the flags settings should both be enforced by the node for its own internal processing, as well as on behalf of peers honoring their wishes for traffic limitations.
 
+
 ### Security considerations
 
 The `send` flag is provided in the event that a private instance of a Swarm network would need to differantiate between nodes that originate traffic or merely just forward.
 
 Making nodes in a public network distinguishable as relayers only is a **privacy violation** because it directly undermines the send obfuscation properties the network provides and clients (may) rely on. Therefore **send flag must always be set in public Swarm networks**. Any peer in a public network with **send** flag set to off **nust be dropped**.
+
+*TODO: A similar problem arguably arises by the discretionary use of the `recv` flag. This should be discussed,*
 
 
 ## Backwards Compatibility
