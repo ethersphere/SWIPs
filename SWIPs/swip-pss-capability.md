@@ -79,7 +79,7 @@ The flags affect the node's internal behavior as such:
 * **part**: Affects any incoming and outgoing message
 * **empty**: Affects any incoming and outgoing message
 
-### Practical mplications for peer operations
+### Practical implications for peer operations
 
 * **send**: No effect
 * **recv**: Send if peer _may_ be recipient
