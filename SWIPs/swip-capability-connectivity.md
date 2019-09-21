@@ -64,12 +64,12 @@ There are no compatibility issues
 ## Test Cases
 
 * Connectivity correctness test for all cases and cardinalities in **Specification** above.
-* Capabilities holds the minimal sum of 3 different capabilities representing all cases
+* `Capabilities` holds the minimal sum of 3 different capabilities representing all cases
 
 
 ## Implementation
 
-The three bits above can be introduced to each individual Capability in the Capabilities array. They can be encapsulated as a new object tentatively named `CapabilityConnectivity`:
+The three bits outlined in the **Specification** can be introduced to each individual `Capability` in the `Capabilities` array. They can be encapsulated as a new object tentatively named `CapabilityConnectivity`:
 
 ```
 CapabilityConnectivity {
@@ -89,7 +89,7 @@ Capability {
 }
 ```
 
-Since individual Capability settings are registered and modified through the encapsulating `Capabilities` object, it is possble for this component to digest the at any time required minimum of connectivity (the `OR` of all `CapabilityConnectivity` settings in all `Capability` objects). 
+Since individual `Capability` settings are registered and modified through the encapsulating `Capabilities` object, it is possble for this component to digest the at any time required minimum of connectivity (the `OR` of all `CapabilityConnectivity` settings in all `Capability` objects). 
 
 The result can be represented by the same struct. `Capabilities` then become:
 
