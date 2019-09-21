@@ -96,7 +96,7 @@ A node can use the `depth` parameter of the `discovery` protocol to control the 
 
 ### Cross-platform considerations
 
-Although the following is described in a `golang` flavor, the `CapabilityConnectivity` struct is in reality just three bits, and can easily be replaced by `OR`ed constants.
+Although the **Code Implementation** above is described in a `golang` flavor, the `CapabilityConnectivity` struct is in reality just three bits, and can easily be replaced by `OR`ed constants.
 
 
 ## Backwards Compatibility
