@@ -38,6 +38,12 @@ PSS capabilities are expressed with combinations of the following flags:
 
 The consequences of the flags settings should both be enforced by the node for its own internal processing, as well as on behalf of peers honoring their wishes for traffic limitations.
 
+### Security considerations
+
+The `send` flag is provided in the event that a private instance of a Swarm network would need to differantiate between nodes that originate traffic or merely just forward.
+
+Identifying a node as a relayer only, is a **privacy risk** as it directly undermines the send obfuscation properties the network provides and clients (may) rely on. Therefore **send flag must always be set in public Swarm networks**. Any peer in a public network with **send** flag set to off **nust be dropped**.
+
 
 ## Backwards Compatibility
 
@@ -81,7 +87,7 @@ The flags affect the node's internal behavior as such:
 
 ### Practical implications for peer operations
 
-* **send**: No effect
+* **send**: No effect (must always be set in public network)
 * **recv**: Send if peer _may_ be recipient
 * **fwd**: If _not_ set and message _should_ be forwarded, must continue forwarding to at least one peer with this flag set
 * **part**: Do not forward partially addressed messages to peer.
