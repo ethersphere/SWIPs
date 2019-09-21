@@ -42,7 +42,7 @@ The consequences of the flags settings should both be enforced by the node for i
 
 The `send` flag is provided in the event that a private instance of a Swarm network would need to differantiate between nodes that originate traffic or merely just forward.
 
-Identifying a node as a relayer only, is a **privacy risk** as it directly undermines the send obfuscation properties the network provides and clients (may) rely on. Therefore **send flag must always be set in public Swarm networks**. Any peer in a public network with **send** flag set to off **nust be dropped**.
+Making nodes in a public network distinguishable as relayers only is a **privacy violation** because it directly undermines the send obfuscation properties the network provides and clients (may) rely on. Therefore **send flag must always be set in public Swarm networks**. Any peer in a public network with **send** flag set to off **nust be dropped**.
 
 
 ## Backwards Compatibility
