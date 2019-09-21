@@ -55,8 +55,19 @@ Thus, all relevant connectivity cases can be summarized in a table, where:
 | X | X |   | |  `f` | `n` | `b` |
 | X | X | X | | `1` | `1` | 0 |
 
-### Code implementation
 
+## Backwards Compatibility
+
+There are no compatibility issues
+
+
+## Test Cases
+
+* Connectivity correctness test for all cases and cardinalities in **Specification** above.
+* Capabilities holds the minimal sum of 3 different capabilities representing all cases
+
+
+## Implementation
 
 The three bits above can be introduced to each individual Capability in the Capabilities array. They can be encapsulated as a new object tentatively named `CapabilityConnectivity`:
 
@@ -98,21 +109,6 @@ A node can use the `depth` parameter of the `discovery` protocol to control the 
 
 Although the **Code Implementation** above is described in a `golang` flavor, the `CapabilityConnectivity` struct is in reality just three bits, and can easily be replaced by `OR`ed constants.
 
-
-## Backwards Compatibility
-
-There are no compatibility issues
-
-
-## Test Cases
-
-* Connectivity correctness test for all cases and cardinalities in **Specification** above.
-* Capabilities holds the minimal sum of 3 different capabilities representing all cases
-
-
-## Implementation
-
-TODO
 
 
 ## Copyright
