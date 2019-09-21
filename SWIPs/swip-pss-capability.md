@@ -62,9 +62,6 @@ Using combinations of these flags it is possible to express relevant use cases f
 | X |   | X |(X)|(X)| | all[1] | - | all[1] | 
 | X | X | X |(X)|(X)| | explicit send only | all [1] | all [1] |
 
-[1]: Will only accept partially addressed / empty addressed messages if explicitly set
-[2]: Send API calls will fail and return error
-
 
 ### Roadmap
 
@@ -74,3 +71,9 @@ Implementation will be done in two stages, where in the _first_ stage the partia
 ## Copyright
 
 Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
+
+----
+
+[1]: Will only accept partially addressed / empty addressed messages if explicitly set
+[2]: Send API calls will fail and return error
+
