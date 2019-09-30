@@ -1,5 +1,5 @@
 ---
-SWIP: <to be assigned>
+SWIP: 5
 title: HTTP API
 author: <a list of the author's or authors' name(s) and/or username(s), or name(s) and email(s), e.g. (use with the parentheses or triangular brackets): Viktor Trón, (@zelig) <viktor@ethswarm.org>, Daniel Nagy (@nagydani), <daniel@ethswarm.org>, Tim Bansemer (editorial) (@FantasticoFox) <tim@ethswarm.org>
 discussions-to: https://swarmresear.ch/
