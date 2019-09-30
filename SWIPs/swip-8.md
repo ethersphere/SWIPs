@@ -1,5 +1,5 @@
 ---
-SWIP: <to be assigned>
+SWIP: 8
 title: Postage Stamps for Swarm Messages
 author: Daniel A. Nagy <daniel@ethswarm.org> (@nagydani)
 discussions-to: https://swarmresear.ch/t/postage-ex-proof-of-burn/
