@@ -1,5 +1,5 @@
 ---
-SWIP: <to be assigned>
+SWIP: 17
 title: Swarm node implementer spec - Swarm Overlay Address
 author: Louis Holbrook <dev@holbrook.no> (https://holbrook.no)
 status: Draft
