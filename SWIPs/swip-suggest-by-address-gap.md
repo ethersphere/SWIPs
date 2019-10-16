@@ -19,7 +19,7 @@ An address space gap is defined as a set of addresses in which the current node 
 
 ## Motivation
 Improve the suggested peer algorithm, trying to cover a bigger part of the address space and allowing the node to be 
-more efficient when searching nearest peer to a certain address.
+more efficient when searching for the nearest peer to a certain address.
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
