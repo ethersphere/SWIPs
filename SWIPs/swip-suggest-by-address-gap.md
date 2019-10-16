@@ -48,7 +48,7 @@ The current kademlia bootstrap algorithm tries to fill in the bins (or po spaces
 In the process of doing that, the `gaps` will diminish, but not in the optimal way.
 
 For example, if the node address is `00000000`, it is connected only with one peer in bin 0 `10000000` and the known 
-addresses for bin 0 are: `10000001` and `11000000`. The current algorithm we will take the first `callable` one, so 
+addresses for bin 0 are: `10000001` and `11000000`. The current algorithm will take the first `callable` one, so 
 for example, it may suggest `10000001` as next peer. This is not optimal, as the biggest `gap` in bin 0 will still be 
 po 1 => `11xxxxxx`. If however, the algorithm is improved searching for a peer which covers a bigger `gap`, `11000000` would
 be selected and now the biggest `gaps` will be po2 => `111xxxx` and `101xxxx`.
