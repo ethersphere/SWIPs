@@ -92,7 +92,7 @@ Here we still have `11xxxxxx` as the biggest gap (po=1, size 1/4), same size as 
 `11xxxxxx` is now served by two peers, so its temperature is `(1/4) / 2 = 1/8`, and that will mean that we will select
 `01xxxxxx` as the hotter one.
 
-There is a way of implementing temperature calculation so its cost it is the same as looking for biggest gap. Temperature
+There is a way of implementing temperature calculation so its cost  is the same as looking for biggest gap. Temperature
 can be calculated on the fly as the gap is found using a `pot`.
 
 Other metrics could be considered in the temperature, as recently number of requests per address space, performance of
