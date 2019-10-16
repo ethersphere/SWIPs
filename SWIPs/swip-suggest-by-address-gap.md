@@ -88,7 +88,7 @@ with the configuration in Fig. 3.
 Fig. 3 - Comparing gaps temperature
 
 Here we still have `11xxxxxx` as the biggest gap (po=1, size 1/4), same size as `01xxxxxx`. But if we consider temperature,
-`01xxxxxx` is hotter because is served only by our node `00000000`, being its temperature is `(1/4)/ 1 = 1/4`. However,
+`01xxxxxx` is hotter because is served only by our node `00000000`, being its temperature  `(1/4)/ 1 = 1/4`. However,
 `11xxxxxx` is now served by two peers, so its temperature is `(1/4) / 2 = 1/8`, and that will mean that we will select
 `01xxxxxx` as the hotter one.
 
