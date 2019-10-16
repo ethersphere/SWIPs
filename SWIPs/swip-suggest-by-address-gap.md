@@ -112,7 +112,7 @@ Implementation of the function that looks for the bigger Gap in a `pot` can be s
 `pot.BiggestAddressGap`. That function returns the biggest gap in the form of a po and
 a node under the gap can be found.
 
-This function is used in `kademlia.suggestPeerInBinByGap`, which it returns a BzzAddress in a particular bin which fills
+This function is used in `kademlia.suggestPeerInBinByGap`, which returns a BzzAddress in a particular bin which fills
  up the biggest address gap. This function is not used in `SuggestPeer`, but it will be enough to replace the call to 
  `suggestPeerInBin` with the new one.
 
