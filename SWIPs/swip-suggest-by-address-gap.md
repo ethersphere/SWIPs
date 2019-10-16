@@ -18,7 +18,7 @@ instead of taking the first `callable`, the method suggest the peer which covers
 An address space gap is defined as a set of addresses in which the current node doesn't have a connected peer.
 
 ## Motivation
-Improve the suggested peer algorithm, trying to covering a bigger part of the address space and allowing the node to be 
+Improve the suggested peer algorithm, trying to cover a bigger part of the address space and allowing the node to be 
 more efficient when searching nearest peer to a certain address.
 
 ## Specification
