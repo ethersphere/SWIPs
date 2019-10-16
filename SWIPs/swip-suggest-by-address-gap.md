@@ -44,7 +44,7 @@ for half the addresses, the next jump will be still 0 po away!.
 
 
 ### Gaps for peer suggestion
-The current kademlia bootstrap algorithm try to fill in the bins (or po spaces) until some level of saturation is reached.
+The current kademlia bootstrap algorithm tries to fill in the bins (or po spaces) until some level of saturation is reached.
 In the process of doing that, the `gaps` will diminish, but not in the optimal way.
 
 For example, if the node address is `00000000`, it is connected only with one peer in bin 0 `10000000` and the known 
