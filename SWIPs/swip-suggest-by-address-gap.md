@@ -67,13 +67,13 @@ if in bin 0 we have peers `10000000` and `10000001` (Fig. 1), almost all address
 addresses will have the same distance from both peers. If we need to send to some of those address we will need to use
 one of those peers. This could be done randomly, always the first or with some load balancing accounting to use the least
 used one. 
-![Fig. 1](https://raw.githubusercontent.com/kortatu/swarm_doc/master/address_space_gaps-lb-1.png)
+![Fig. 1](./../assets/swip-suggest-by-address-gap/address_space_gaps-lb-1.png)
 Fig.1 - Closer peers needs an external Load Balancing mechanism
 
 This last method will still be useful, but if the `gap` filling strategy is used, most probably both peers will
 be separated enough that they never compete for an address and a natural load balancing will be made among them (for example,
 `10000000` and `11000000` will be used each for half the addresses in bin 0 (Fig. 2)).
-![Fig. 2](https://raw.githubusercontent.com/kortatu/swarm_doc/master/address_space_gaps-lb-2.png)
+![Fig. 2](./../assets/swip-suggest-by-address-gap/address_space_gaps-lb-2.png)
 Fig.2 - Peers chosen by space address gap have a natural load balancing
 
 ### Further improvements
@@ -84,7 +84,7 @@ We can define a gap's `temperature` as that number `s/n`. When looking for new p
 bigger gaps we could look for `hotter` gaps.
 For example, if in our first example, we can't find a peer in `11xxxxxx` and we instead, used the best peer, we could end
 with the configuration in Fig. 3.
-![Fig. 3](https://raw.githubusercontent.com/kortatu/swarm_doc/master/address_space_gaps-lb-3.png)
+![Fig. 3](./../assets/swip-suggest-by-address-gap/address_space_gaps-lb-3.png)
 Fig. 3 - Comparing gaps temperature
 
 Here we still have `11xxxxxx` as the biggest gap (po=1, size 1/4), same size as `01xxxxxx`. But if we consider temperature,
