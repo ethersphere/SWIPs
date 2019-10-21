@@ -1,5 +1,5 @@
 ---
-SWIP: <To be assigned>
+SWIP: 16
 title: Swarm node implementer spec - 
 author: Louis Holbrook @nolash <dev@holbrook.no>
 status: Draft
