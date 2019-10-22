@@ -38,8 +38,8 @@ The handshake message consists of four data fields:
 | id | def |
 | :--- | :---- |
 | Version | UINT64 |
-| Network | UINT64 |
-| Address | ADDRESSPAIR |
+| NetworkID | UINT64 |
+| AddressData | ADDRESSPAIR |
 | Capabilities | CAPABILITIES |
 
 ##### Procedure
@@ -48,8 +48,8 @@ Upon connection, the *peer who initiated the connection* sends a
 handshake message to the other. If more than one handshake is received
 from the same peer, the connection *MUST* be dropped.
 
-The peers *MUST* have the same `Version` and `Network ID`. If one or
-both of the fields don’t match, the connection *MUST* be dropped.
+The peers *MUST* have the same `Version` and `NetworkID`. If one or both
+of the fields don’t match, the connection *MUST* be dropped.
 
 ## Backwards Compatibility
 
