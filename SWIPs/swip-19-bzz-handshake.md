@@ -1,6 +1,6 @@
 ---
-SWIP: <to be assigned>
-title: Swarm node implementer spec - 
+SWIP: 19
+title: Swarm node implementer spec - BZZ handshake
 author: Louis Holbrook @nolash <dev@holbrook.no>
 status: Draft
 type: Track Specs
