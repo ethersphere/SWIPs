@@ -155,8 +155,8 @@ actual valid address that can be retrieved from the store.
 
 The symmetric key provided by the caller when adding the content is used
 as the seed to derive all decryption keys for the `Intermediate Chunks`
-[0.4.1](#sec:intermediate-chunks). It is also used as the encryption key
-for the `Swarm Hash` [sec:swarm-hash](https://github.com/nolash/SWIPs/blob/hashing/SWIPs/swip-chunk-and-hasher.md#swarm-hash).
+[0.4.1](#intermediate-chunks). It is also used as the encryption key for
+the `Swarm Hash` [0.4](#swarm-hash).
 
 1.  This is the normal entry point for data retrieval queries. This is
     as close as one gets to the notion of a “file” in Swarm
