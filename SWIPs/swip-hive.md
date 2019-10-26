@@ -15,22 +15,6 @@ This SWIP is a part of a general specification of a Swarm node. The SWIP system 
 
 Enable other implementations of the swarm node.
 
-## Backwards Compatibility
-
-N/A
-
-## Test Cases
-
-N/A
-
-## Implementation
-
-N/A
-
-## Copyright
-
-Copyright and related rights waived via CC0
-
 ## Specification
 
 The connectivity driver of Swarm is named the `Hive`. The component
@@ -42,7 +26,7 @@ Protocol` to alert peers about changes in its peer database.
 
 In Swarm, a fully connected state is referred to as *Saturation*.
 
-A *Proximity Bin* is saturated when it has at least \(2\) connected
+A *Proximity Bin* is saturated when it has at least (2) connected
 peers.
 
 A *node* is saturated if:
@@ -78,10 +62,29 @@ attempts SHOULD stay within the minimum bounds of the algorithm:
 1.  If more than 42 retries have been attempted, discard the peer and do
     not continue
 
-2.  Caluculate the time delta that since last retry
+2.  Caluculate the time delta since last retry
 
-3.  Calculate the *number of warranted retries* by subtracting \(2\)
-    from the \(log_2\) of the time delta
+3.  Calculate the *number of warranted retries* by subtracting (2)
+    from the (log_2) of the time delta
 
 4.  Retry if the *number of warranted retries* is higher than the number
     of retries that has been made
+
+## Backwards Compatibility
+
+N/A
+
+## Test Cases
+
+N/A
+
+## Implementation
+
+N/A
+
+## Copyright
+
+Copyright and related rights waived via CC0
+
+## Specification
+
