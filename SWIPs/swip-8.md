@@ -69,7 +69,7 @@ Nodes participating in the same postage system are configured to reference the s
   "inputs": [
     {
       "name": "payloadHash",
-      "type": "uint256"
+      "type": "bytes32"
     },
     {
       "name": "postagePaid",
@@ -82,6 +82,10 @@ Nodes participating in the same postage system are configured to reference the s
     {
       "name": "endValidity",
       "type": "uint256"
+    },
+    {
+      "name": "witnessType",
+      "type": "uint8"
     },
     {
       "name": "witness",
@@ -105,13 +109,13 @@ The binary serialization of the postage stamp consists of a single 5-element arr
 
 ### Witness Types
 
-There can be different implementations of postage stamps that differ in the structure and semantics of the `witness` field. To allow for new cryptographic mechanism to be used as they are developed, the first byte of `witness` indicates the `type` of the witness used. These numbers are assigned sequentially in the SWIP process. Witness types `0` and `1` are specified in this SWIP, further types are specified in later SWIPs referencing and extending this one.
+There can be different implementations of postage stamps that differ in the structure and semantics of the `witness` field. To allow for new cryptographic mechanism to be used as they are developed, the `witnessType` argument indicates the `type` of the witness used. These numbers are assigned sequentially in the SWIP process. Witness types `0` and `1` are specified in this SWIP, further types are specified in later SWIPs referencing and extending this one.
 
 Witness type `0` refers to **ECDSA** witness, which is an ECDSA signature on the 128 bytes resulting from the concatenation of `payloadHash`, `postagePaid`, `beginValidity` and `endValidity`. The binary encoding of the ECDSA signature is 65 bytes resulting from the concatenation of the `r` (32 bytes), `s` (32 bytes) and `v` (1 byte) parameters of the signature, in this order. The signature is calculated on the SECP256K1 elliptic curve, just like the signatures of Ethereum transactions. This is the bare minimum that postage stamp contracts and clients must implement.
 
-Witness type `1` refers to **RSA** witness, which is an RSA signature on the same 128 bytes as above. The binary encoding of the RSA signature is of variable length, and is an RLP encoded array of the RSA signature `s` (as defined in [PKCS #1](https://tools.ietf.org/html/rfc8017)) and the RSA public key parameters `n` (RSA modulus) and `e` (public exponent).
+Witness type `1` refers to **RSA** witness, which is an RSA signature on the same 128 bytes as above. The binary encoding of the RSA signature is of variable length, and is an Solidity ABI encoded array of the RSA signature `s` (as defined in [PKCS #1](https://tools.ietf.org/html/rfc8017)) and the RSA public key parameters `n` (RSA modulus) and `e` (public exponent).
 
-### Contract Uprgades
+### Contract Upgrades
 
 In order to facilitate the upgrade of the contract either in case of a discovered vulnerability or some feature extension (such as adding new witness types), it is recommended that the part holding the funds with the database of payments and the part that verifies witnesses are in separate contracts so that a backwards-compatible upgrade can be performed with minimal disruption.
 
