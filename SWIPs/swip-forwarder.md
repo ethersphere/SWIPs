@@ -27,14 +27,49 @@ Avoid parallell implementations of the same feature.
 
 ## Specification
 
+The reference implementation is specified in `golang`.
+
 ```
-SessionInterface {
-	New(capabilityIndex string)
-	Subscribe() chan <-PeerEvent
-	Get(numberOfPeers int) (numberOfPeersReturned int, err error)
+
+New(capabilityIndex) SessionInterface
+
+
+type SessionInterface interface {
+	Subscribe() <-ForwardPeer
+	Get(numberOfPeers int) ([]ForwardPeer, error)
 	Close()
 }
+
+type SessionContext struct {
+	ctx.Context... //implements context parameters
+	CapabilityIndex string
+	SessionId string
+}
+
+type SessionRPCInterface interface {
+	Subscribe(ctx context.Context, "kademlia", ch chan PeerEvent, "forward") (rpc.Subscription, error)
+	Get(ctx context.Context, numberOfPeers int) ([]ForwardPeer, error)
+}
 ```
+
+### Library interface
+
+The `capabilityIndex` argument to `New` and `CapabilityIndex` member of `SessionContext` refers to the key of a  `Capability` object registered with `Kademlia.RegisterCapabilityIndex`. Provide an empty string means peers will not be filtered by capability.
+
+`Get` provides two modes of operation:
+
+* If `Subscribe` has not been called, `Get(n)` returns a slice of up to `n` peers.
+* If `Subscribe` has been called, `Get(n)` returns an empty slice, and up to `n` peers will be put on the channel instead.
+
+`Get` called with `numberOfPeers = 0` returns _all_ matching peers in order.
+
+`Close` _MUST_ always be called to free up the component's session peer cache/cursor, and the subscription channel if subscription has been made.
+
+### RPC interface
+
+If `Get` is called with `SessionContext` _and_ the `SessionId` variable is set _and_ matches a `Session` created through `rpc.Subscribe`, then the next eligible peers for the `Session` will be returned on the subscription channel.
+
+Otherwise, the `Session` terminates immediately after completing the request.
 
 ## Rationale
 
