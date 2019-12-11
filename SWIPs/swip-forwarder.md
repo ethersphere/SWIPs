@@ -49,7 +49,7 @@ type SessionContext struct {
 type SessionRPCInterface interface {
 	NewForwardPeerSession(ctx context.Context) (context.Context, error)
 	Subscribe(ctx context.Context, "kademlia", ch chan PeerEvent, "forward") (sub rpc.Subscription, err error)
-	Get(ctx context.Context, numberOfPeers int) (peers []ForwardPeer, err error)
+	GetForwardPeer(ctx context.Context, numberOfPeers int) (peers []ForwardPeer, err error)
 	CloseForwardPeerSession(ctx context.Context)
 }
 ```
