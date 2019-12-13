@@ -1,5 +1,5 @@
 ---
-SWIP: <to be assigned>
+SWIP: 35
 title: Kademlia forwarding service
 author: Louis Holbrook <dev@holbrook.no> (https://holbrook.no)
 discussions-to: <URL>
