@@ -31,8 +31,7 @@ The reference implementation is specified in `golang`.
 
 ```
 
-New(capabilityIndex) SessionInterface
-
+New(targetAddress, capabilityIndex) SessionInterface
 
 type SessionInterface interface {
 	Subscribe() <-ForwardPeer
@@ -44,6 +43,7 @@ type SessionInterface interface {
 type SessionContext struct {
 	CapabilityIndex string
 	SessionId string
+	Address []byte
 }
 
 type SessionRPCInterface interface {
