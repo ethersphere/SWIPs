@@ -54,6 +54,8 @@ type SessionRPCInterface interface {
 }
 ```
 
+The hardcoded values in `Subscribe` are the required values to pass to the API call to start the correct subscription registered with the RPC handler.
+
 ### Library interface
 
 The `capabilityIndex` argument to `New` and `CapabilityIndex` member of `SessionContext` refers to the key of a  `Capability` object registered with `Kademlia.RegisterCapabilityIndex`. Provide an empty string means peers will not be filtered by capability.
