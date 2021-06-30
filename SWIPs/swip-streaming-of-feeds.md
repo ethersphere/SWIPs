@@ -12,7 +12,7 @@ created: 2021-06-30
 ## Simple Summary
 <!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
 Mutable content can be streamed periodically from a content creator, where the completeness of the stream is neglectable, but getting the _closest state_ to an arbitrary time as fast as possible is the most important factor. 
-For that, the content creator that operates the below described _feed indexing schema and its corresponding lookup_ has indulgent obligation for uploading on an arbitrary time interval meanwhile the consumers of the content can quickly and cheaply retrieve the most up-to-date state of a mutable content.
+For that, the content creator that operates the below described _feed indexing method and its corresponding lookup_ has indulgent obligation for uploading on an arbitrary time interval meanwhile the consumers of the content can quickly and cheaply retrieve the most up-to-date state of a mutable content.
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
