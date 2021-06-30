@@ -21,22 +21,28 @@ It introduces new requirements for the uploader, but those are not strict and th
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
-Mutable content can be streamed periodically from a content creator, where getting the _closest state_ to an arbitrary time as fast as possible is the most important factor.
-Achive the fastest retrieval method of a feed stream which is optimised to download the closest available segment of the feed at a given update time.
-It is intended to decrease the lookup processes on the network as much as possible. 
-The main use-case is to get the last updated state of the content, for that there is a finite set of feed indexes in order to start its lookup method from the last (possible) updated feed index.
-The owner of the feed _promises_ to upload feed segments for every time interval choosen, but it is a weak requirement and it is possible to leave out indexes from the stream in exchange for slower retrieval speed of the stream.
+- Mutable content can be streamed periodically from a content creator, where getting the _closest state_ to an arbitrary time as fast as possible is the most important factor.
+- Define the fastest retrieval method of a feed stream which is optimised to download the closest available segment of the feed at a given update time.
+- It is intended to decrease the lookup processes on the network as much as possible. 
+- The main use-case is to get the most recent updated state of the content. For that, there is a finite set of feed indexes in order to start its lookup method from the last (possible) updated feed index.
+- The owner of the feed _promises_ to upload feed segments for every time interval choosen. It is a weak requirement and it is possible to leave out indices from the stream in exchange for slower retrieval speed of the stream.
 
 ## Motivation
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
 The lookup time of feeds can be significantly long where the lookup process only stops if there is no newer content under a feed. 
-A solution is needed where this approach is reversed: a lookup that stops if there is a successful hit before of a given upload time.
-This lookup time can be shorthened already by not waiting for the last (non-existing) feed retrieval.
+
+A solution is needed where this approach is reversed: a lookup that stops if there is a successful hit.
+The lookup time can be shorthened already by not waiting for the last (non-existing) feed retrieval.
+
 If the uploader keeps itself to the periodic feed indexing and it uploads every time when is needed, the retrieval for the user is `O(1)`.
 Nevertheless, the lookups can easily go wrong, because of (1) network issues or (2) the uploader cannot upload the content in time.
 These problems are equivalent from the retrieval perspective and the first one is also related to the epoch-based and sequential feeds. 
+
 Any chunk of the lookup trajectory is not available (even temporary) then it could cause huge inaccuracy, but an approach like this is always closer or the same close to a desired upload time.
-Moreover, the current lookup methods keep those chunks alive that maybe unnecessary from the content usage side when the goal of the content (or dApp) is to provide the most up-to-date state.
+
+Moreover, the current lookup methods keep those chunks alive that maybe unnecessary from the content usage perspective. 
+
+One use-case is the feed stream of the content (or dApp) is for providing its most recent state.
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
