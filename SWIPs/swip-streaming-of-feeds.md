@@ -11,11 +11,17 @@ created: 2021-06-30
 
 ## Simple Summary
 <!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
-Mutable content can be streamed periodically from a content creator, where the completeness of the stream is neglectable, but getting the _closest state_ to an arbitrary time as fast as possible is the most important factor. 
-For that, the content creator that operates the below described _feed indexing method and its corresponding lookup_ has indulgent obligation for uploading on an arbitrary time interval meanwhile the consumers of the content can quickly and cheaply retrieve the most up-to-date state of a mutable content.
+This _feed indexing method and its corresponding lookup_ achive the retriaval of a feed's most recent state in `O(1)` queries.
+
+For that, the feed indices are anchored to their uploading times.
+
+This method is optimized for downloading a feed chunk queried by a point in time as quickly and cheaply as possible.
+
+It introduces new requirements for the uploader, but those are not strict and the lookup method corrects the inaccuracies of the stream.
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
+Mutable content can be streamed periodically from a content creator, where getting the _closest state_ to an arbitrary time as fast as possible is the most important factor.
 Achive the fastest retrieval method of a feed stream which is optimised to download the closest available segment of the feed at a given update time.
 It is intended to decrease the lookup processes on the network as much as possible. 
 The main use-case is to get the last updated state of the content, for that there is a finite set of feed indexes in order to start its lookup method from the last (possible) updated feed index.
