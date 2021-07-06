@@ -60,7 +60,7 @@ The feeds always have a `topic` and an `index`, that we have to define.
 
 Let's figure out what is the nearest last `feed index` of a given arbitrary time.
 We know the current time right now (`Tp`) which is surely greater or equal to the last upload time (`Tn`) of the feed stream.
-We also know two metadata of the stream: initial time (`T0`) and update period (`Δ1`).
+We also know two metadata of the stream: initial time (`T0`) and update period (`Δ0`).
 We want to find the nearest last index to an arbitrary time (`Tx`) where `T0 <= Tx <= Tn <= Tp`
 All of these are timestamps and their smallest unit is 1 second, e.g. even with this time unit it is still uncertain whether the latest update can be downloaded if `Tp = Tn`, because of the nature of P2P storage systems.
 
@@ -122,15 +122,15 @@ Compared to the epoch-based feeds, basically the length of the base segment is a
 The downside is within the concerted update time period the content creator cannot update the state of the feed - although it is possible to overwrite the content of a feed by uploading it again with different payload, but on download-side it is possible to still to get back the old one. 
 This problem can be mitigated by changing the registry of the feed, from where the consumers get the initial metadatas of the feed: 
 - the initial timestamp (`T0`) should be changed to that point from where the time period changes (`T1`)
-- change the new time period (`Δ2`) from the old one (`Δ1`) for state uploads
+- change the new time period (`Δ1`) from the old one (`Δ0`) for state uploads
 
 If the registry settled on blockchain in a smart contract, then it can have a defined event on metadata change of the content, on which the clients can listen.
 Thereby, the consumers of the feed can immediately react to the upload frequence change and they can poll according to the new rules.
-If somehow the blockchain listening on client side is not suitable, it is possible to put the `uploading time period` and `initial timestamp` metadatas into all of the feed stream updates so that the consumers can sync to the stream after `MAX(Δ1,Δ2)` time if `MAX(Δ1,Δ2) % MIN(Δ1,Δ2) = 0` and  there is one `k` and `m` positive integer where `T0 + (k * Δ1) = T0 + (m * Δ2) = T1`
+If somehow the blockchain listening on client side is not suitable, it is possible to put the `uploading time period` and `initial timestamp` metadatas into all of the feed stream updates so that the consumers can sync to the stream after `MAX(Δ0,Δ1)` time if `MAX(Δ0,Δ1) % MIN(Δ0,Δ1) = 0` and  there is one `k` and `m` positive integer where `T0 + (k * Δ0) = T0 + (m * Δ1) = T1`
 
 Though it is stated this approach does not address downloading the whole feed stream, it is still possible:
 * In case of punctual updates without any upload time period change, the stream download is identical with the sequential/periodic feed stream download.
-* If the uploading time period has been changed, the feed index set construction should happen either considering the before mentioned blockchain event emitting or if it is contained only in the feed metadata, then when it changes in the downloading process it is necessary to start a lookup backwards if `Δ2 < Δ1` until the change, but maximum `z = Δ1 / Δ2` units.
+* If the uploading time period has been changed, the feed index set construction should happen either considering the before mentioned blockchain event emitting or if it is contained only in the feed metadata, then when it changes in the downloading process it is necessary to start a lookup backwards if `Δ1 < Δ0` until the change, but maximum `z = Δ0 / Δ1` units.
 
 ## Backwards Compatibility
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
