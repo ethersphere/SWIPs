@@ -126,7 +126,7 @@ This problem can be mitigated by changing the registry of the feed, from where t
 
 If the registry settled on blockchain in a smart contract, then it can have a defined event on metadata change of the content, on which the clients can listen.
 Thereby, the consumers of the feed can immediately react to the upload frequence change and they can poll according to the new rules.
-If somehow the blockchain listening on client side is not suitable, it is possible to put the `uploading time period` and `initial timestamp` metadatas into all of the feed stream updates so that the consumers can sync to the stream after `MAX(Δ0,Δ1)` time if `MAX(Δ0,Δ1) % MIN(Δ0,Δ1) = 0` and  there is one `k` and `m` positive integer where `T0 + (k * Δ0) = T0 + (m * Δ1) = T1`
+If somehow the blockchain listening on client side is not suitable, it is possible to put the `uploading time period` and `initial timestamp` metadatas into all of the feed stream updates so that the consumers can sync to the stream after `MAX(Δ0,Δ1)` time if `MAX(Δ0,Δ1) mod MIN(Δ0,Δ1) = 0` and  there is one `k` and `m` positive integer where `T0 + (k * Δ0) = T0 + (m * Δ1) = T1`
 
 Though it is stated this approach does not address downloading the whole feed stream, it is still possible:
 * In case of punctual updates without any upload time period change, the stream download is identical with the sequential/periodic feed stream download.
