@@ -18,7 +18,7 @@ Note that a SWIP number will be assigned by an editor. When opening a pull reque
 
 The title should be 44 characters or less.
 
-## Simple Summary
+## Simple Summary (optional)
 <!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
 If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.
 
@@ -33,7 +33,7 @@ The motivation is critical for SWIPs that want to change the Swarm protocol. It 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
 
-## Rationale
+## Rationale (optional)
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
 
 The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
