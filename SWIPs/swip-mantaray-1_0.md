@@ -92,10 +92,11 @@ Node binary format:
   - the first 5 most significant bit in the `nodeFeatures` bitvector
   - its `value * the segment size (32)` gives the reserved bytesize for metadata under each forkdata
   - the size is only the local maximum for metadata size, it does not apply or define for the whole tree
-  - entry
-      - depends on the [nodeFeatures](#nodeFeatures)
-          - if `hasEntry` is 0, it is omitted
-          - if `encEntry` is 1, then it has 64 bytes length
+
+#### entry
+- depends on the [nodeFeatures](#nodeFeatures)
+    - if `hasEntry` is 0, it is omitted
+    - if `encEntry` is 1, then it has 64 bytes length
 
 #### forkIndexBytes
 - notates and compresses what fork prefixes the node has
