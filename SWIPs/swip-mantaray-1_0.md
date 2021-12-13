@@ -144,6 +144,10 @@ The structure of the `nodeMetadata` and the `forkMetadata` are stringified JSON 
 Obviously, it is not the best solution to store effectively any metadata, but it may require to introduce a new data-structure which satisfies also the 32 byte segments requirement and else.
 Because of this, it seems the best to elaborate the metadata structure in a separate SWIP that can be employed in the following Mantaray version `1.1`.
 
+The `forkMetadata` and the corresponding fork's `nodeMetadata` can be intentionally **different metadata**. At in-memory representation, `nodeMetadata` and `forkMetadata` can be retrieved separately, but also can be retrieved together by merging, where `forkMetadata` is superior of `nodeMetadata` at key collision by default, but optionally it can be set the other way around.
+
+Nevertheless, the `forkMetadata` and the corresponding fork's `nodeMetadata` can be intentionally the **same metadata** which is provable by inclusion proof.
+In this case, if fork has `nodeMetadata` and it has changed, then the corresponding parent's `forkMetadata` has to be updated __on saving__, and vice versa.
 
 ## Backwards Compatibility
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
