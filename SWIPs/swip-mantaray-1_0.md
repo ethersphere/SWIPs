@@ -121,9 +121,9 @@ Fork binary format:
 ┌───────────────────────────────┬──────────────────────────────┐
 │     prefixLength <1 byte>     │        prefix <31 byte>      │
 ├───────────────────────────────┴──────────────────────────────┤
-│                    reference <32/64 byte>                    │
+│               mantarayReference <32/64 byte>                 │
 ├──────────────────────────────────────────────────────────────┤
-│        metadataBytes <forkMetadataSegmentSize * 32 byte>     │
+│        forkMetadata <forkMetadataSegmentSize * 32 byte>      │
 └──────────────────────────────────────────────────────────────┘
 ```
 
