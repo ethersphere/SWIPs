@@ -179,11 +179,11 @@ In this case, if fork has `nodeMetadata` and it has changed, then the correspond
 
 ## Test Cases
 <!--Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.-->
-TBS
+Unit and integration test can be found in [mantaray v1.0 PR in mantaray-js repository](https://github.com/ethersphere/mantaray-js/pull/30)
 
 ## Implementation
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
-TBS
+The full implementation of the proposed features can be found in [mantaray v1.0 PR in mantaray-js repository](https://github.com/ethersphere/mantaray-js/pull/30)
 
 ## Copyright
 Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
