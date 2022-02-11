@@ -115,7 +115,7 @@ Fork binary format:
 ┌───────────────────────────────┬──────────────────────────────┐
 │     prefixLength <1 byte>     │        prefix <31 byte>      │
 ├───────────────────────────────┴──────────────────────────────┤
-│               mantarayReference <32/64 byte>                 │
+│                 forkReference <32/64 byte>                   │
 ├──────────────────────────────────────────────────────────────┤
 │        forkMetadata <forkMetadataSegmentSize * 32 byte>      │
 └──────────────────────────────────────────────────────────────┘
@@ -123,8 +123,9 @@ Fork binary format:
 
 - prefixLength
     - if it is > 31 (`prefix` length) then the mantaray fork's node is a `continuous node` -> on `addFork` it has to be taken account (shorten the child's node prefix by the common part until `prefixLength <= 31`)
-- mantarayReference
+- forkReference
     - if `encEntry` is 1, then it is 64 bytes long, othetwise it is 32 bytes long.
+    - it has to be interpreted as another Mantaray reference by default, but this can be changed based on the metadata regarding to the reference interpretation. Nevertheless, this SWIP handles `forkReference` always as a child Mantaray node reference.
 - forkMetadata
     - in structure the same as [nodeMetadata](#nodeMetadata)
     - its length is defined by `forkMetadataSegmentSize * 32 bytes`
