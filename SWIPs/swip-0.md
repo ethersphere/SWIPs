@@ -5,7 +5,7 @@ status: Active
 type: Meta
 author: Daniel A Nagy <daniel@ethswarm.org>, Tim Bansemer <tim@ethswarm.org>
 created: 2019-07-08
-updated: 2019-07-09
+updated: 2023-06-13
 ---
 
 ## What is a SWIP?
@@ -35,9 +35,9 @@ A SWIP must meet certain minimum criteria. It must be a clear and complete descr
 
 ## SWIP Work Flow
 
-Parties involved in the process are you, the champion or *SWIP author*, the [*SWIP editors*](#SWIP-editors), and the [*Swarm Developers*](https://github.com/ethersphere/swarm-docs/team.md).
+Parties involved in the process are you, the champion or *SWIP author*, the [*SWIP editors*](#SWIP-editors), and the [*Swarm Developers*].
 
-:warning: Before you begin, vet your idea, this will save you time. Ask the Swarm community first if an idea is original to avoid wasting time on something that will be rejected based on prior research (searching the Internet does not always do the trick). It also helps to make sure the idea is applicable to the entire community and not just the author. Just because an idea sounds good to the author does not mean it will work for most people in most areas where Swarm is used. Examples of appropriate public forums to gauge interest around your SWIP include, [the Issues section of this repository], and [one of the Swarm Mattermost chat rooms](http://beehive.ethswarm.org) or [the discussion forum](https://swarmresear.ch/). In particular, [the Issues section of this repository] is an excellent place to discuss your proposal with the community and start creating more formalized language around your SWIP.
+:warning: Before you begin, vet your idea, this will save you time. Ask the Swarm community first if an idea is original to avoid wasting time on something that will be rejected based on prior research (searching the Internet does not always do the trick). It also helps to make sure the idea is applicable to the entire community and not just the author. Just because an idea sounds good to the author does not mean it will work for most people in most areas where Swarm is used. Examples of appropriate public forums to gauge interest around your SWIP include, [the Issues section of this repository](https://github.com/ethersphere/SWIPs/issues), and [the Swarm Discord discussion forum](https://discord.gg/bqnWgva9sk). In particular, [the Issues section of this repository](https://github.com/ethersphere/SWIPs/issues) is an excellent place to discuss your proposal with the community and start creating more formalized language around your SWIP.
 
 Your role as the champion is to write the SWIP using the style and format described below, shepherd the discussions in the appropriate forums, and build community consensus around the idea. Following is the process that a successful SWIP will move along:
 
@@ -54,7 +54,7 @@ Each status change is requested by the SWIP author and reviewed by the SWIP edit
 * **Draft** -- Once the first draft has been merged, you may submit follow-up pull requests with further changes to your draft until such point as you believe the SWIP to be mature and ready to proceed to the next status. A SWIP in draft status must be implemented to be considered for promotion to the next status (ignore this requirement for core SWIPs).
   * :arrow_right: Last Call -- If agreeable, the SWIP editor will assign Last Call status and set a review end date (`review-period-end`), normally 14 days later.
   * :x: Last Call -- A request for Last Call status will be denied if material changes are still expected to be made to the draft. We hope that SWIPs only enter Last Call once, so as to avoid unnecessary noise.
-* **Last Call** -- This SWIP will listed on the Swarm website (Open - Link TBD)
+* **Last Call** -- This SWIP will listed on the [Swarm website](Open - Link TBD).
   * :x: -- A Last Call which results in material changes or substantial unaddressed technical complaints will cause the SWIP to revert to Draft.
   * :arrow_right: Accepted (Core SWIPs only) -- A successful Last Call without material changes or unaddressed technical complaints will become Accepted.
   * :arrow_right: Final (Not core SWIPs) -- A successful Last Call without material changes or unaddressed technical complaints will become Final.
@@ -77,7 +77,7 @@ Each SWIP should have the following parts:
 - Preamble - RFC 822 style headers containing metadata about the SWIP, including the SWIP number, a short descriptive title (limited to a maximum of 44 characters), and the author details. 
 - Simple Summary - “If you can’t explain it simply, you don’t understand it well enough.” Provide a simplified and layman-accessible explanation of the SWIP.
 - Abstract - a short (~200 word) description of the technical issue being addressed.
-- Motivation (*optional) - The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.
+- Motivation (*optional*) - The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.
 - Specification - The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and later implementations thereof.
 - Rationale - The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.
 - Backwards Compatibility - All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.
@@ -87,7 +87,7 @@ Each SWIP should have the following parts:
 
 ## SWIP Formats and Templates
 
-SWIPs should be written in [markdown] format.
+SWIPs should be written in [markdown](https://en.wikipedia.org/wiki/Markdown) format.
 Image files should be included in a subdirectory of the `assets` folder for that SWIP as follows: `assets/SWIP-X` (for SWIP **X**). When linking to an image in the SWIP, use relative links such as `../assets/SWIP-X/image.png`.
 
 ## SWIP Header Preamble
@@ -148,7 +148,7 @@ The `resolution` header is required for Standards Track SWIPs only. It contains 
 
 #### `discussions-to` header
 
-While a SWIP is a draft, a `discussions-to` header will indicate the mailing list or URL where the SWIP is being discussed. As mentioned above, examples for places to discuss your SWIP include [Swarm topics on Mattermost](https://beehive.ethswarm.org/) and the [Swarm Research Forum](https://swarmresear.ch/) or this repo.
+While a SWIP is a draft, a `discussions-to` header will indicate the mailing list or URL where the SWIP is being discussed. As mentioned above, examples for places to discuss your SWIP include [Swarm topics on Discord](https://discord.gg/bqnWgva9sk) or this repo.
 
 No `discussions-to` header is necessary if the SWIP is being discussed privately with the author.
 
@@ -192,9 +192,9 @@ If you are interested in assuming ownership of a SWIP, send a message asking to 
 
 The current SWIP editors are
 
-` * Daniel A. Nagy <daniel@ethswarm.org>`
+` * Callum Toner <callum@ethswarm.org>`
 
-` * Elad Nachmias <elad@ethswarm.org>`
+` * Esad Akar <esad@ethswarm.org>`
 
 ## SWIP Editor Responsibilities
 
@@ -221,7 +221,7 @@ The editors don't pass judgment on SWIPs. We merely do the administrative & edit
 ## History
 
 
-This document was derived heavily from [Ethereum's EIP-1]. The SWIP process was created on the basis of the [EIP process](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1.md). [EIP-1] is based on [Bitcoin's BIP-0001] written by Amir Taaki which in turn was derived from [Python's PEP-0001]. In many places text was simply copied and modified. Although the PEP-0001 text was written by Barry Warsaw, Jeremy Hylton, and David Goodger, they are not responsible for its use in the SWarm Improvement Process, and should not be bothered with technical questions specific to Swarm or the SWIP. Please direct all comments to the SWIP editors.
+This document was derived heavily from [Ethereum's EIP-1]. The SWIP process was created on the basis of the [EIP process](https://github.com/ethereum/EIPs/blob/master/EIPS/eip-1.md). [EIP-1] is based on [Bitcoin's BIP-0001] written by Amir Taaki which in turn was derived from [Python's PEP-0001]. In many places text was simply copied and modified. Although the PEP-0001 text was written by Barry Warsaw, Jeremy Hylton, and David Goodger, they are not responsible for its use in the Swarm Improvement Process, and should not be bothered with technical questions specific to Swarm or the SWIP. Please direct all comments to the SWIP editors.
 
 ## Copyright
 
