@@ -2,10 +2,12 @@
 Swarm Improvement Proposals (SWIPs) describe standards for the Swarm platform, including core protocol 
 specifications, client APIs, and contract standards.
 
-A browsable version of all current and draft SWIPs can be found on [GitHub](https://github.com/ethersphere/SWIPs).
+A browsable version of all current and draft SWIPs can be found on [GitHub](SWIPs).
 <!-- TODO: This must be Swarm site eventually -->
 
 # Contributing
+
+This README contains a high level description of contributing a SWIP, for convenience.
 
  1. Review [SWIP-0](SWIPs/swip-0.md).
  2. Fork the repository by clicking "Fork" in the top right.
@@ -25,6 +27,8 @@ SWIP to 'Final'. An editor will review your draft and ask if anyone objects to i
 is no rough consensus - for instance, because contributors point out significant issues with the SWIP - they may close the PR and 
 request that you fix the issues in the draft before trying again.
 
+For a detailed description of the SWIP process see [SWIP-0](SWIPs/swip-0.md).
+
 # SWIP Status Terms
 
 * **Draft** - a SWIP that is undergoing rapid iteration and changes.
@@ -33,5 +37,7 @@ request that you fix the issues in the draft before trying again.
 * **Final (non-Core)** - a SWIP that has been in Last Call for at least 2 weeks and any technical changes that were requested have been addressed by the author.
 * **Final (Core)** - a SWIP that the Core Devs have decided to implement and release in a future mandatory update or has already been released as such. 
 * **Deferred** - a SWIP that is not being considered for immediate adoption. May be reconsidered in the future.
+
+More detailed status descriptions are in [SWIP-0](SWIPs/swip-0.md).
 
 
