@@ -192,6 +192,8 @@ If you are interested in assuming ownership of a SWIP, send a message asking to 
 
 The current SWIP editors are
 
+` * Niki Papadatou <niki@ethswarm.org>`
+
 ` * Callum Toner <callum@ethswarm.org>`
 
 ` * Esad Akar <esad@ethswarm.org>`
