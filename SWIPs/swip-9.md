@@ -34,7 +34,7 @@ Implementation of this feature will not disrupt the main functionalities of Swar
 
 ## Test Cases
 A dynamic NFT that evolves over time, exhibiting novel images upon each application load, can be used to test the effectiveness of this feature.
-![DAwPFP](https://github.com/tonytony32/SWIPs/assets/46597871/712cbd13-ddd7-4f94-8238-f6a41e104daa)
+[![DAwPFP](https://github.com/tonytony32/SWIPs/assets/46597871/712cbd13-ddd7-4f94-8238-f6a41e104daa)](https://github.com/tonytony32/SWIPs/blob/ff55f7963fc4f523ecc7917a741b076da882fc67/assets/swip-9/DAwPFP.jpg)
 
 ## Copyright
 Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
