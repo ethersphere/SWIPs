@@ -1,54 +1,40 @@
 ---
 SWIP: 9
-title: <SWIP title>
-author: <a list of the author's or authors' name(s) and/or username(s), or name(s) and email(s), e.g. (use with the parentheses or triangular brackets): FirstName LastName (@GitHubUsername), FirstName LastName <foo@bar.com>, FirstName (@GitHubUsername) and GitHubUsername (@GitHubUsername)>
+title: NFT Profile Pics in Swarm App
+author: tonytony32 (@tonytony32)
 discussions-to: <URL>
 status: Draft
-type: <Standards Track (Core, Networking, Interface)  | Meta | Informational>
-category (*only required for Standard Track): <Core | Networking | Interface | ERC>
-created: <date created on, in ISO 8601 (yyyy-mm-dd) format>
-requires (*optional): <SWIP number(s)>
-replaces (*optional): <SWIP number(s)>
+type: Standards Track
+category: Interface>
+created: 2023-10-18
 ---
 
 <!--You can leave these HTML comments in your merged SWIP and delete the visible duplicate text guides, they will not appear and may be helpful to refer to if you edit it again. This is the suggested template for new SWIPs. Note that a SWIP number will be assigned by an editor. When opening a pull request to submit your SWIP, please use an abbreviated title in the filename, `SWIP-draft_title_abbrev.md`. The title should be 44 characters or less.-->
-This is the suggested template for new SWIPs.
-
-Note that a SWIP number will be assigned by an editor. When opening a pull request to submit your SWIP, please use an abbreviated title in the filename, `SWIP-draft_title_abbrev.md`.
-
-The title should be 44 characters or less.
 
 ## Simple Summary
-<!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
-If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.
+A modification to the Swarm Desktop App allowing it to display an NFT as a welcoming image on the home screen.
 
 ## Abstract
-<!--A short (~200 word) description of the technical issue being addressed.-->
-A short (~200 word) description of the technical issue being addressed.
+Modification for the Desktop App so that, upon starting, will check NFTs stored in the Node and display the image stored in the NFT's metadata as a welcoming screen. Users can specify the contract address of the desired NFT collection through an input field in the settings. Only NFTs sent to the running Swarm node address will be considered.
 
 ## Motivation
-<!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
-The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.
+To enhance the user experience by personalizing the Swarm Desktop App. Paired with dynamic NFTs in Swarm, it offers a powerful and ever-changing welcoming experience.
 
 ## Specification
-<!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
-The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.
+1. An input field will be added to the settings for users to include the NFT collection's contract address.
+2. Both ERC-721 and ERC-1155 standards will be supported.
+3. If a collection address is specified, only NFTs from that collection will be displayed. When multiple NFTs are present, the first will be prioritized.
+4. The app will fetch and refresh the displayed image daily or upon client reload.
 
 ## Rationale
-<!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
-The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.
+Leaving open the possibility for any NFT collection, ensuring simplicity and functionality, aligning with Swarm's core values.
 
 ## Backwards Compatibility
-<!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
-All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.
+Implementation of this feature will not disrupt the main functionalities of Swarm's Desktop App.
 
 ## Test Cases
-<!--Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.-->
-Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.
-
-## Implementation
-<!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
-The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.
+A dynamic NFT that evolves over time, exhibiting novel images upon each application load, can be used to test the effectiveness of this feature.
+![DAwPFP](https://github.com/tonytony32/SWIPs/assets/46597871/712cbd13-ddd7-4f94-8238-f6a41e104daa)
 
 ## Copyright
 Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
