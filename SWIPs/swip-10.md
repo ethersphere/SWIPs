@@ -1,19 +1,12 @@
-**SWIP: 10**
-
-**Title: Data Availability Assurance System**
-
-**Author: Antonio <antonio@ethswarm.org>**
-
-**Discussions-to: [Discussion URL]**
-
-**Status: Draft**
-
-**Type: Standards Track (Interface)**
-
-**Category: Interface**
-
-**Created: 30-01-2024**
-
+---
+SWIP: 10
+title: Data Availability Assurance System
+author: tonytony32 (@tonytony32)
+discussions-to: <URL>
+status: Draft
+type: Standards Track
+category: Interface
+created: 30-01-2024
 ---
 
 ## Simple Summary
