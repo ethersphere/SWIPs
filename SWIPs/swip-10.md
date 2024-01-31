@@ -1,19 +1,23 @@
 ---
-SWIP: 10
-title: Data Availability Assurance System
-author: tonytony32 (@tonytony32)
+SWIP: <to be assigned>
+title: On-Chain Insurance Commitment
+author: Antonio Gonzalo (@tonytony32)
 discussions-to: <URL>
 status: Draft
 type: Standards Track
-category: Interface
-created: 30-01-2024
+category: Core
+created: 2024-01-31
 ---
 
+<!--You can leave these HTML comments in your merged SWIP and delete the visible duplicate text guides, they will not appear and may be helpful to refer to if you edit it again. This is the suggested template for new SWIPs. Note that a SWIP number will be assigned by an editor. When opening a pull request to submit your SWIP, please use an abbreviated title in the filename, `SWIP-draft_title_abbrev.md`. The title should be 44 characters or less.-->
+
 ## Simple Summary
-A proposal to ensure data integrity and availability in Swarm through a Data Availability Assurance System, leveraging erasure coding, staking mechanisms, and a challenge-response protocol.
+<!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
+A proposal to ensure data integrity and availability in Swarm through an onchain commitment in L1, leveraging staking mechanisms, a challenge-response protocol and zk-proofs.
 
 ## Abstract
-This SWIP introduces a Data Availability Assurance System for the Swarm network, ensuring the integrity and accessibility of data through a robust mechanism. The system incorporates staked nodes (assurers), challenge-response protocols, and erasure coding to verify data availability, providing a reliable and efficient data ecosystem for Swarm.
+<!--A short (~200 word) description of the technical issue being addressed.-->
+This SWIP introduces a Data Availability Insurance System for the Swarm network, ensuring the integrity and accessibility of data through a challenge-response mechanism. The system incorporates staked nodes (insurers), challenge-response protocols, and zkproofs to verify data availability, providing a reliable and efficient data ecosystem for Swarm.
 
 ## Motivation
 The current Swarm protocol lacks a dedicated system ensuring data availability and integrity, leading to potential vulnerabilities in data accessibility. This SWIP aims to address this inadequacy by introducing a system that not only guarantees data availability but also incentivizes nodes through a stake-based mechanism, enhancing the overall security and reliability of the Swarm network.
@@ -25,11 +29,12 @@ The system's cornerstone is the on-chain (L1) insurance commitment:
 - Challenge Mechanism: Data availability can be challenged via an L1 transaction, costing both the challenger and the insurer.
 - Response and Penalties: Insurers must respond with the requested data within a set timeframe. Failure to respond leads to stake slashing.
 - Incentive Alignment: The cost structure deters unnecessary challenges. Insurers are motivated to store and keep data available on Swarm, ensuring no challenges arise.
-### High Level Specification
 
-#### Data Availability Committee (Insurer Nodes)
+**Data Availability Committee (Insurer Nodes)** 
+
 Nodes stake tokens and make an on-chain commitment for each dataset, ensuring data integrity and availability.
-#### Challenge-Response Protocol
+
+**Challenge-Response Protocol**
 
 Leverages Swarm and L1 transactions for data verification and retrieval.
 
@@ -38,21 +43,30 @@ Leverages Swarm and L1 transactions for data verification and retrieval.
    3. If there is no response within the allotted time, the insurer’s stake is slashed.
    4. Challenges incur costs as well, ensuring only valid disputes are raised. Optionally, challengers will stake tokens to deter frivolous or malicious challenges, forfeited if the challenge is met successfully.
 
-#### Consensus over Swarm Hash
-The system ensures data integrity if there is node consensus over the swarm hash of the dataset. Erasure coding and inclusion proofs allows reconstruction of the full dataset from partial data and ensures data authenticity through cryptographic evidence.
+**Consensus over Swarm Hash**
 
-To prove in L1 that the dataset has reached and has been uploaded into Swarm nodes, and therefore it is available, an additional zk-proof might be required. That proof must include the merkle tree from data chunks (swarm hash), the corresponding postage stamps of the dataset and a zk-STARK proof.
+The system ensures data integrity if there is node consensus over the swarm hash of the dataset. [Erasure coding](https://papers.ethswarm.org/erasure-coding.pdf) and inclusion proofs allows reconstruction of the full dataset from partial data and ensures data authenticity through cryptographic evidence, even from non-commitee members.
 
-Members of the DAC (insurers) are responsible for verifying these proofs before posting the commitment to L1.
+**Data Availability**
 
-#### Economic Incentives
+To prove in L1 that the dataset has reached and has been uploaded into Swarm nodes, and therefore it is available within Swarm, an additional zk-proof is required. That proof must include the merkle tree from data chunks (swarm hash) and the corresponding postage stamps of the dataset.
+
+- Swarm Hash: Represents the data stored in Swarm.
+- Postage Stamp Batch: A valid identifier to associate with storage.
+
+The zk-proof circuit will need to include operations for verifying the association of the given swarm hash with the specific postage stamp, and it has sufficient balance to cover the cost of storing the data.
+
+The members of the DAC (insurers) are responsible for verifying these proofs before posting the commitment to L1.
+
+**Economic Incentives**
+
 - Insurers are compensated for their services and incur costs related to L1 gas, Swarm network queries and verifying publisher's valid proofs.
 - Challengers are positively incentivised to detect faulty or malicious commitments from insurers.
 - Publishers are required to the attach the postage stamp and compute the zk-proof to insure the data. 
 
-### Rollup's publishing
+## Rollup's Publishing
 
-Steps of the journey to verify the availability of a particular transaction, guaranteeing that the transaction data published by the sequencer is indeed the sequence of transaction that was executed in the rollup:
+To verify the availability of a particular transaction, guaranteeing that the transaction data published by the sequencer is indeed the sequence of transaction that was executed in the rollup:
 
 1. The sequencer uploads a batch of transactions to Swarm and buys insurance for them for a given amount of time.
 2. An on-chain commitment will be placed in L1 including the number of transactions in the batch and the Merkle root of the array of transaction hashes. The challenge is the index of the missing transaction and the response is the transaction together with the Merkle proof of inclusion.
