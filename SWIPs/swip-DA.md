@@ -51,7 +51,7 @@ The zk-proof circuit will need to include operations for verifying the associati
 
 The members of the DAC (insurers) are responsible for verifying these proofs before posting the commitment to L1. 
 
-At this moment, the challenge-response protocol functions as 'data availability sampling', a mechanism to allow anyone to check the availability of data without having to download all the data. By performing multiple rounds of randomised challenges on small parts of the dataset, the confidence that the data is available increases. Once it reaches a certain confidence level (e.g. 99%), it considers the entire dataset available.
+Once the proofs are posted, the challenge-response protocol functions as 'data availability sampling', to allow anyone to check the availability of data without having to download all the data. By performing multiple rounds of randomised challenges on small parts of the dataset, the confidence that the data is available increases. Once it reaches a certain confidence level (e.g. 99%), it considers the entire dataset available.
 
 **Economic Incentives**
 
