@@ -31,9 +31,11 @@ The system's cornerstone is the on-chain (L1) insurance commitment:
 - Incentive Alignment: The cost structure deters unnecessary challenges. Insurers are motivated to store and keep data available on Swarm, ensuring no challenges arise.
 
 **Data Availability Committee (Insurer Nodes)** 
+
 Nodes stake tokens and make an on-chain commitment for each dataset, ensuring data integrity and availability.
 
 **Challenge-Response Protocol**
+
 Leverages Swarm and L1 transactions for data verification and retrieval.
 
    1. Insurers create an on-chain (L1) commitment ('Insurance') for storing a particular piece of data. This commitment is identified by a hash an can be checked by L1 EVM.
@@ -42,9 +44,11 @@ Leverages Swarm and L1 transactions for data verification and retrieval.
    4. Challenges incur costs as well, ensuring only valid disputes are raised. Optionally, challengers might stake tokens to deter frivolous or malicious challenges, forfeited if the challenge is met successfully.
 
 **Consensus over Swarm Hash**
+
 The system ensures data integrity if there is node consensus over the swarm hash of the dataset. [Erasure coding](https://papers.ethswarm.org/erasure-coding.pdf) and inclusion proofs allows reconstruction of the full dataset from partial data and ensures data authenticity through cryptographic evidence, even from non-commitee (non insurers) members.
 
 **Data Availability**
+
 To prove in L1 that the dataset has reached and has been uploaded into Swarm nodes, and therefore it is available within Swarm, an additional zk-proof is required. That proof must include the merkle tree from data chunks (Swarm hash), representing the data stored in Swarm, and the corresponding postage stamps of the dataset.
 
 The zk-proof circuit will need to include operations for verifying the association of the given swarm hash with the specific postage stamp, and it has sufficient balance to cover the cost of storing the data.
