@@ -20,7 +20,7 @@ A proposal to ensure data integrity and availability in Swarm through an onchain
 This SWIP introduces a Data Availability Insurance System for the Swarm network, ensuring the integrity and accessibility of data through a challenge-response mechanism. The system incorporates staked nodes (insurers), challenge-response protocols, and zkproofs to verify data availability, providing a reliable and efficient data ecosystem for Swarm.
 
 ## Motivation
-The current Swarm protocol lacks a dedicated system ensuring data availability and integrity, leading to potential vulnerabilities in data accessibility. This SWIP aims to address this inadequacy by introducing a system that not only guarantees data availability but also incentivizes nodes through a stake-based mechanism, enhancing the overall security and reliability of the Swarm network.
+The current Swarm protocol needs dedicated system ensuring data availability and integrity, to provide additional guarantees in data accessibility. This SWIP aims to address this by introducing a system that not only guarantees data availability but also incentivizes nodes through a stake-based mechanism, enhancing the overall security and reliability of the Swarm network.
 
 ## Specification
 The system's cornerstone is the on-chain (L1) insurance commitment:
