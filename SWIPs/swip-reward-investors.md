@@ -37,15 +37,23 @@ It's not an apples-to-apples comparison, but Filecoin has a market cap of about 
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
-Burn 10% of the BZZ stamp payment before sending the remainder to the redistribution lottery.
+
+Call `shutDown()` on the bonding curve contract (0x4F32Ab778e85C4aD0CEad54f8f82F5Ee74d46904). Move the DAI to a Swarm Foundation owned Uniswap v2 DAI-BZZ pool.
+
+Send 10% of the BZZ stamp payment to the Swarm Foundation owned Uniswap v2 DAI-BZZ pool before sending the remainder to the redistribution lottery.
 
 Eventually the node operator minimum deposit will need to be reduced to compensate for the increase in the value of BZZ.
 
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
+
 The choice of 10% going to investors is arbitrary. The community can decide on the most suitable burn rate.
 
 Stamp payments are a great place to add this fee. Stamp buyers are expressing an intention to store data on the network which is the behavior that is synonymous with the success of the network.
+
+To allow the value of BZZ to appreciate in proportional to demand, the bonding curve needs to be shutdown. The bonding curve imposes a non-linear function between BZZ and the price of BZZ. If the bond curve is kept active, it will impose a distorting effect on price discovery. See [here](https://medium.com/ethereum-swarm/swarm-and-its-bzzaar-bonding-curve-ac2fa9889914) for background.
+
+To ensures that BZZ retains on-chain liquidity, the DAI in the bond curve and the fee on stamp payments will be deposited into to a Swarm Foundation owned Uniswap v2 DAI-BZZ pool. This concept has already been proven by [Maker's smart burn engine](https://makerburn.com/#/buyback).
 
 ## Backwards Compatibility
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
