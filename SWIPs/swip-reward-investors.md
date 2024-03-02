@@ -53,7 +53,7 @@ Stamp payments are a great place to add this fee. Stamp buyers are expressing an
 
 To allow the value of BZZ to appreciate in proportional to demand, the bonding curve needs to be shutdown. The bonding curve imposes a non-linear function between BZZ and the price of BZZ. If the bond curve is kept active, it will impose a distorting effect on price discovery. See [here](https://medium.com/ethereum-swarm/swarm-and-its-bzzaar-bonding-curve-ac2fa9889914) for background.
 
-To ensures that BZZ retains on-chain liquidity, the DAI in the bond curve and the fee on stamp payments will be deposited into to a Swarm Foundation owned Uniswap v2 DAI-BZZ pool. This concept has already been proven by [Maker's smart burn engine](https://makerburn.com/#/buyback).
+To ensures that BZZ retains on-chain liquidity, the DAI in the bond curve and the fee on stamp payments will be deposited into to a Swarm Foundation owned Uniswap v2 DAI-BZZ pool. This concept has already been proven by [Maker's smart burn engine](https://makerburn.com/#/buyback). See [here](https://vote.makerdao.com/polling/QmQmxEZp#poll-detail) for more background.
 
 ## Backwards Compatibility
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
