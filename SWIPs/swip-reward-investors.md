@@ -51,6 +51,8 @@ Stamp payments are a great place to add this fee. Stamp buyers are expressing an
 
 To ensures that BZZ retains on-chain liquidity, the fee on stamp payments will be deposited into to a Swarm Foundation owned Uniswap v2 DAI-BZZ pool. This concept has already been proven by [Maker's smart burn engine](https://makerburn.com/#/buyback). See [here](https://vote.makerdao.com/polling/QmQmxEZp#poll-detail) for more background. Maker chose Uniswap v2 instead of more modern solutions because it is battle tested and has less attack surface. Uniswap v2 is the simplest way to provide market depth to a free floating token pair.
 
+While on-chain liquidity is a public good, the pool fee should not be so low as to encourage speculation. Excessive BZZ price volatility is not in the interest of actual users of the Swarm network. Therefore, the Uniswap pool fee should be fairly high, like 0.5%, to increase transaction costs a bit and reduce short-term speculation.
+
 ### Legal Analysis
 
 Disclaimer: *The information contained in this section is intended for informational purposes only and does not constitute legal advice. The author is not a licensed attorney and cannot offer legal guidance or representation. Readers should not rely on this information to make decisions regarding any legal matter. It is strongly recommended that you consult with a qualified attorney in your jurisdiction for personalized legal advice specific to your situation. The author does not assume any responsibility for any actions taken or not taken based on the content of this section. The information presented may not be up-to-date or applicable to every situation.*
