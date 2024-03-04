@@ -47,11 +47,11 @@ Eventually the node operator minimum deposit will need to be reduced to compensa
 
 The choice of 10% going to investors is arbitrary. The community can decide on the most suitable burn rate.
 
-Stamp payments are a great place to add this fee. Stamp buyers are expressing an intention to store data on the network which is the behavior that is synonymous with the success of the network.
+Stamp payments are a great place to add this fee. Stamp buyers are expressing an intention to store data on the network which is the behavior that is synonymous with the success of the network. Backing BZZ only with DAI loses value to inflation just as USD loses value to inflation. BZZ should be backed by future stamp fees, unlinked from USD.
 
 To ensures that BZZ retains on-chain liquidity, the fee on stamp payments will be deposited into to a Swarm Foundation owned Uniswap v2 DAI-BZZ pool. This concept has already been proven by [Maker's smart burn engine](https://makerburn.com/#/buyback). See [here](https://vote.makerdao.com/polling/QmQmxEZp#poll-detail) for more background. Maker chose Uniswap v2 instead of more modern solutions because it is battle tested and has less attack surface. Uniswap v2 is the simplest way to provide market depth to a free floating token pair.
 
-While on-chain liquidity is a public good, the pool fee should not be so low as to encourage speculation. Excessive BZZ price volatility is not in the interest of actual users of the Swarm network. Therefore, the Uniswap pool fee should be fairly high, like 0.5%, to increase transaction costs a bit and reduce short-term speculation.
+While on-chain liquidity is a public good, the pool fee should not be so low as to encourage speculation (e.g., 0.01%). Excessive BZZ price volatility is not in the interest of actual users of the Swarm network. Therefore, the Uniswap pool fee should be fairly high, like 0.5%, to increase transaction costs a bit and reduce short-term speculation.
 
 ### Legal Analysis
 
