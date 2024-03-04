@@ -64,7 +64,7 @@ This SWIP proposes to change the economic properties of the BZZ token. Supported
 ## Backwards Compatibility
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
 
-The bonding curve (0x4F32Ab778e85C4aD0CEad54f8f82F5Ee74d46904) imposes a non-linear function between quantity of BZZ issued and the price of BZZ. Keeping the bond curve active and, at the same time, allowing BZZ to trade freely for price discovery, will involve extra arbitrage transactions to keep these markets in synch. See [here](https://medium.com/ethereum-swarm/swarm-and-its-bzzaar-bonding-curve-ac2fa9889914) for background. There is no urgency, but it would be desireable to retire the bonding curve for the following reasons:
+The bonding curve (0x4F32Ab778e85C4aD0CEad54f8f82F5Ee74d46904) imposes a non-linear function between quantity of BZZ issued and the price of BZZ. Keeping the bonding curve active and, at the same time, allowing BZZ to trade freely for price discovery, will involve extra arbitrage transactions to keep these markets in synch. See [here](https://medium.com/ethereum-swarm/swarm-and-its-bzzaar-bonding-curve-ac2fa9889914) for background. There is no urgency, but it would be desireable to retire the bonding curve for the following reasons:
 
 - The DAI locked in the bonding curve does not earn any return.
 - This idle capital no longer helps much with market depth because the Uniswap market has plenty of depth.
@@ -84,6 +84,8 @@ The bonding curve has a `shutDown()` function. However, after `shutdown()`, the 
   - Redeem BZZv1 to DAI.
   - Call `shutdown()` on the bonding curve.
   - Send the DAI to the Swarm Foundation
+
+The amount of DAI recovered will be much less than the market capitalization. A typical market capitalization estimate assumes that every BZZ token is worth the same amount. However, this is not how the bonding curve works. The first 62.5M BZZ tokens are worth less than 0.32 DAI per token. From 62.5M to 65.625M, BZZ tokens are worth less than 1.38 DAI. And so on. For example, when I checked just now, the market cap is 33.4M DAI with 63.4M BZZ tokens, but the bonding curve contract only contains 1.6M DAI.
 
 ## Test Cases
 <!--Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.-->
