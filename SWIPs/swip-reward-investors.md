@@ -20,7 +20,7 @@ A short (~200 word) description of the technical issue being addressed.
 
 ## Motivation
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
-Under the current rules ([BZZ Tokenomics, Oct 25, 2021](https://medium.com/ethereum-swarm/swarm-tokenomics-91254cd5adf)), the BZZ token may not appreciate value. Some activities require purchasing BZZ:
+Under the current rules ([BZZ Tokenomics, Oct 25, 2021](https://medium.com/ethereum-swarm/swarm-tokenomics-91254cd5adf)), the BZZ token may not appreciate much in value. Some activities require purchasing BZZ:
 - New node operators need to make a minimum deposit.
 - Data archivists need to buy BZZ to purchase postage stamps.
 - Data users need to buy miniscule amounts of BZZ to [pay for bandwidth](https://blog.ethswarm.org/foundation/2021/understanding-swarms-bandwidth-incentives/).
@@ -29,9 +29,9 @@ Other parties are natural sellers of BZZ:
 - Node operators sell BZZ to pay for electricity and hardware.
 - [Investors](https://cryptorank.io/ico/swarm) may like to cash out their investment.
 
-Swarm had historically ignored the economics of BZZ because it was more important to get the technology to work. Now that the technology is on the cusp of working, investors should be rewarded.
+Swarm had historically ignored the economics of BZZ because it was more important to get the technology to work. Now that the technology is on the cusp of working, we have an opportunity to revamp the economics.
 
-One purpose of the BZZ token was to [reward early adopters](https://blog.ethswarm.org/foundation/2021/swarm-is-airdropping-1000000-bzz/). By this metric, BZZ is a failure. Sold to the public for 1.92 DAI on June 2021, the token is worth about 0.5 DAI as of Mar 2024. Investors deserve a return on investment. If the price of BZZ could be linked to network usage then investors would be incentivized to promote the network.
+One purpose of the BZZ token was to [reward early adopters](https://blog.ethswarm.org/foundation/2021/swarm-is-airdropping-1000000-bzz/). By this metric, BZZ is a failure. Sold to the public for 1.92 DAI on June 2021, the token is worth about 0.5 DAI as of Mar 2024. Early contributors and investors deserve a return on investment. If the price of BZZ could be better linked to network usage then this would benefit practically all project participants.
 
 It's not an apples-to-apples comparison, but Filecoin has a market cap of about 4.5 billion while BZZ is only 34 million (Mar 2024). That's a difference of more than two orders of magnitude.
 
@@ -49,11 +49,11 @@ The choice of 10% going to investors is arbitrary. The community can decide on t
 
 Stamp payments are a great place to add this fee. Stamp buyers are expressing an intention to store data on the network which is the behavior that is synonymous with the success of the network. Backing BZZ only with DAI loses value to inflation just as USD loses value to inflation. BZZ should be backed by future stamp fees, unlinked from USD.
 
-To ensures that BZZ retains on-chain liquidity, the fee on stamp payments will be deposited into to a Swarm Foundation owned Uniswap v2 DAI-BZZ pool. This concept has already been proven by [Maker's smart burn engine](https://makerburn.com/#/buyback). See [here](https://vote.makerdao.com/polling/QmQmxEZp#poll-detail) for more background. Maker chose Uniswap v2 instead of more modern solutions because it is battle tested and has less attack surface. Uniswap v2 is the simplest way to provide market depth to a free floating token pair.
+To ensures that BZZ retains on-chain liquidity, the fee on stamp payments will be deposited into to a Swarm Foundation owned Uniswap v2 DAI-BZZ pool. This concept has already been proven by [Maker's smart burn engine](https://makerburn.com/#/buyback). See [here](https://vote.makerdao.com/polling/QmQmxEZp#poll-detail) for more background. Maker chose Uniswap v2 instead of more modern solutions because it is battle tested and has less attack surface. Uniswap v2 is one of the simplest way to provide market depth to a free floating token pair.
 
-While on-chain liquidity is a public good, the pool fee should not be so low as to encourage speculation (e.g., 0.01%). Excessive BZZ price volatility is not in the interest of actual users of the Swarm network. Therefore, the Uniswap pool fee should be fairly high, like 0.5%, to increase transaction costs a bit and reduce short-term speculation.
+The Uniswap pool fee should not be so low as to encourage speculation (e.g., 0.01%). Excessive BZZ price volatility is not in the interest of actual users of the Swarm network. Therefore, the Uniswap pool fee should be fairly high, like 0.5%, to increase transaction costs a bit and discourage short-term speculation.
 
-Prior to this SWIP, rational investors were only distantly concerned with the success of the network. The day-to-day sale of postage stamps was of little concern. After this SWIP, rational investors should want to optimize the price fluctuation of BZZ to encourage the purchase of postage stamps. Postage stamp purchasers are mostly concerned about buying storage and don't want to think about BZZ price. Therefore, rational investors will want to minimize BZZ price volatility.
+Prior to this SWIP, rational investors were only distantly concerned with the success of the network. The day-to-day sale of postage stamps was of little concern. After this SWIP, rational investors should want to optimize the price fluctuations of BZZ to encourage the purchase of postage stamps. Postage stamp purchasers are mostly concerned about buying storage and don't want to think about BZZ price. Therefore, rational investors will want to minimize BZZ price volatility.
 
 ### Background on the Price Oracle
 
@@ -65,15 +65,7 @@ Disclaimer: *The information contained in this section is intended for informati
 
 [The Howey test](https://www.investopedia.com/does-crypto-pass-the-howey-test-8385183) established criteria for whether a transaction qualifies as an investment contract. As of the June 2021 crowdsale, it could be anticipated that BZZ would not appreciate much in value. Developers owned at least 20% of the initial issuance and planned to redeem for DAI to fund development. Node deposits could be anticipated to reduce the supply of BZZ, but this would only matter if the network grew very large. Therefore, BZZ seems to fail the Howey criterion of *expectation of profits*.
 
-This SWIP proposes to change the economic properties of the BZZ token. Supported by revenue coming in from stamp fees, BZZ is expected to appreciate in value. However, the success of BZZ is no longer in the hands of a small team of developers. The Howey criterion of *reliance on the efforts of others* no longer applies. Even more so than Bitcoin, all holders of BZZ are responsible for the success of the network. Software developers, node operators, and postage stamp purchasers contribute value. In addition, BZZ investors contribute value by their implicit belief in the network, and optionally, promoting the network.
-
-The bonding curve is generally thought to provide market depth and reduce volatility. However, the bonding curve also enables a particular speculative trading strategy:
-
-1. Suppose a trader builds up a large position in BZZ.
-2. The trader tries to generate downward momentum in price. For example, the trader might sell BZZ at times and quantities to make the price chart look like there is a strong downward trend.
-3. The idea is to trick other people into selling BZZ. Other people sell BZZ.
-4. The trader can buy back the same number of BZZ tokens for less DAI than was originally invested at step 1. The bonding curve makes this easier than it would otherwise be because there is no market making fee and the price cannot make discontinuous jumps from low to high. The trader can buy a large number of BZZ tokens in a single atomic transaction.
-5. Repeat.
+This SWIP proposes to change the economic properties of the BZZ token. Supported by revenue coming in from stamp fees, BZZ is expected to appreciate in value. However, the success of BZZ is no longer in the hands of a small team of developers. The Howey criterion of *reliance on the efforts of others* no longer applies. Even more so than Bitcoin, very many holders of BZZ are responsible for the success of the network. Software developers, node operators, postage stamp purchasers, and bandwidth users contribute value.
 
 ## Backwards Compatibility
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
@@ -85,6 +77,14 @@ The bonding curve (0x4F32Ab778e85C4aD0CEad54f8f82F5Ee74d46904) imposes a non-lin
 - This idle capital no longer helps much with market depth because the Uniswap market has plenty of depth.
 
 This last point needs be true before the bonding curve is shut down. BZZ volatility is harmful to users and providers of storage. Since the launch of the token, the bonding curve has buffered against wild volatility. The Uniswap market needs to have plenty of capital invested in market making before the bonding curve is shut down.
+
+The bonding curve is generally thought to provide market depth and reduce volatility. However, the bonding curve also enables a particular speculative trading strategy:
+
+1. Suppose a trader builds up a large position in BZZ.
+2. The trader tries to generate downward momentum in price. For example, the trader might sell BZZ at times and quantities to make the price chart look like there is a strong downward trend.
+3. The idea is to trick other people into selling BZZ. Other people sell BZZ.
+4. The trader can buy back the same number of BZZ tokens for less DAI than was originally invested at step 1. The bonding curve makes this easier than it would otherwise be because there is no market making fee and the price cannot make discontinuous jumps from low to high. The trader can buy a large number of BZZ tokens in a single atomic transaction.
+5. Repeat.
 
 The bonding curve has a `shutDown()` function. However, after `shutdown()`, the is no way to retrieve any DAI that is still locked. To both retire the bonding curve and retrieve the DAI will require some careful planning. Here is one solution:
 
