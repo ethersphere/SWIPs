@@ -115,5 +115,9 @@ The amount of DAI recovered will be much less than the market capitalization. A 
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
 *Pending*
 
+### Future
+
+Instead of sending fees to a UniV2 LP position, it might be more advantageous to provide market depth using [Gelato's UniV3](https://medium.com/gelato-network/introducing-g-uni-lp-like-a-pro-in-uniswap-v3-8fd6fdf9fc35) automation tools. Using these tools, the liquidity could be deployed in a narrow range with a very low fee (0.01%). Some customization of the [code](https://github.com/gelatodigital/g-uni-v1-core) would be needed to ensure that the price range can only be updated slowly (weekly) and to prevent large price jumps (limit price changes to 1% or 5% per week).
+
 ## Copyright
 Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
