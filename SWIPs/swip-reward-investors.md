@@ -45,7 +45,7 @@ Eventually the node operator minimum deposit will need to be reduced to compensa
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
 
-The choice of 10% going to investors is arbitrary. The community can decide on the most suitable burn rate.
+The choice of 10% going to investors is arbitrary. The community can decide on the most suitable burn rate. As [a rule of thumb](https://www.brex.com/journal/what-is-a-good-profit-margin), 5% is a low margin, 10% is a healthy margin, and 20% is a high margin.
 
 Stamp payments are a great place to add this fee. Stamp buyers are expressing an intention to store data on the network which is the behavior that is synonymous with the success of the network. Backing BZZ only with DAI loses value to inflation just as USD loses value to inflation. BZZ should be backed by future stamp fees, unlinked from USD.
 
