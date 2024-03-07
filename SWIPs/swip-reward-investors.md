@@ -27,7 +27,7 @@ Under the current rules ([BZZ Tokenomics, Oct 25, 2021](https://medium.com/ether
 
 Other parties are natural sellers of BZZ:
 - Node operators sell BZZ to pay for electricity and hardware.
-- [Investors](https://cryptorank.io/ico/swarm) may like to cash out their investment.
+- [Investors](https://medium.com/ethereum-swarm/swarm-tokenomics-91254cd5adf) may like to cash out their investment.
 
 Swarm had historically ignored the economics of BZZ because it was more important to get the technology to work. Now that the technology is on the cusp of working, we have an opportunity to revamp the economics.
 
@@ -45,7 +45,7 @@ Eventually the node operator minimum deposit will need to be reduced to compensa
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
 
-The choice of 10% going to investors is arbitrary. The community can decide on the most suitable burn rate. As [a rule of thumb](https://www.brex.com/journal/what-is-a-good-profit-margin), 5% is a low margin, 10% is a healthy margin, and 20% is a high margin.
+The choice of 10% going to investors is arbitrary. The community can decide on the most suitable burn rate. As [a rule of thumb](https://www.brex.com/journal/what-is-a-good-profit-margin), 5% is a low margin, 10% is a healthy margin, and 20% is a high margin. The amount of stamp payments should be roughly equal to the [Network Total Monthly Rewards](https://blog.ethswarm.org/foundation/2024/state-of-the-network-january/).
 
 Stamp payments are a great place to add this fee. Stamp buyers are expressing an intention to store data on the network which is the behavior that is synonymous with the success of the network. Backing BZZ only with DAI loses value to inflation just as USD loses value to inflation. BZZ should be backed by future stamp fees, unlinked from USD.
 
