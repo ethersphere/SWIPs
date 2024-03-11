@@ -72,13 +72,16 @@ This SWIP proposes to change the economic properties of the BZZ token. Supported
 ## Backwards Compatibility
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
 
-The bonding curve (0x4F32Ab778e85C4aD0CEad54f8f82F5Ee74d46904) imposes a non-linear function between quantity of BZZ issued and the price of BZZ. Keeping the bonding curve active and, at the same time, allowing BZZ to trade freely for price discovery, will involve extra arbitrage transactions to keep these markets in synch. See [here](https://medium.com/ethereum-swarm/swarm-and-its-bzzaar-bonding-curve-ac2fa9889914) for background. There is no urgency, but it would be desireable to retire the bonding curve for the following reasons:
+The bonding curve (0x4F32Ab778e85C4aD0CEad54f8f82F5Ee74d46904) imposes a non-linear function between quantity of BZZ issued and the price of BZZ. Another effect of the bonding curve is to keep the bid/ask spread near zero regardless of the size of the trade. This makes it difficult for centralized exchanges to compete with the bonding curve on execution quality. Likely for the same reason, on-chain liquidity (e.g., Uniswap) has attracted few liquidity providers.
 
+ Keeping the bonding curve active and, at the same time, allowing BZZ to trade freely for price discovery, will involve extra arbitrage transactions to keep these markets in synch. See [here](https://medium.com/ethereum-swarm/swarm-and-its-bzzaar-bonding-curve-ac2fa9889914) for background. There is no urgency, but it would be desireable to retire the bonding curve for the following reasons:
+
+- There is little incentive for centralized exchanges to list BZZ while the bonding curve remains active. This makes the token less easily accessible to the public.
 - The DAI locked in the bonding curve does not earn any return.
 - Extra arbitrage transactions are needed to keep the bonding curve in synch with the free floating price.
 - This idle capital no longer helps much with market depth because the Uniswap market has plenty of depth.
 
-This last point needs be true before the bonding curve is shut down. BZZ volatility is harmful to users and providers of storage. Since the launch of the token, the bonding curve has buffered against wild volatility. The Uniswap market needs to have plenty of capital invested in market making before the bonding curve is shut down.
+This last point needs be true before the bonding curve is shut down. BZZ volatility is harmful to users and providers of storage. Since the launch of the token, the bonding curve has buffered against wild volatility. The Uniswap market needs to have plenty of capital invested in market making before the bonding curve is shut down. One idea to make the token easier to access in the interim is to ensure that the bonding curve is integrated with on-chain market aggregators like CowSwap or 1inch.
 
 The bonding curve is generally thought to provide market depth and reduce volatility. However, the bonding curve also enables a particular speculative trading strategy:
 
