@@ -81,7 +81,7 @@ The bonding curve (0x4F32Ab778e85C4aD0CEad54f8f82F5Ee74d46904) imposes a non-lin
 - Extra arbitrage transactions are needed to keep the bonding curve in synch with the free floating price.
 - This idle capital no longer helps much with market depth because the Uniswap market has plenty of depth.
 
-This last point needs be true before the bonding curve is shut down. BZZ volatility is harmful to users and providers of storage. Since the launch of the token, the bonding curve has buffered against wild volatility. The Uniswap market needs to have plenty of capital invested in market making before the bonding curve is shut down. One idea to make the token easier to access in the interim is to ensure that the bonding curve is integrated with on-chain market aggregators like CowSwap or 1inch.
+This last point needs be true before the bonding curve is shut down. BZZ volatility is harmful to users and providers of storage. Since the launch of the token, the bonding curve has buffered against wild volatility. The Uniswap market needs to have plenty of capital invested in market making before the bonding curve is shut down. One idea to make the token easier to access in the interim is to ensure that the bonding curve is integrated with on-chain market aggregators like [CowSwap](https://swap.cow.fi/) or [1inch](https://1inch.io/).
 
 The bonding curve is generally thought to provide market depth and reduce volatility. However, the bonding curve also enables a particular speculative trading strategy:
 
