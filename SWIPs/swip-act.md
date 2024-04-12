@@ -105,13 +105,21 @@ of [The Book of Swarm](https://www.ethswarm.org/the-book-of-swarm-2.pdf). 'Acces
 - It is explained how the access key can be obtained from various sources, and how it is used to decrypt the encrypted
   reference to obtain the full reference to the content.
 
+  ![Image](assets/SWIP-ACT/BoS_Figure_4_7.png "Access key as session key for single party access.")
+
 ### Selective Access to Multiple Parties
 
 - An additional layer is described, introduced to manage access by multiple parties (grantees) to the same content.
 - The concept of a session key, derived from provided credentials, and how it is used to derive a lookup key and an
   access key decryption key is introduced.
+
+  ![Image](assets/SWIP-ACT/BoS_Figure_4_8.png "Credentials to derive session key.")
+
 - It is explained how a lookup table, implemented as an access control trie (ACT) in Swarm manifest format, is used to
   map each grantee’s lookup key to their encrypted access key.
+
+  ![Image](assets/SWIP-ACT/BoS_Figure_4_9.png "Access control for multiple grantees involves an additional layer.")
+
 - The steps a user needs to follow to access content are outlined, including retrieving root access metadata,
   identifying the ACT resource, calculating their session key, and using the lookup key to retrieve the manifest entry
   from the ACT.
