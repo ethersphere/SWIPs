@@ -2,7 +2,7 @@
 SWIP: <to be assigned>
 title: Access Control Trie (ACT)
 author: András Arányi <andras.aranyi@solarpunk.buzz> (@aranyia)
-discussions-to: #develop-on-swarm (Swarm Discord) https://discord.gg/Q6BvSkCv
+discussions-to: https://discord.gg/Q6BvSkCv (Swarm Discord)
 status: Draft
 type: Standards Track
 category: Core
