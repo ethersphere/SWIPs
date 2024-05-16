@@ -31,8 +31,8 @@ This part describes how stakes should be created, modified, computed and withdra
 
 ### The stake endpoint
 1.  The contract accepts an extra argument, `committedStake`, which sets the committed stake.
-2.  The contract asks the price oracle for the unit price of storage -- let us denote it with the symbol `unitPrice`.
-3.  The contract then adds whatever amount is sent with the transaction to the  stake entry for the address of `txorigins`. We can call this sum the *potential stake balance*, and denote it with the symbol `potentialStakeBalance`.
+2.  The contract asks the price oracle for the unit price of storage -- denoted here as `unitPrice`.
+3.  The contract then adds the amount sent with the transaction to the stake entry for the address of `txorigin`. This sum can be referred to as the *potential stake balance*, denoted as `potentialStakeBalance`.
 
 ### The new withdraw stake endpoint
 withdrawal comprises the following steps:
