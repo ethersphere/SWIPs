@@ -30,9 +30,9 @@ Currently, the smart contract can only increase a node's stake by sending additi
 This section describes how stakes should be created, modified, computed, and withdrawn. As a first step, we need to determine the *committed stake* of the user. This is set by user action, based on the following procedure:
 
 ### The stake endpoint
-1.   The contract accepts an extra argument, `committedStake`, which sets the committed stake.
+1.  The contract accepts an extra argument, `committedStake`, which sets the committed stake.
 2.  The contract asks the price oracle for the unit price of storage -- denoted here as `unitPrice`.
-3.  The contract then adds any amount sent with the transaction to the stake entry for the address of `txorigins`. This sum can be referred to as the *potential stake balance*, denoted as `potentialStakeBalance`.
+3.  The contract then adds the amount sent with the transaction to the stake entry for the address of `txorigin`. This sum can be referred to as the *potential stake balance*, denoted as `potentialStakeBalance`.
 
 ### The new withdraw stake endpoint
 Withdrawal comprises the following steps:
