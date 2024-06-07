@@ -12,12 +12,12 @@ created: 2024-05-08
 
 ## Abstract
 
-Currently, one's initial capital, invested as stake, is permanently locked, meaning that returns on this stake are solely based on the ROI of the redistribution game. The purpose of this SWIP is to change that: in extenuating circumstances, users will be allowed to withdraw their stakes.
+Currently, a storer node's stake to buy their way into the redistribution game, is permanently locked which means that returns on this stake are solely based on the ROI of the redistribution game. The purpose of this SWIP is to change this and allow users to withdraw part of their stakes.
 
 
 ## Objectives
 
-Should the effective price of a user's stake increase, they should be able to withdraw the appreciation, i.e., the amount that no longer represents the capital required to play and safeguard the system.
+Should the effective price of a user's stake increase, they should be able to withdraw the appreciation, i.e., the portion of the value that is above the amount required to play and safeguard the system.
 
 
 ## Context
@@ -27,10 +27,15 @@ Currently, the smart contract can only increase a node's stake by sending additi
 
 ## Specification
 
-This section describes how stakes should be created, modified, computed, and withdrawn. As a first step, we need to determine the *committed stake* of the user. This is set by user action, based on the following procedure:
+This section describes how stakes should be created, modified, computed, and withdrawn. Since this is orchestrated by the [**Staking Contract**](https://github.com/ethersphere/storage-incentives/blob/master/src/Staking.sol), implementing this SWIP consists of predominantly changes to this smart contract. 
+
+### Concepts
+
+
 
 ### The stake endpoint
-1.  The contract accepts an extra argument, `committedStake`, which sets the committed stake.
+
+1.  The Staking contract accepts an extra argument, `committedStake`, which sets the committed stake.
 2.  The contract asks the price oracle for the unit price of storage -- denoted here as `unitPrice`.
 3.  The contract then adds the amount sent with the transaction to the stake entry for the address of `txorigin`. This sum can be referred to as the *potential stake balance*, denoted as `potentialStakeBalance`.
 
@@ -45,19 +50,27 @@ Withdrawal comprises the following steps:
 ```
     surplusStake = potentialStakeBalance - effectiveStake
 ```
-4.  If `surplusStake > 0` then send `surplusStake` back to `txorigin`
+3.  If `surplusStake > 0` then send `surplusStake` back to `txorigin`
+
+### The stake accessor endpoint
 
 Most importantly, the function called by the redistribution contract that calculates the stake of an overlay should now return the *effective stake* (as per step 1 above) rather than the *potential stake balance* as it currently does.
 
+```
+    effectiveStake = min(committedStake * unitPrice, potentialStakeBalance)
+```
+
+The calculation of the stake amount used for the weights determining truth and winners
 ![](assets/swip-20/stake-definition.png)
 
 
 ## Implementation notes
 
 ### Minimum stake
-Currently, the minimum stake is checked in the redistribution game contract. If the amount is found to be less than 
+
+Currently, the minimum stake is checked [in the redistribution game contract](https://github.com/ethersphere/storage-incentives/blob/master/src/Redistribution.sol#L300). If the amount is found to be less than the minimum stake the commit fails.
 Without any further changes to the contract, this is a discrepancy.
-Instead, the contract should perform this check only once when the stake is registered for a particular node. Most importantly if the price of BZZ goes up and the committed stake is covered by less than 10BZZ, then the node is allowed to withdraw the surplus. It is important that in this case the minimum stake requirement is no longer enforced. 
+Instead, the staking contract should perform this check only once when the stake is registered for a particular node. Most importantly if the price of BZZ goes up and the committed stake is covered by less than 10BZZ, then the node is allowed to withdraw the surplus. It is important that in this case the minimum stake requirement is no longer enforced. 
 Conversely, if the price of BZZ decreases and the minimum stake is worth less, no additional checks are required. 
 
 ### Neighbourhood hopping
@@ -65,8 +78,10 @@ Conversely, if the price of BZZ decreases and the minimum stake is worth less, n
 We are modifying the contracts, specifically the staking contract, to attribute stake to the address rather than the overlay. This will facilitate stake mobility when changing neighbourhoods, allowing nodes to migrate and distribute themselves across the network. (see SWIP-19)
 
 ### Swarm API changes
- - *API Stake endpoint:*
+- *API Stake endpoint:*
    For the staking node, the value for committed stake should be solicited as user input in the form of an added request parameter.
+- *API stake accessor:*
+  When the sync
 - *API support for withdraw:*
   API endpoint for excess stake withdrawal should be added to the client.
 
@@ -110,11 +125,7 @@ Due to the contract upgrade, the deployment of this SWIP involves a migration pr
 3. Resetting committed stake
     - Manually change the price in the price oracle
     - Confirm if it is possible to withdraw funds from the stake after the change
-    - Check if, when the price of BZZ goes up, you are be able to withdraw your excess as per the operator  
-
-
-A question for an imagined worst-case scenario: If the price of BZZ increases incrementally, which incentivises nodes to withdraw funds, and this happens simultaneously for many nodes, could that put the network as a whole in danger?
-
+    - Check if, when the price of BZZ goes up, you are be able to withdraw your excess  
 
 ## Copyright
 
