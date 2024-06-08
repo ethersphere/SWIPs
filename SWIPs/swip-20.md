@@ -27,14 +27,28 @@ Currently, the smart contract can only increase a node's stake by sending additi
 
 ## Specification
 
-This section describes how stakes should be created, modified, computed, and withdrawn. Since this is orchestrated by the [**Staking Contract**](https://github.com/ethersphere/storage-incentives/blob/master/src/Staking.sol), implementing this SWIP consists of predominantly changes to this smart contract. 
+This section describes how stakes should be created, modified, computed, and withdrawn. Since this is orchestrated by the [**Staking Contract**](https://github.com/ethersphere/storage-incentives/blob/master/src/Staking.sol), implementing this SWIP consists predominantly of changes to this smart contract. 
 
 ### Concepts
 
+#### *balance or potential stake*
+The contract keeps a balance of bzz tokensw associated with a node (and not an overlay as of SWIP-19). Every time a `stakeDeposit` function is called, the amount of bzz sent with the transaction is added to this balance.
+
+#### *committed stake*
+
+The committed stake is interpreted as the stake that the staker commits to stake. It is denominated not in bzz, but the commodity unit that it is meant to secure: unit price of storage rent.
+  
+Expressed in bzz it is `committedStake * unitPrice`. Initially, the committed stake aligns with the balance, in that the node's committed stake in bzz is fully covered by the node's balance, however as the unitPrice changes (as a consequence of either cost changes, competition or bzz token price change), the committed stake can be under or overcollateralised by the actual stake balance.
+ 
+#### *Effective stake*
+
+The effective stake is the largest portion of the committed stake expressed in bzz that has 
+collateral.
 
 
 ### The stake endpoint
 
+through calling `depositStake` function 
 1.  The Staking contract accepts an extra argument, `committedStake`, which sets the committed stake.
 2.  The contract asks the price oracle for the unit price of storage -- denoted here as `unitPrice`.
 3.  The contract then adds the amount sent with the transaction to the stake entry for the address of `txorigin`. This sum can be referred to as the *potential stake balance*, denoted as `potentialStakeBalance`.
