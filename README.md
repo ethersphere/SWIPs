@@ -16,7 +16,7 @@ This README contains a high level description of contributing a SWIP, for conven
 
 A SWIP proposal or suggested edits (or updates) may come from anyone (inside or outside the organisation) and are received in the form of a pull request to the [SWIP repository](https://github.com/ethersphere/SWIPs). Throughout the lifetime of a SWIP from proposal to final accepted, we use the PR-review infrastructure of github to comment and improve the SWIP.
 
-THe github permissions of the repo reflect these privileges:
+The github permissions of the repo reflect these privileges:
 - Anyone can open a new PR.
 - Only SWIP editors can merge a PR to master.
 
@@ -29,7 +29,7 @@ This placeholder file contains minimally only the the yaml header with the follo
 
 ```yaml
  ---
-title: fairx
+title: Neighbourhood hopping
 SWIP: XXXX
 author: Viktor Tron (@zelig), Viktor Toth (@nugaon)
 status: Draft
@@ -44,7 +44,7 @@ status: Draft
 The SWIP editors can merge this initial request to signal the SWIP worthy of recording and ready for discussion.
 
 From this moment on, the SWIP number is taken as allocated and the SWIP will permanently be part of the repo (yes even if it is deferred or rejected).
-This way looking at the repo should give the number to be used when  a new SWIP proposal is submitted. 
+This way looking at the repo should give the number to be used when a new SWIP proposal is submitted. 
 
 Submitters of SWIPs are recommended to use a mnemonic feature branch name. 
 
