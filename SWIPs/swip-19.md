@@ -41,16 +41,16 @@ The implementation requires change of indices: from one keyed by the overlay add
 
 Major change from previous function "depositStake" we now have the NEW one where we don't send nodes address, it is auto picked from sender
 
-`function manageStake(bytes32 _nonce, uint256 _amount)`
+`  function manageStake(bytes32 _setNonce, uint256 _addAmount)`
 
 We also changed the event, now it emits different indexed variable which is owner of node
 
-`emit StakeUpdated(msg.sender, updatedAmount, overlay, block.number);`
+`emit StakeUpdated(msg.sender, updatedAmount, _newOverlay, block.number)`
 
 This function can also be used to add more stake to the same node. We can also change overlay with it if we set difference nonce, in that case
 event will be trigered to show that overlay has been changed
 
-`emit OverlayChanged(msg.sender, overlay);
+`emit OverlayChanged(msg.sender, _newOverlay)`
 
 #### Withdraw from stake
 
