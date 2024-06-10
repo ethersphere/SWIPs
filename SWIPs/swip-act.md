@@ -2,7 +2,7 @@
 SWIP: <to be assigned>
 title: Access Control Trie (ACT)
 author: András Arányi <andras.aranyi@solarpunk.buzz> (@aranyia)
-discussions-to: https://discord.gg/Q6BvSkCv (Swarm Discord)
+discussions-to: https://discord.com/channels/799027393297514537/1239813439136993280 (Swarm Discord '#swips')
 status: Draft
 type: Standards Track
 category: Core
@@ -166,7 +166,7 @@ nodes. When a viewer loses access, they are no longer present in the ACT's grant
 
 ### Use Cases
 
-1. Publishing new content without additional grantees
+1. Publishing new ACT content without additional grantees
     - 1/a. Reading and editing an existing ACT
 2. Granting access to new viewers
     - 2/a. Adding additional viewers to existing grantees
@@ -181,13 +181,32 @@ released Bee versions, including some nodes with the ACT feature enabled.
 
 ## Implementation
 
-The implementation was broken down to a number of components:
+The implementation could be broken down to a few key components:
 
-- Dynamic Access Controller
+- Access Controller & Access Logic
 - Grantee Manager
 - History
-- Access Logic
-- Session (Diffie-Hellman moments)
+- Session
+
+### Session
+The session is based on the grantee public key, using Diffie-Hellman key derivation. Each grantee has an access key specifically encrypted for them.
+The lookup table is an Access Control Trie (ACT). Both the lookup key and the access key decryption key are derived from the session (see '[Selective Access to Multiple Parties](#selective-access-to-multiple-parties)').
+
+### API changes
+The Bee API will have new additions to support ACT workflows:
+- ACT requests & response headers – to pass ACT references
+- _/grantee_ endpoint – to modify a list of grantees 
+
+And new code changes to seamlessly integrate into Bee processes:
+- new handlers in the middleware – for up & downloading content
+- _accesscontrol_ package – includes access logic & grantee manager
+
+### History
+Introduces the concept of history to track changes:
+- when referencing an ACT, its history is referenced
+- any version can be retrieved with the attached timestamp
+
+All ACT data items are encrypted. The grantee list itself is encrypted –- using the publisher’s look-up key.  This includes the grantee list’s content reference, which is encrypted as well.
 
 ## Copyright
 
