@@ -41,7 +41,7 @@ The implementation requires change of indices: from one keyed by the overlay add
 
 Major change from previous function "depositStake" we now have the NEW one where we don't send nodes address, it is auto picked from sender
 
-`  function manageStake(bytes32 _setNonce, uint256 _addAmount)`
+`function manageStake(bytes32 _setNonce, uint256 _addAmount)`
 
 We also changed the event, now it emits different indexed variable which is owner of node
 
