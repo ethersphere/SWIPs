@@ -189,24 +189,33 @@ The implementation could be broken down to a few key components:
 - Session
 
 ### Session
-The session is based on the grantee public key, using Diffie-Hellman key derivation. Each grantee has an access key specifically encrypted for them.
-The lookup table is an Access Control Trie (ACT). Both the lookup key and the access key decryption key are derived from the session (see '[Selective Access to Multiple Parties](#selective-access-to-multiple-parties)').
+
+The session is based on the grantee public key, using Diffie-Hellman key derivation. Each grantee has an access key
+specifically encrypted for them.
+The lookup table is an Access Control Trie (ACT). Both the lookup key and the access key decryption key are derived from
+the session (see '[Selective Access to Multiple Parties](#selective-access-to-multiple-parties-1)').
 
 ### API changes
+
 The Bee API will have new additions to support ACT workflows:
+
 - ACT requests & response headers – to pass ACT references
-- _/grantee_ endpoint – to modify a list of grantees 
+- _/grantee_ endpoint – to modify a list of grantees
 
 And new code changes to seamlessly integrate into Bee processes:
+
 - new handlers in the middleware – for up & downloading content
 - _accesscontrol_ package – includes access logic & grantee manager
 
 ### History
+
 Introduces the concept of history to track changes:
+
 - when referencing an ACT, its history is referenced
 - any version can be retrieved with the attached timestamp
 
-All ACT data items are encrypted. The grantee list itself is encrypted –- using the publisher’s look-up key.  This includes the grantee list’s content reference, which is encrypted as well.
+All ACT data items are encrypted. The grantee list itself is encrypted –- using the publisher’s look-up key. This
+includes the grantee list’s content reference, which is encrypted as well.
 
 ## Copyright
 
