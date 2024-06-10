@@ -37,27 +37,20 @@ The implementation requires change of indices: from one keyed by the overlay add
 
 ### Staking contract changes
 
-#### The overlay change endpoint:
+#### The stake deposit endpoint/overlay change:
 
-1. Set the new nonce to
+Major change from previous function "depositStake" we now have the NEW one where we don't send nodes address, it is auto picked from sender
 
-   `function changeOverlay(bytes32 _nonce)`
-
-   node address is auto picked from the msg.sender and used to calculate new overlay
-
-2. Event will be trigered to show that overlay has been changed
-
-   `emit OverlayChanged(msg.sender, overlay);`
-
-#### The stake deposit endpoint:
-
-From previous function we now have the one where we don't send nodes address it is auto picked from sender and calculated
-
-`function depositStake(bytes32 _nonce, uint256 _amount)`
+`function manageStake(bytes32 _nonce, uint256 _amount)`
 
 We also changed the event, now it emits different indexed variable which is owner of node
 
 `emit StakeUpdated(msg.sender, updatedAmount, overlay, block.number);`
+
+This function can also be used to add more stake to the same node. We can also change overlay with it if we set difference nonce, in that case
+event will be trigered to show that overlay has been changed
+
+`emit OverlayChanged(msg.sender, overlay);
 
 #### Withdraw from stake
 
@@ -93,7 +86,7 @@ As in Staking contract where we removed usage of overlay sending as it is auto f
 
 #### Commits
 
-Commits are now done just with nonce and obfsHash
+Commits are now done just with nonce and obfuscatedHash
 
 `function commit(bytes32 _obfuscatedHash, uint64 _roundNumber)`
 
