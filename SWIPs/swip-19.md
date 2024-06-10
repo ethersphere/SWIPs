@@ -65,7 +65,7 @@ Withdraw will now also be done with address and not overlay so this should be ca
 
 `function withdrawFromStake(uint256 _amount)`
 
-#### Freez and slash deposit
+#### Freeze and slash deposit
 
 Both freeze and slash deposit are now done by address so we call
 
@@ -105,15 +105,10 @@ Reveals are also done without overlay so we just need nodes to send these parame
 
 #### Other
 
-We also now have read function with just depth parameters, address is fetched from msg.sender
-
-`function isParticipatingInUpcomingRound(uint8 _depth)`
-
-we also have overload function with 2 parameters
+We changed overlay parameter to address parameter in following function
 
 `function isParticipatingInUpcomingRound(address _owner, uint8 _depth)`
 
-which works as before, but is left more for debugging purposes and its safe for nodes to use the first one.
 
 ### Bee changes
 
