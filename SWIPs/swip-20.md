@@ -17,7 +17,7 @@ Currently, a storer node's stake to buy their way into the redistribution game, 
 
 ## Objectives
 
-Should the effective price of a user's stake increase, they should be able to withdraw the appreciation, i.e., the portion of the value that is above the amount required to play and safeguard the system.
+Should the effective price of a user's stake dencrease, they should be able to withdraw the appreciation, i.e., the portion of the value that is above the amount required to play and safeguard the system.
 
 
 ## Context
@@ -48,10 +48,11 @@ collateral.
 
 ### The stake endpoint
 
-through calling `depositStake` function 
-1.  The Staking contract accepts an extra argument, `committedStake`, which sets the committed stake.
-2.  The contract asks the price oracle for the unit price of storage -- denoted here as `unitPrice`.
-3.  The contract then adds the amount sent with the transaction to the stake entry for the address of `txorigin`. This sum can be referred to as the *potential stake balance*, denoted as `potentialStakeBalance`.
+through calling `manageStake` function 
+1.  The Staking contract accepts the same arguments as before, which are addAmount and setNonce
+2.  The contract then adds the amount to the stake entry for the address of `txorigin` and transfer funds from node to contract.
+ This sum can be referred to as the *potential stake balance*, denoted as `potentialStakeBalance`.
+3. Contract also calculates committedStake as value that is derived from addAmount/unitPrice, unitPrice is gathered from priceOracle contract with currentPrice() function
 
 ### The new withdraw stake endpoint
 Withdrawal comprises the following steps:
@@ -93,7 +94,7 @@ We are modifying the contracts, specifically the staking contract, to attribute 
 
 ### Swarm API changes
 - *API Stake endpoint:*
-   For the staking node, the value for committed stake should be solicited as user input in the form of an added request parameter.
+   For the staking node, the parametars that are set are same as in swip-19, which is sending value and nonce
 - *API stake accessor:*
   When the sync
 - *API support for withdraw:*
@@ -104,10 +105,8 @@ The client code should be amended to be compatible with new ABI for the staking 
 
 ### UX recommendations
 Any UX for staking would benefit from displaying relevant context to users when they are selecting parameters:
-- **Current value of committed stake:** Display the current amount of stake that has been committed by the user. 
-- **Potential maximum committed stake:** Show the maximum possible stake that could be committed, calculated from the current stake balance and the unit price as per the price oracle. 
-- **Required BZZ amount for transactions:** Inform users of the the amount of BZZ  needed to be sent with the transaction when creating or modifying a stake. This is especially important when attempting to set a committed stake amount above this value.
-- **Surplus balance:** Display any surplus balance that is available for withdrawal.
+- **Current value of (potential) stake balance:** Display the current amount of stake that has been staked by the user. 
+- **Surplus balance:** Display any surplus balance that is available for withdrawal if any (how to calculate this is mentioned above).
 
   
 ## Backward compatibility
