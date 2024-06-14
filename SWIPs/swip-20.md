@@ -95,10 +95,10 @@ We are modifying the contracts, specifically the staking contract, to attribute 
 
 ### Swarm API changes
 - *API Stake endpoint:*
-   For the staking node, the parametars that are set are same as in swip-19, which is sending value and nonce
-- *API stake accessor:*
-  When the sync
-- *API support for withdraw:*
+   For the staking node, the parameters that are set are the same as in swip-19, which are value and nonce
+- *API Stake accessor:*
+  Changes are already done in swip-19, where we access stake values keyed with node address
+- *API support for withdrawal:*
   API endpoint for excess stake withdrawal should be added to the client.
 
 The client code should be amended to be compatible with new ABI for the staking contract.
