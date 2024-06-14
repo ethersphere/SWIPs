@@ -17,7 +17,8 @@ Currently, a storer node's stake to buy their way into the redistribution game, 
 
 ## Objectives
 
-Should the effective price of a user's stake dencrease, they should be able to withdraw the appreciation, i.e., the portion of the value that is above the amount required to play and safeguard the system.
+Should the value of a user's stake increase, they should be able to withdraw the appreciation, i.e., the portion of the value that is above the amount required to play and safeguard the system.
+How it works is if BZZ price goes up, more node operators join because of that, the storage price goes down which makes commitedStake value in BZZ lower than potentialStake, which means the node operator can take out funds.
 
 
 ## Context
