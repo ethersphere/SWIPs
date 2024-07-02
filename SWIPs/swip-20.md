@@ -17,7 +17,7 @@ Currently, a storer node's stake to buy their way into the redistribution game, 
 
 ## Objectives
 
-Should the value of a user's stake increase, they should be able to withdraw the appreciation, i.e., the portion of the value that is above the amount required to play and safeguard the system.
+Should the value of BZZ increase then the node operators value that is staked increases in USD, they should be able to withdraw the appreciation, i.e., the portion of the value that is above the amount required on initial stake to play and safeguard the system.
 How it works is if BZZ price goes up, more node operators join because of that, the storage price goes down which makes commitedStake value in BZZ lower than potentialStake, which means the node operator can take out funds.
 
 
@@ -33,7 +33,7 @@ This section describes how stakes should be created, modified, computed, and wit
 ### Concepts
 
 #### *balance or potential stake*
-The contract keeps a balance of bzz tokensw associated with a node (and not an overlay as of SWIP-19). Every time a `stakeDeposit` function is called, the amount of bzz sent with the transaction is added to this balance.
+The contract keeps a balance of bzz tokens associated with a node (and not an overlay as of SWIP-19). Every time a `stakeDeposit` function is called, the amount of bzz sent with the transaction is added to this balance.
 
 #### *committed stake*
 
