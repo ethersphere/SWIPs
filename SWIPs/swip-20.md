@@ -126,20 +126,12 @@ Due to the contract upgrade, the deployment of this SWIP involves a migration pr
 0. Bootstrapping:
 	- Manually set price oracle to a unit price of `0.1BZZ`
 	- Set up nodes `A` and `B`
-1. Initial staking
+1. Test cases
 	- Check that staking below the required minimum fails with the appropriate error 
-	- Ensure that staking A with 10BZZ and 101 as the value of committed stake fails with the appropriate error
-	- Confirm that staking A with 10BZZ and 100 as the value for committed stake succeeds. 
-	- Validate that staking B with 1,000BZZ and 10,000 as the value for committed stake succeeds. 
-2. Modifying stake balance and committed stake
-   - Check if increasing A's committed stake to 200 without sending extra BZZ fails with the proper error
-	- Send A 10BZZ with a transaction to bring the total stake to 20, maintaining 100 as the committed stake
-   - Send 90,000BZZ with a transaction to bring the total stake to 100,000, maintaining 10,000 as the committed stake 
-  
-3. Resetting committed stake
-    - Manually change the price in the price oracle
-    - Confirm if it is possible to withdraw funds from the stake after the change
-    - Check if, when the price of BZZ goes up, you are be able to withdraw your excess  
+    	- Manually change the price in the price oracle
+    	- Confirm if it is possible to withdraw funds from the stake after the change
+    	- Check if, when the price of BZZ goes up, you can withdraw your excess
+     	- Check that we can migrate funds when a contract is paused
 
 ## Copyright
 
