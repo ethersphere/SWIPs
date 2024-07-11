@@ -91,7 +91,7 @@ Conversely, if the price of BZZ decreases and the minimum stake is worth less, n
 
 ### Neighbourhood hopping
 
-We are modifying the contracts, specifically the staking contract, to attribute stake to the address rather than the overlay. This will facilitate stake mobility when changing neighbourhoods, allowing nodes to migrate and distribute themselves across the network. (see SWIP-19)
+We are modifying the contracts, specifically the staking contract, to attribute stake to the address rather than the overlay. This will facilitate stake mobility when changing neighborhoods, allowing nodes to migrate and distribute themselves across the network. (see SWIP-19)
 
 ### Swarm API changes
 - *API Stake endpoint:*
@@ -100,6 +100,7 @@ We are modifying the contracts, specifically the staking contract, to attribute 
   Changes are already done in swip-19, where we access stake values keyed with node address
 - *API support for withdrawal:*
   API endpoint for excess stake withdrawal should be added to the client.
+- "usableStakeOfAddress" will return effective stake value which is also used in the redistribution game, also we are changing this to "nodeEffectiveStake" function
 
 The client code should be amended to be compatible with new ABI for the staking contract.
 
