@@ -33,27 +33,26 @@ This section describes how stakes should be created, modified, computed, and wit
 ### Concepts
 
 #### *balance or potential stake*
-The contract keeps a balance of bzz tokens associated with a node (and not an overlay as of SWIP-19). Every time a `stakeDeposit` function is called, the amount of bzz sent with the transaction is added to this balance.
+The contract keeps a balance of BZZ tokens associated with a node address (not an overlay as of SWIP-19). Every time a `manageStake` function is called, the amount of BZZ sent with the transaction is added to this balance.
 
 #### *committed stake*
 
-The committed stake is interpreted as the stake that the staker commits to stake. It is denominated not in bzz, but the commodity unit that it is meant to secure: unit price of storage rent.
+The committed stake is not denominated in BZZ, but in the commodity unit that it is meant to secure: unit price of storage rent. It is saved with that value.
   
-Expressed in bzz it is `committedStake * unitPrice`. Initially, the committed stake aligns with the balance, in that the node's committed stake in bzz is fully covered by the node's balance, however as the unitPrice changes (as a consequence of either cost changes, competition or bzz token price change), the committed stake can be under or overcollateralised by the actual stake balance.
+Expressed in BZZ value can be obtained as `committedStake * unitPrice`. Initially, the committed stake aligns with the balance, in that the node's committed stake in BZZ is fully covered by the node's balance, however as the unitPrice changes (as a consequence of either cost changes, competition, or BZZ token price change), the committed stake can be under or overcollateralized by the actual stake balance.
  
 #### *Effective stake*
 
-The effective stake is the largest portion of the committed stake expressed in bzz that has 
-collateral.
+The effective stake is the committed stake expressed in BZZ that has collateral.
 
 
 ### The stake endpoint
 
 through calling `manageStake` function 
 1.  The Staking contract accepts the same arguments as before, which are addAmount and setNonce
-2.  The contract then adds the amount to the stake entry for the address of `txorigin` and transfer funds from node to contract.
+2.  The contract then adds the amount to the stake entry for the address of the sender and transfers funds from node address to contract.
  This sum can be referred to as the *potential stake balance*, denoted as `potentialStakeBalance`.
-3. Contract also calculates committedStake as value that is derived from addAmount/unitPrice, unitPrice is gathered from priceOracle contract with currentPrice() function
+3. Contract also calculates committedStake as value that is derived from addAmount/unitPrice, unitPrice is gathered from priceOracle contract with currentPrice() function.
 
 ### The new withdraw stake endpoint
 Withdrawal comprises the following steps:
@@ -66,15 +65,11 @@ Withdrawal comprises the following steps:
 ```
     surplusStake = potentialStakeBalance - effectiveStake
 ```
-3.  If `surplusStake > 0` then send `surplusStake` back to `txorigin`
+3.  If `surplusStake > 0` then the contract sends `surplusStake` back to the sender
 
 ### The stake accessor endpoint
 
-Most importantly, the function called by the redistribution contract that calculates the stake of an overlay should now return the *effective stake* (as per step 1 above) rather than the *potential stake balance* as it currently does.
-
-```
-    effectiveStake = min(committedStake * unitPrice, potentialStakeBalance)
-```
+Most importantly, the function called by the redistribution contract that calculates the stake of an address will return the *effective stake* (as per step 1 above) rather than the *potential stake balance* as it currently does.
 
 The calculation of the stake amount used for the weights determining truth and winners
 ![](assets/swip-20/stake-definition.png)
@@ -84,14 +79,10 @@ The calculation of the stake amount used for the weights determining truth and w
 
 ### Minimum stake
 
-Currently, the minimum stake is checked [in the redistribution game contract](https://github.com/ethersphere/storage-incentives/blob/master/src/Redistribution.sol#L300). If the amount is found to be less than the minimum stake the commit fails.
-Without any further changes to the contract, this is a discrepancy.
-Instead, the staking contract should perform this check only once when the stake is registered for a particular node. Most importantly if the price of BZZ goes up and the committed stake is covered by less than 10BZZ, then the node is allowed to withdraw the surplus. It is important that in this case the minimum stake requirement is no longer enforced. 
+Currently, the minimum stake is checked [in the redistribution game contract](https://github.com/ethersphere/storage-incentives/blob/master/src/Redistribution.sol#L300). If the amount is found to be less than the minimum stake the commit fails. Without any further changes to the contract, this is a discrepancy.
+Instead, the staking contract should perform this check only once when the stake is registered for a particular node. Most importantly if the price of BZZ goes up and the committed stake is covered by less than 10 BZZ, then the node is allowed to withdraw the surplus. It is important that in this case the minimum stake requirement is no longer enforced. 
 Conversely, if the price of BZZ decreases and the minimum stake is worth less, no additional checks are required. 
 
-### Neighbourhood hopping
-
-We are modifying the contracts, specifically the staking contract, to attribute stake to the address rather than the overlay. This will facilitate stake mobility when changing neighborhoods, allowing nodes to migrate and distribute themselves across the network. (see SWIP-19)
 
 ### Swarm API changes
 - *API Stake endpoint:*
@@ -99,10 +90,13 @@ We are modifying the contracts, specifically the staking contract, to attribute 
 - *API Stake accessor:*
   Changes are already done in swip-19, where we access stake values keyed with node address
 - *API support for withdrawal:*
-  API endpoint for excess stake withdrawal should be added to the client.
+  API endpoint for excess stake withdrawal should be added to the client. "withdrawFromStake" is a function to be called, no parameters are needed. 
+- To get the value of possible stake to withdraw calling "withdrawableStake" function will return the value denominated in BZZ
 - "usableStakeOfAddress" will return effective stake value which is also used in the redistribution game, also we are changing this to "nodeEffectiveStake" function
+- There is also "migrateStake" endpoint, no parameters are needed. This will be used for possible future migrations.
 
-The client code should be amended to be compatible with new ABI for the staking contract.
+
+The client code should be amended to be compatible with the new ABI for the staking contract.
 
 
 ### UX recommendations
@@ -119,19 +113,19 @@ Since new contract addresses are hard coded into the client code, operators shou
 <!-- Question: would currently staked nodes be able to withdraw after the upgrade, or would they need to re-stake, with the previous stake lost? -->
 
 ## Contract migration
-Due to the contract upgrade, the deployment of this SWIP involves a migration process. As part of this, the old staking contract will be paused, allowing users to withdraw their stake and reinvest in the new staking contract with new parameters. This process facilitates free movement of stakes when changing neighbourhoods and necessitates a user-story testing session to ensure the migration steps are clear and functional.
+Due to the contract upgrade, the deployment of this SWIP involves a migration process. As part of this, the old staking contract will be paused, allowing users to withdraw their stake and reinvest in the new staking contract with new parameters. This process facilitates the free movement of stakes when changing neighborhoods and necessitates a user-story testing session to ensure the migration steps are clear and functional.
 
 
 ## Test cases
 
 0. Bootstrapping:
-	- Manually set price oracle to a unit price of `0.1BZZ`
+	- Manually set price oracle to a unit price of `0.1`
 	- Set up nodes `A` and `B`
 1. Test cases
 	- Check that staking below the required minimum fails with the appropriate error 
     	- Manually change the price in the price oracle
     	- Confirm if it is possible to withdraw funds from the stake after the change
-    	- Check if, when the price of BZZ goes up, you can withdraw your excess
+    	- Check if, when the price goes up, you can withdraw your excess
      	- Check that we can migrate funds when a contract is paused
 
 ## Copyright
