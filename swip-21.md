@@ -82,7 +82,7 @@ The responsibility check in the reveal transaction (part of the reveal function 
 
 This change has no impact on the Bee code.
 
-To query a node’s eligibility to participate in the next round, the function \`IsPlayingInNextRound\` is utilised. In order to correctly trigger participation in sister or cousin neighbourhoods, the height parameter must be added and used when matching the anchor with the node overlay address.
+To query a node’s eligibility to participate in the next round, the function \`isParticipatingInUpcomingRound\` is utilised. In order to correctly trigger participation in sister or cousin neighbourhoods, the height parameter must be added and used when matching the anchor with the node overlay address.
 
 This change needs to be reflected in the Bee code, and also requires that the Bee node has access to the height increase (the number of doublings) from the redistribution game agent code.
 
