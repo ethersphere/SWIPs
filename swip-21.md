@@ -74,7 +74,13 @@ Implementing reserve doubling requires changes both in the incentivisation smart
 #### Staking contract
 
 For the responsibility check and stake calculation, a node needs to indicate its increased reserve by registering *m,* the number of doublings. The best place to do this is the staking contract. We essentially need to introduce an additional field in the stake struct called ‘height’.  
-Without further action, this will give *m* the correct default value of 0\. In order to be able to change this, an extra parameter needs to be added to all the staking and stake-modifying endpoints. These API changes must be reflected in the corresponding Bee code.
+Without further action, this will give *m* the correct default value of 0\. In order to be able to change this, an extra parameter needs to be added to all of the staking and stake-modifying endpoints. These API changes must be reflected in the corresponding Bee code.
+
+When a node operator raises their 'height', their node becomes responsible for another neighbourhood's data. However, to then store that data and play in an additional redistribution game, the node's effective stake must change with the height (2x). i.e. if the height 2x then effective stake is 4x. 
+
+When the reserve is doubled this should create a warning (or requirement) stating that the node is now not collateralised, i.e. potentially cannot play without staking more. Doing this automatically would be ideal in some way. Effective stake management is also important in dynamic reserves - if the reserve doubles then effective stake must be increased. However, if the reserve scales down, then effective stake should also scale down. For clarity in this case, height can only be a non-negative integer equal or greater than zero. Therefore, operators cannot go below the minimum height of zero. 
+
+An extra argument in the struct and functions for staking now need to account for and pass the new height argument. Setting the height itself may be a different function. 
 
 #### Redistribution contract
 
