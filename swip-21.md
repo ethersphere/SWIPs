@@ -101,6 +101,8 @@ Practically, this means that until a different improved indexing is introduced (
 When increasing the reserve size, the localstore must use *2^(22+m)* as its capacity.  
 When the node extends its reserve capacity through doubling, it must fill its reserve and synchronise with nodes and apply this increased localstore size as the eviction cut off point to arrive at the depth of responsibility. The node derives the depth of storage from its depth of responsibility *d* by adding to it its height *m*, i.e., *d+m,* which then must be used in the reserve sampling. In order to guarantee synchronization, the node must also seek to establish peer connection to all nodes within *d*.
 
+[!IMPORTANT] 
+
 ### Changes in tooling
 
 #### CLI
