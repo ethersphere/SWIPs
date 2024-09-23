@@ -102,6 +102,17 @@ When increasing the reserve size, the localstore must use *2^(22+m)* as its capa
 When the node extends its reserve capacity through doubling, it must fill its reserve and synchronise with nodes and apply this increased localstore size as the eviction cut off point to arrive at the depth of responsibility. The node derives the depth of storage from its depth of responsibility *d* by adding to it its height *m*, i.e., *d+m,* which then must be used in the reserve sampling. In order to guarantee synchronization, the node must also seek to establish peer connection to all nodes within *d*.
 
 [!IMPORTANT] 
+This is an acknowledgement of concerns regarding the syncing and peer connections - which have been taken into consideration and accounted for below. 
+Key feedback and thanks goes to ldeffenb for raising these concerns. 
+
+"I see multiple (and necessary) mentions about "connecting to all peers in the sister neighborhood", but I suspect this will be problematic. The current kademlia attempts to connect to all nodes in the current neighborhood. This is good because the other nodes in the neighborhood are also trying to connect to us, and it "just works".
+
+But consider a node that has doubled its reserve, it is now trying to connect to all immediate neighbors (as before), but now is also trying to connect to the nodes in the sister neighborhood as well. But the gotcha is that those nodes (at least, any that have not doubled) are NOT trying to connect to this node. So, all connections to the sister neighborhood nodes will be incoming connections to those peers which are purposely restricted so as not to overSaturate a node's connections. Without some kademlia changes, it may not be possible to achieve connections to "all" sister neighborhood nodes, and even less likely to be able to achieve (and maintain across peer connection periodic purges) this level of connections to cousin neighborhood nodes in a quadrupled (or more) configuration."
+
+1 this is not much more of a problem than in a nondoubled neighbourhoods, if 2 nodes are oversaturated then no connection is possible
+2. neighbours can be checked for their height on the blockchain and can be made exempt
+3. its only meant to be a few doubled nodes for each non-doubled one
+4. there is no big harm in not being connected to all sister peers
 
 ### Changes in tooling
 
