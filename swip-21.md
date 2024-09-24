@@ -34,7 +34,7 @@ Analogously, if the responsibility criteria are modified and allow the node over
 ![][image1]  
 With the calibration of the reserve becoming optional through these changes, this solution allows node operators to find their optimal setup. It empowers two distinct user roles based on storage capacities and chunk traffic (their activities regarding storage incentives and/or bandwidth incentives). 
 
-## 
+
 
 ## Specifications 
 
@@ -45,6 +45,8 @@ The reserve should now be optionally configurable to the playing reserve size (o
 When a node doubles its reserve, it essentially extends its storage capacity and takes on the task of storing the content of the entire *parent neighborhood,* i.e., the node’s neighborhood of depth *d-1* where *d* is its original depth of storage.
 
 Assuming a playing storage depth of 11 in the network, if you want to double your reserve, you must connect to all nodes whose overlay address matches your own 10 bits or more as well as you must sync from them their playing reserve (i.e., chunks in the peer’s neighborhood of depth 11). As a result, you end up storing all chunks whose  addresses match your overlay in the first 10 bits: composed of the chunks in your own depth-11 neighborhood as well as its *sister*. 
+
+[Figure 1. Reserve doubling and neighbouhoods](./../SWIPs/doubling.pdf)
 
 ### Participation in the Redistribution game
 
