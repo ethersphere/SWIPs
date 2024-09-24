@@ -47,6 +47,7 @@ When a node doubles its reserve, it essentially extends its storage capacity and
 Assuming a playing storage depth of 11 in the network, if you want to double your reserve, you must connect to all nodes whose overlay address matches your own 10 bits or more as well as you must sync from them their playing reserve (i.e., chunks in the peer’s neighborhood of depth 11). As a result, you end up storing all chunks whose  addresses match your overlay in the first 10 bits: composed of the chunks in your own depth-11 neighborhood as well as its *sister*. 
 
 [Figure 1. Reserve doubling and neighbouhoods](./../SWIPs/doubling.pdf)
+![image](https://github.com/user-attachments/assets/71022146-e868-4182-ae6d-fa8946e12bbe)
 
 ### Participation in the Redistribution game
 
