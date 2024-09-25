@@ -182,6 +182,6 @@ data related to the reserve sample that nodes in the selected neighborhood need 
 
 ###### *Depth of responsibility* 
 
-the depth of a node’s (largest) neighborhood that holds the node’s reserve (the total of all its playing reserves), i.e. *d+m,* where *d* is the depth of storage and *m* is the height
+the depth of a node’s (largest) neighborhood that holds the node’s reserve (the total of all its playing reserves), i.e. *d-m,* where *d* is the depth of storage and *m* is the height
 
 ## 
