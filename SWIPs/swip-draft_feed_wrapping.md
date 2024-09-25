@@ -1,5 +1,5 @@
 ---
-SWIP: <to be assigned>
+SWIP: 22
 title: Feed Wrapping
 author: Viktor Levente Tóth @nugaon
 discussions-to: https://github.com/ethersphere/bee/pull/4677
@@ -7,8 +7,6 @@ status: Draft
 type: Interface
 category (*only required for Standard Track): ERC
 created: 2024-09-17
-requires (*optional): <SWIP number(s)>
-replaces (*optional): <SWIP number(s)>
 ---
 
 # Feed Wrapping
@@ -19,7 +17,7 @@ This SWIP proposes a modification to the existing feed payload structure to supp
 
 ## Motivation
 
-The current feed payload structure limits the flexibility and efficiency of content retrieval by requiring separate handling for JSON metadata and content data. By enabling direct wrapping of CACs within feeds, this proposal simplifies the data structure and retrieval process. This change is particularly beneficial for decentralized applications (dApps) that require rapid access to mutable information, potentially halving the time required to retrieve such data.
+The current feed payload structure limits the flexibility and efficiency of content retrieval by requiring separate handling for JSON metadata and content data. By enabling direct wrapping of CACs within feeds, this proposal simplifies the data structure and retrieval process. This change is particularly beneficial for decentralized applications (dApps, e.g., outbox-based chat) that require rapid access to mutable information, potentially halving the time required to retrieve such data.
 
 ## Specification
 
