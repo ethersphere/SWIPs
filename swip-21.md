@@ -85,6 +85,27 @@ When the reserve is doubled this should create a warning (or requirement) statin
 
 An extra argument in the struct and functions for staking now needs to account for and pass the new height argument. Setting the height itself may be a different function. 
 
+#### API changes
+
+New parameter _height is added to manageStake, default is 0
+
+`function manageStake(bytes32 _setNonce, uint256 _addAmount, uint8 _height)`
+
+additionally, there is height emitted in StakeUpdated event
+
+`event StakeUpdated(
+        address indexed owner,
+        uint256 committedStake,
+        uint256 potentialStake,
+        bytes32 overlay,
+        uint256 lastUpdatedBlock,
+        uint8 height
+    );'
+
+There is a new endpoint to check for current height of a node
+
+'function heightOfAddress(address _owner)'
+
 #### Redistribution contract
 
 The responsibility check in the reveal transaction (part of the reveal function execution) needs to know the depth of responsibility *d-m*. This requires not only the committed depth just revealed (*d),* but also the knowledge of the number of doublings. This is best achieved  by including an additional height field in the commit struct, copied from the stake struct, analogous to the overlay when the node commits.
@@ -94,6 +115,9 @@ This change has no impact on the Bee code.
 To query a node’s eligibility to participate in the next round, the function \`isParticipatingInUpcomingRound\` is utilized. In order to correctly trigger participation in sister or cousin neighborhoods, the height parameter must be added and used when matching the anchor with the node overlay address.
 
 This change needs to be reflected in the Bee code and also requires that the Bee node has access to the height increase (the number of doublings) from the redistribution game agent code.
+
+#### API changes
+No API changes for the Redistribution contract
 
 ### Changes in the client code
 
