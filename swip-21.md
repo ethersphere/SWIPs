@@ -100,11 +100,11 @@ additionally, there is height emitted in StakeUpdated event
         bytes32 overlay,
         uint256 lastUpdatedBlock,
         uint8 height
-    );'
+    );`
 
 There is a new endpoint to check for current height of a node
 
-'function heightOfAddress(address _owner)'
+`function heightOfAddress(address _owner)`
 
 #### Redistribution contract
 
