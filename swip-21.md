@@ -76,8 +76,11 @@ Implementing reserve doubling requires changes both in the incentivization smart
 
 #### Staking contract
 
-For the responsibility check and stake calculation, a node needs to indicate its increased reserve by registering *m,* the number of doublings. The best place to do this is the staking contract. We essentially need to introduce an additional field in the stake struct called ‘height’.  
-Without further action, this will give *m* the correct default value of 0\. In order to be able to change this, an extra parameter needs to be added to all of the staking and stake-modifying endpoints. These API changes must be reflected in the corresponding Bee code.
+For the responsibility check and stake calculation, a node needs to indicate its increased reserve by registering *m*, the number of doublings, called *height*. The best place to do this is the staking contract. We essentially need to introduce an additional field in the stake struct called ‘height’.  
+Without further action, this will give *m* the correct default value of 0\. In order to be able to change this, 
+an extra parameter must be added to all of the staking and stake-modifying endpoints. When height is set to one, i.e., when the reserve is doubled, the intuitive interpretation is that the operator wants to the same stake when playing in the sister neighbourhoods, essentially doubling their chances of winning, doubling your expected reward. Since the stake density is calculated with the depth of responsibility (`2^(d-h)`, where `d` is the committed stake and `h`) is the height, their committed stake must be doubled `h` times for it to have the same chance `CS * 2^d = CS * 2^h * 2^(d-h)`. Therefore the notion of committed stake should be reinterpreted as *committed stake per playing neighbourhood*, and the effective stake calculation must change to take into account the height of the node, i.e., effecive stake `effectiveStake = min(2^(height) * committedStake, stakeBalance). Errors and warnings about undercollateralised stake commitments need to factor in this extra multiplier depending of the height.
+
+These API changes must be reflected in the corresponding Bee code.
 
 When a node operator raises their 'height', their node becomes responsible for another neighborhood's data. However, to then store that data and play in an additional redistribution game, the node's effective stake must change with the height (2x). i.e. if the height is 2x then the effective stake is 4x. 
 
