@@ -3,7 +3,7 @@ SWIP: 22
 title: Feed Wrapping
 author: Viktor Levente Tóth @nugaon
 discussions-to: https://github.com/ethersphere/bee/pull/4677
-status: Draft
+status: Implemented
 type: Interface
 category (*only required for Standard Track): ERC
 created: 2024-09-17
