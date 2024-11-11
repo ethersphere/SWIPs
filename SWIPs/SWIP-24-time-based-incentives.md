@@ -1,4 +1,13 @@
-# SWIP: Time-Weighted Storage Proofs
+---
+SWIP: 24
+title: Time-Weighted Storage Proofs
+author: darkobas2 (@darkobas2) 
+discussions-to: <related discord url if exist>
+status: Draft
+type: Standards Track
+category: Core
+created: 2024-11-07
+---
 
 ## Simple Summary
 Introduce a time-based weighting mechanism for storage proof submissions to incentivize faster response times and reward nodes with better resources.
