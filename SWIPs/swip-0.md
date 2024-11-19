@@ -196,7 +196,7 @@ The current SWIP editors are
 
 ` * Callum Toner <callum@ethswarm.org>`
 
-` * Esad Akar <esad@ethswarm.org>`
+  * Tamás Hatházi <tamas@ethswarm.org>`
 
 ## SWIP Editor Responsibilities
 
