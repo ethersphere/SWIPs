@@ -1,5 +1,5 @@
 ---
-SWIP: 13
+SWIP: 23
 title: Websocket addresses to be communicated in handshakes and gossiped onward
 author: Ábel A. Bodó (lat-murmeldjur)
 discussions-to: N/A
