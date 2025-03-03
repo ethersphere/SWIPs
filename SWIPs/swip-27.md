@@ -92,11 +92,11 @@ message Response {
 
 ### Protocol Versioning
 
-This proposal requires a major version increment for all affected protocols, following the existing Swarm versioning methodology:
+This SWIP introduces new major versions for all protocols:
 
-1. Protocols already include version information (e.g., "1.0.0")
-2. Major version changes indicate backward-incompatible modifications
-3. Version negotiation occurs during connection establishment
+1. All protocols will advertise new libp2p protocol versions (e.g., upgrading from "/swarm/hive/1.0.0/proto" to "/swarm/hive/2.0.0/proto")
+2. The new protocol versions will use the standardized message formats outlined in this SWIP
+3. Node implementations must support both old and new protocol versions during the transition period
 
 ### Reference Implementation
 
@@ -124,39 +124,67 @@ The single-message-type principle is particularly important because it:
 
 ## Backwards Compatibility
 
-This proposal requires major version increments for all protocols, as it changes fundamental message structures. Compatibility will be maintained by:
+This proposal introduces significant changes to message formats but provides a structured migration path:
 
-1. Supporting both old and new protocol versions during transition
-2. Using the existing versioning system to negotiate capabilities
-3. Implementing conversion logic where necessary
+1. **Dual Protocol Support**: All nodes must support both old and new protocol versions during the transition period, with the underlying node logic remaining unchanged.
 
-## Test Cases
+2. **Version Preference**: Nodes should prefer using the new protocol versions when communicating with peers that support them.
 
-Testing should focus on:
+3. **Advertised Capabilities**: New protocol versions will be advertised through libp2p protocol version strings.
 
-1. **Message Boundaries**: Verify each stream handles exactly one message type
-2. **Type Safety**: Confirm no generic byte arrays for complex structures
-3. **Protocol State**: Test correct state transitions in stateful protocols
-4. **Version Negotiation**: Verify correct handling of protocol versions
+4. **Phased Adoption**: This approach allows for progressive network upgrades without immediate disruption.
+
+5. **Hard Deadline**: At a predetermined block height or timestamp, support for old protocol versions will be discontinued through a mandatory handshake protocol version upgrade.
 
 ## Implementation
 
 Implementation will proceed in phases:
 
-1. Define common message types for cross-protocol use
-2. Update protocol buffer definitions for each protocol
-3. Modify protocol handlers to enforce single-message-type streams
-4. Update documentation and client libraries
+1. **Protocol Definition**: Define the new protocol message formats using Protocol Buffers.
+
+2. **Dual Support Implementation**: Update node software to support both old and new protocol versions simultaneously, with no changes to the underlying business logic.
+
+3. **Version Negotiation**: Enhance connection handling to detect and prefer new protocol versions when available.
+
+4. **Network Monitoring**: Track adoption rates of the new protocol versions across the network.
+
+5. **Hard Cutoff**: At a predetermined network milestone (e.g., a specific block height), enforce the exclusive use of new protocol versions by upgrading the handshake protocol version, requiring all nodes to support the new message formats.
+
+6. **Legacy Code Removal**: After the hard cutoff date, remove support for legacy protocol versions, simplifying the codebase.
+
+This approach provides a balance between network stability and progressive improvement, allowing node operators to upgrade at their convenience until the hard deadline.
+
+## Test Cases
+
+Testing should focus on:
+
+1. **Message Boundaries**: Verify each stream handles exactly one message type in the new protocol versions.
+
+2. **Type Safety**: Confirm no generic byte arrays for complex structures in the new protocol versions.
+
+3. **Protocol State**: Test correct state transitions in stateful protocols.
+
+4. **Dual Version Support**: Verify nodes correctly handle both old and new protocol versions during the transition period.
+
+5. **Version Preference**: Confirm nodes prefer new protocol versions when both peers support them.
+
+6. **Handshake Enforcement**: Test that nodes properly enforce the new protocol versions after the hard cutoff date.
 
 ## Security Considerations
 
 This standardisation significantly improves security by:
 
-1. **Preventing Type Confusion**: Strong typing reduces misinterpretation of message data
-2. **Limiting Attack Surface**: Clear message boundaries reduce opportunities for exploitation
-3. **Enabling Static Analysis**: Well-defined types allow better static analysis tools
-4. **Simplifying Validation**: Structured messages enable more thorough validation
-5. **Clarifying Protocol States**: Explicit message types make unexpected state transitions easier to detect
+1. **Preventing Type Confusion**: Strong typing reduces misinterpretation of message data.
+
+2. **Limiting Attack Surface**: Clear message boundaries reduce opportunities for exploitation.
+
+3. **Enabling Static Analysis**: Well-defined types allow better static analysis tools.
+
+4. **Simplifying Validation**: Structured messages enable more thorough validation.
+
+5. **Clarifying Protocol States**: Explicit message types make unexpected state transitions easier to detect.
+
+6. **Coordinated Transition**: The phased migration approach reduces security risks associated with network fragmentation.
 
 ## Copyright Waiver
 
