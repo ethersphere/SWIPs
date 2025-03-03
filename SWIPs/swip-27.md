@@ -94,7 +94,7 @@ message Response {
 
 This SWIP introduces new major versions for all protocols:
 
-1. All protocols will advertise new libp2p protocol versions (e.g., upgrading from "/swarm/hive/1.0.0/proto" to "/swarm/hive/2.0.0/proto")
+1. All protocols will advertise new libp2p protocol versions (e.g., upgrading from "/swarm/hive/1.0.0/hive" to "/swarm/hive/2.0.0/hive")
 2. The new protocol versions will use the standardized message formats outlined in this SWIP
 3. Node implementations must support both old and new protocol versions during the transition period
 
