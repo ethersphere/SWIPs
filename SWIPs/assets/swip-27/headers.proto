@@ -1,0 +1,20 @@
+syntax = "proto3";
+
+package swarm.headers;
+
+option go_package = "pb";
+
+// Headers contains a collection of protocol headers
+message Headers {
+    // List of header entries
+    repeated Header headers = 1;
+}
+
+// Header represents a single key-value header
+message Header {
+    // The header key
+    string key = 1;
+
+    // The header value as bytes
+    bytes value = 2;
+}

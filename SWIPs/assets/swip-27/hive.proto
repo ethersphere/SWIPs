@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package swarm.hive;
+
+import "common.proto";
+
+option go_package = "pb";
+
+// Peers message contains a list of peer addresses to be shared with other nodes
+message Peers {
+    // List of peer addresses
+    repeated swarm.common.BzzAddress peers = 1;
+}

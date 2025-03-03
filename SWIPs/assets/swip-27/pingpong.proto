@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package swarm.pingpong;
+
+option go_package = "pb";
+
+// Ping message sent to test connectivity
+message Ping {
+    // Optional greeting text
+    string greeting = 1;
+}
+
+// Pong message sent in response to a Ping
+message Pong {
+    // Response text
+    string response = 1;
+}

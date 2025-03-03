@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package swarm.pushsync;
+
+import "common.proto";
+
+option go_package = "pb";
+
+// Delivery message contains a chunk to be stored
+message Delivery {
+    // The full chunk data
+    swarm.common.Chunk chunk = 1;
+}
+
+// Receipt is a wrapper message that contains either a successful receipt
+// or an error response
+message Receipt {
+    // The chunk address
+    bytes chunk_addr = 1;
+
+    // Only one of the following should be set
+    oneof result {
+        // Success receipt information
+        ReceiptSuccess success = 2;
+
+        // Error information
+        swarm.common.Error error = 3;
+    }
+}
+
+// ReceiptSuccess contains the signature and nonce for a successful receipt
+message ReceiptSuccess {
+    // The signature of the receipt
+    bytes signature = 1;
+
+    // The nonce
+    bytes nonce = 2;
+}

@@ -1,0 +1,111 @@
+syntax = "proto3";
+
+package swarm.pullsync;
+
+import "common.proto";
+
+option go_package = "pb";
+
+//
+// PullSync Subprotocol Messages
+//
+
+// PullSyncMessageType indicates the type of pullsync message
+enum PullSyncMessageType {
+    GET = 0;
+    OFFER = 1;
+    WANT = 2;
+    DELIVERY = 3;
+}
+
+// PullSyncMessage is the wrapper for all pullsync protocol messages
+message PullSyncMessage {
+    // The type of pullsync message
+    PullSyncMessageType type = 1;
+
+    // Only one of the following messages should be set based on the type
+    oneof message {
+        Get get = 2;
+        Offer offer = 3;
+        Want want = 4;
+        Delivery delivery = 5;
+    }
+}
+
+// Get message requests chunks from a specific bin
+message Get {
+    // The bin to retrieve chunks from
+    int32 bin = 1;
+
+    // The starting position
+    uint64 start = 2;
+}
+
+// Reference to a chunk in an offer, without the full chunk data
+message ChunkReference {
+    // The chunk address
+    bytes chunk_addr = 1;
+
+    // The batch ID
+    bytes batch_id = 2;
+
+    // The stamp hash
+    bytes stamp_hash = 3;
+}
+
+// Offer message offers chunks to the peer
+message Offer {
+    // Topmost chunk position
+    uint64 topmost = 1;
+
+    // List of available chunks
+    repeated ChunkReference chunks = 2;
+}
+
+// Want message requests specific chunks from an offer
+message Want {
+    // Bit vector indicating wanted chunks
+    bytes bit_vector = 1;
+}
+
+// Delivery message delivers a requested chunk
+message Delivery {
+    // The full chunk data
+    swarm.common.Chunk chunk = 1;
+}
+
+//
+// Cursors Subprotocol Messages
+//
+
+// CursorsMessageType indicates the type of cursors message
+enum CursorsMessageType {
+    SYN = 0;
+    ACK = 1;
+}
+
+// CursorsMessage is the wrapper for all cursors protocol messages
+message CursorsMessage {
+    // The type of cursors message
+    CursorsMessageType type = 1;
+
+    // Only one of the following messages should be set based on the type
+    oneof message {
+        Syn syn = 2;
+        Ack ack = 3;
+    }
+}
+
+// Syn message initiates cursor synchronisation
+message Syn {
+    // No fields needed for Syn message
+}
+
+// Ack message responds with current cursors
+message Ack {
+    // List of bin cursors
+    repeated uint64 cursors = 1;
+
+    // Current epoch
+    uint64 epoch = 2;
+}
