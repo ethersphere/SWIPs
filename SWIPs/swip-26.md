@@ -110,6 +110,24 @@ The chunk processing logic shall:
 
 This approach allows for early validation of chunk integrity based on protocol-level type information, reducing parsing errors and simplifying processing logic.
 
+#### Flowchart
+
+The flowchart below illustrates the processing steps for a chunk:
+
+```mermaid
+flowchart TD
+    Start[Receive chunk via wire protocol] --> A[Protobuf decodes chunk type, version, header, and payload]
+    A --> B{Header size matches expected size for type?}
+    B -->|No| C[Fail: Invalid header size]
+    B -->|Yes| D[Extract type-specific header fields]
+    D --> E[Calculate chunk address using type-specific function]
+    E --> F{Validate chunk content}
+    F -->|Invalid| G[Fail: Invalid chunk content]
+    F -->|Valid| H[Process payload according to type-specific structure]
+    H --> I[Pass processed chunk to appropriate protocol handler]
+    I --> End[Protocol-specific processing]
+```
+
 ## Rationale
 
 The proposed standardised chunk type framework addresses several key issues in the current implementation:
