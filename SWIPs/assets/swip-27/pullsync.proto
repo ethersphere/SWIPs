@@ -19,6 +19,7 @@ enum PullSyncMessageType {
 }
 
 // PullSyncMessage is the wrapper for all pullsync protocol messages
+// This implements the stateful protocol pattern with explicit message types
 message PullSyncMessage {
     // The type of pullsync message
     PullSyncMessageType type = 1;
@@ -85,6 +86,7 @@ enum CursorsMessageType {
 }
 
 // CursorsMessage is the wrapper for all cursors protocol messages
+// This implements the stateful protocol pattern with explicit message types
 message CursorsMessage {
     // The type of cursors message
     CursorsMessageType type = 1;

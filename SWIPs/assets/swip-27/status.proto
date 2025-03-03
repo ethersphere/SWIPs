@@ -2,16 +2,18 @@ syntax = "proto3";
 
 package swarm.status;
 
+import "common.proto";
+
 option go_package = "pb";
 
 // Get message indicates interest in receiving a node Snapshot
+// This is an infallible request with no fields
 message Get {
     // No fields needed for Get message
 }
 
-// Snapshot message is a response to the Get message and contains
-// the appropriate values that are a snapshot of the current state
-// of the running node
+// Snapshot message is a response to the Get message
+// This operation is infallible, as this just returns the current state of the node
 message Snapshot {
     // The total reserve size
     uint64 reserve_size = 1;

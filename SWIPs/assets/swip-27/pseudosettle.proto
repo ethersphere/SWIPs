@@ -11,6 +11,7 @@ enum PseudoSettleMessageType {
 }
 
 // PseudoSettleMessage is the wrapper for all pseudosettle protocol messages
+// This implements the stateful protocol pattern with explicit message types
 message PseudoSettleMessage {
     // The type of pseudosettle message
     PseudoSettleMessageType type = 1;

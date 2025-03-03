@@ -40,6 +40,10 @@ This SWIP addresses these issues by standardising message formats and enforcing 
 
 4. **Explicit Protocol State**: Stateful protocols must use wrapper messages with explicit type enums.
 
+5. **Explicit Error Handling**: Operations that can fail must explicitly model error responses using `oneof` fields.
+
+6. **Type Information Preservation**: Messages must either be strictly typed or provide sufficient type information to allow proper handling.
+
 ### Message Structure
 
 #### 1. Stateful Protocols
@@ -73,28 +77,59 @@ message Response {
 }
 ```
 
+#### 3. Fallible Operations
+
+For any operation that may fail, the response message must use a `oneof` to explicitly handle the error case:
+
+```
+message Response {
+    oneof result {
+        SuccessData success = 1;
+        Error error = 2;
+    }
+}
+```
+
+#### 4. Type Information Preservation
+
+All messages must either:
+- Be strictly typed with explicit field types, or
+- Include type and version information sufficient for the protocol handler to interpret the data correctly
+
+For example, chunk messages must include the chunk type and version:
+
+```
+message Chunk {
+    ChunkType chunk_type = 1;
+    uint32 version = 2;
+    bytes header = 3;
+    bytes payload = 4;
+    // ...
+}
+```
+
 ### Protocol Classifications
 
 1. **Stateful Protocols**:
-   - Handshake protocol
-   - PullSync protocol (including Cursors subprotocol)
-   - Swap protocol
-   - PseudoSettle protocol
+   - `handshake`
+   - `pullsync` (including `cursors` subprotocol)
+   - `swap`
+   - `pseudosettle`
 
 2. **Stateless Protocols**:
-   - Hive protocol
-   - Headers protocol
-   - PingPong protocol
-   - Pricing protocol
-   - PushSync protocol
-   - Retrieval protocol
-   - Status protocol
+   - `hive`
+   - `headers`
+   - `pingpong`
+   - `pricing`
+   - `pushsync`
+   - `retrieval`
+   - `status`
 
 ### Protocol Versioning
 
 This SWIP introduces new major versions for all protocols:
 
-1. All protocols will advertise new libp2p protocol versions (e.g., upgrading from "/swarm/hive/1.0.0/hive" to "/swarm/hive/2.0.0/hive")
+1. All protocols will advertise new libp2p protocol versions (e.g., upgrading from `/swarm/hive/1.0.0/hive` to `/swarm/hive/2.0.0/hive`)
 2. The new protocol versions will use the standardized message formats outlined in this SWIP
 3. Node implementations must support both old and new protocol versions during the transition period
 
@@ -116,6 +151,10 @@ The proposed approach:
 
 5. **Facilitates Testing**: Well-defined message boundaries make unit testing more effective.
 
+6. **Explicit Error Handling**: By using `oneof` for fallible operations, we make error paths explicit and force protocol implementers to handle errors properly.
+
+7. **Type Information Preservation**: By requiring sufficient type information, we ensure protocol handlers can correctly interpret the message contents.
+
 The single-message-type principle is particularly important because it:
 - Prevents type confusion attacks
 - Makes protocol state transitions explicit
@@ -134,7 +173,7 @@ This proposal introduces significant changes to message formats but provides a s
 
 4. **Phased Adoption**: This approach allows for progressive network upgrades without immediate disruption.
 
-5. **Hard Deadline**: At a predetermined block height or timestamp, support for old protocol versions will be discontinued through a mandatory handshake protocol version upgrade.
+5. **Hard Deadline**: At a predetermined block height or timestamp, support for old protocol versions will be discontinued through a mandatory `handshake` version upgrade.
 
 ## Implementation
 
@@ -148,7 +187,7 @@ Implementation will proceed in phases:
 
 4. **Network Monitoring**: Track adoption rates of the new protocol versions across the network.
 
-5. **Hard Cutoff**: At a predetermined network milestone (e.g., a specific block height), enforce the exclusive use of new protocol versions by upgrading the handshake protocol version, requiring all nodes to support the new message formats.
+5. **Hard Cutoff**: At a predetermined network milestone (e.g., a specific block height), enforce the exclusive use of new protocol versions by upgrading the `handshake` version, requiring all nodes to support the new message formats.
 
 6. **Legacy Code Removal**: After the hard cutoff date, remove support for legacy protocol versions, simplifying the codebase.
 
@@ -170,6 +209,10 @@ Testing should focus on:
 
 6. **Handshake Enforcement**: Test that nodes properly enforce the new protocol versions after the hard cutoff date.
 
+7. **Error Handling**: Verify that fallible operations properly handle error cases through the defined `oneof` fields.
+
+8. **Type Information**: Test that messages provide sufficient type information for proper handling.
+
 ## Security Considerations
 
 This standardisation significantly improves security by:
@@ -184,7 +227,11 @@ This standardisation significantly improves security by:
 
 5. **Clarifying Protocol States**: Explicit message types make unexpected state transitions easier to detect.
 
-6. **Coordinated Transition**: The phased migration approach reduces security risks associated with network fragmentation.
+6. **Explicit Error Handling**: Clear error paths prevent error condition mishandling.
+
+7. **Type Information Preservation**: Sufficient type information prevents misinterpretation of message contents.
+
+8. **Coordinated Transition**: The phased migration approach reduces security risks associated with network fragmentation.
 
 ## Copyright Waiver
 

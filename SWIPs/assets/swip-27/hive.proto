@@ -7,6 +7,8 @@ import "common.proto";
 option go_package = "pb";
 
 // Peers message contains a list of peer addresses to be shared with other nodes
+// This is an infallible response as the protocol can return an empty list
+// when no peers are available
 message Peers {
     // List of peer addresses
     repeated swarm.common.BzzAddress peers = 1;

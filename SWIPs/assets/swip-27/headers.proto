@@ -2,9 +2,15 @@ syntax = "proto3";
 
 package swarm.headers;
 
+import "common.proto";
+
 option go_package = "pb";
 
 // Headers contains a collection of protocol headers
+// This implements the strongly typed messages principle by using
+// explicit message types rather than generic byte arrays
+// This is also the message that is sent in response to a Headers request
+// and is infallible.
 message Headers {
     // List of header entries
     repeated Header headers = 1;

@@ -11,6 +11,7 @@ enum SwapMessageType {
 }
 
 // SwapMessage is the wrapper for all swap protocol messages
+// This implements the stateful protocol pattern with explicit message types
 message SwapMessage {
     // The type of swap message
     SwapMessageType type = 1;

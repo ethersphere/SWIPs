@@ -14,6 +14,7 @@ message Delivery {
 
 // Receipt is a wrapper message that contains either a successful receipt
 // or an error response
+// This implements the explicit error handling principle for fallible operations
 message Receipt {
     // The chunk address
     bytes chunk_addr = 1;
