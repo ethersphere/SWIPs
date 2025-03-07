@@ -20,7 +20,7 @@ The title should be 44 characters or less.
 
 ## Simple Summary
 <!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
-This SWIP outlines how Swarm decentralized storage can be utilized as a trusted third-party solution for storing and managing data provenance. It highlights potential use cases, technical considerations, and business benefits for leveraging Swarm in provenance-related applications.
+This SWIP outlines how Swarm decentralized storage can be utilized as a trusted third-party solution for storing and managing data provenance - tracking the origins and transformations of data. It highlights potential use cases, technical considerations, and business benefits for leveraging Swarm in provenance-related applications. The intended audience are developers, that would be using Swarm as provenance recording solution. 
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
