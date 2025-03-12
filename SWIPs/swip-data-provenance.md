@@ -160,7 +160,32 @@ These test cases provide a high-level overview of the key functionalities of the
 
 ## Implementation
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
-A prototype toolkit will be developed as part of the fellowship deliverables. This toolkit will include features for uploading, retrieving, validating, and extending storage of provenance data on Swarm.
+
+## Implementation
+
+A prototype toolkit is being developed under the DataFund Fellowship with the following components:
+
+-   **Core Functionality**:
+    -   The toolkit will be implemented in Python.
+    -   It will provide command-line access to Swarm for uploading, downloading, and managing provenance files.
+    -   It will support the JSON-based provenance record structure as outlined in the Specification section.
+    -   It will use the Bee client library to interact with the Swarm network.
+
+-   **Key Components**:
+    -   **Upload Module**: Handles the upload of provenance data to Swarm, including the preparation of the JSON metadata file and the selection of appropriate storage options (e.g., encryption).
+    -   **Download Module**: Retrieves provenance data from Swarm, verifies data integrity using the content hash, and presents the data to the user.
+    -   **TTL Management Module**: Provides functionality to check the remaining storage duration (TTL) for a provenance file and extend the storage by topping up the associated stamp.
+
+-   **Integration Points**:
+    -   The toolkit will interact with a Swarm gateway or a local Bee node, as specified by the user.
+
+-   **Future Considerations**:
+    -   The toolkit may incorporate support for additional provenance standards and encryption methods.
+    -   It may also include features for managing complex provenance chains, as outlined in the research document.
+    -   Integration with external services, such as AI agents for data validation and interpretation, and services for attestation and notarization, may be explored in future versions of the toolkit.
+
+This implementation aims to provide a practical and user-friendly solution for storing and managing provenance data on Swarm, while also laying the groundwork for future extensions and integrations.
+
 
 ## Copyright
 Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
