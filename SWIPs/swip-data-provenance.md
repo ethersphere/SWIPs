@@ -131,7 +131,7 @@ Swarm's stamp-based TTL management system aligns with the network's existing sto
 
 Finally, leveraging Swarm's decentralized network as a trusted third party aligns with Data Spaces Support Centre specifications and offers a more scalable and potentially cost-effective solution compared to blockchain-based alternatives. This positions Swarm as a flexible and standards-compatible storage layer for provenance data, catering to emerging market needs while leveraging its unique features.
 
-TODO Add diagram
+![Image](assets/swip-x-provenance/Provenance-diagram1.svg "Swarm as trusted third party storage - diagram.")
 
 **Diagram Description:**
 
