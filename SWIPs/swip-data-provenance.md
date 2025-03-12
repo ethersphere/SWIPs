@@ -47,7 +47,16 @@ A prototype toolkit (developed under the DataFund Fellowship) will provide CLI a
 
 ## Motivation
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
-Data provenance is critical for ethical AI development, regulatory compliance, and ensuring trust in data-driven systems. Current solutions often rely on centralized storage or public blockchains, which have limitations in scalability, privacy, or cost. Swarm offers a unique alternative as a decentralized storage network that combines immutability with flexibility. This SWIP aims to demonstrate how Swarm can address key challenges in provenance systems while aligning with emerging standards and market needs.
+Data provenance is critical for ethical AI development, regulatory compliance, and ensuring trust in data-driven systems. Existing provenance solutions often face challenges in terms of vendor lock-in, scalability, and privacy. Centralized systems create dependencies and potential single points of failure. Public blockchains, while immutable, can be costly for large-scale data storage and may not adequately address privacy concerns.
+
+Swarm offers a compelling alternative by acting as a trustless, decentralized storage network:
+
+-   **Trusted 3rd Party**: Swarm's decentralized architecture serves as a neutral platform for recording provenance, eliminating single points of control.
+-   **Cost Considerations**: While centralized cloud storage may offer lower costs for simple storage, Swarm provides a more cost-competitive option compared to blockchain-based solutions.
+-   **Interoperability**: The toolkit is designed to accommodate various provenance standards (e.g., DaTA, W3C PROV) without enforcing a specific format, allowing users to adopt the standard that best suits their needs.
+
+This proposal aims to align with the Data Spaces Support Centre blueprint for a Technical Building Block covering Provenance & Traceability. By enabling easy uploading, downloading, and management of provenance files, the toolkit empowers users to meet emerging regulatory requirements, such as those outlined in the EU AI Act, and to establish trust and accountability in data-driven systems.
+
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
