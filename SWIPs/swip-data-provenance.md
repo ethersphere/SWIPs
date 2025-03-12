@@ -21,12 +21,13 @@ The title should be 44 characters or less.
 ## Simple Summary
 <!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
 
-This SWIP proposes Swarm as a decentralized storage layer for provenance metadata and data. Provenance, the documented history of a dataset's origin and transformations, is increasingly important for regulatory compliance, ethical AI, and data accountability. A toolkit will provide utilities to:
+
+This SWIP proposes Swarm as a decentralized storage layer for provenance metadata and data. Provenance, the documented history of a dataset's origin and transformations, is increasingly important for regulatory compliance, ethical AI, and data accountability. A command-line toolkit will provide utilities to:
 - Upload/Download: Store and retrieve provenance files (in any format) with Swarm reference hashes.
 - Metadata Management: Track storage validity (TTL) and extend it via stamp top-ups.
-- Data Integrity: Verify content through SHA-256 hashes.
 
 The framework does not enforce specific provenance standards but ensures compatibility by decoupling metadata (structured JSON) from the actual provenance data (stored as arbitrary files). Developers and enterprises retain full control over their data format and privacy measures.
+
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
@@ -34,15 +35,13 @@ The framework does not enforce specific provenance standards but ensures compati
 Provenance systems require immutable, scalable storage to track data lineage effectively. This SWIP leverages Swarm’s decentralized network to:
 - Store Provenance Data: Users upload files in any format (e.g., W3C PROV-JSONLD, DaTA spec, or custom schemas).
 - Manage Metadata: A JSON wrapper includes:
-  - `provenance_metadata_id` (UUID for unique identification)
-  - `data_swarm_reference` (Swarm hash pointing to the provenance file)
-  - `stamp_id` (for TTL tracking and renewal)
-  - `content_hash` (SHA-256 for integrity checks)
+  - `content_hash` (SHA-256 for matching provenance data across different systems)
   - `provenance_standard` (optional field for self-declared standards)
+  - `data` (Base64-encoded provenance data)
+  - `stamp_id` (for TTL tracking and renewal)
 - Ensure Flexibility: No Swarm-level validation of provenance formats—compatibility is achieved by design.
 
-A prototype toolkit (developed under the DataFund Fellowship) will provide CLI and API access to Swarm, enabling integration into existing workflows. Privacy and encryption remain optional, allowing users to comply with regulations like GDPR independently.
-
+A prototype toolkit (developed under the DataFund Fellowship) will provide command-line access to Swarm, enabling integration into existing workflows. Privacy and encryption remain optional, allowing users to comply with regulations like GDPR independently.
 
 
 ## Motivation
