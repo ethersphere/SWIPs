@@ -121,13 +121,17 @@ The toolkit interacts with Swarm to manage provenance records via a single JSON 
 
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
-Swarm’s decentralized nature makes it ideal for acting as a trusted third party in provenance systems. Unlike public blockchains, it supports larger data sizes without compromising privacy when encryption is used. While standards like W3C PROV are comprehensive, they may be too complex for some use cases; simpler alternatives like the Data & Trust Alliance spec are more practical for initial implementations. This approach allows flexibility while ensuring compatibility with existing standards.
 
-- Adopting Existing Standards: By relying on the simpler DaTA spec for most use cases (with the option for W3C PROV), the solution avoids over-complication while maintaining interoperability.
-- Swarm’s Suitability: Its decentralized, immutable nature makes it an ideal candidate for storing provenance data, which benefits from being tamper-resistant and verifiable.
-- AI Integration: Embedding AI within the upload flow can not only prevent privacy breaches but also assist in interpreting provenance data—a value-add that enhances user trust and usability.
+The design of this SWIP centers on providing a flexible and future-proof solution for storing provenance data on Swarm. The decision to use a single JSON file structure simplifies both the management and retrieval processes, enabling easy integration with existing provenance standards without enforcing a specific one. This approach acknowledges that while standards like the Data & Trust Alliance (DaTA) specification and the W3C PROV standard exist, the market is still evolving, and imposing a single standard could limit adoption.
 
-A comparative advantage over alternatives (e.g., centralized storage solutions or blockchain-based systems) is seen in Swarm’s cost-effectiveness and scalability, without compromising security or data integrity.
+By storing the actual provenance data as a Base64-encoded string within the JSON structure, we ensure that any file format can be accommodated. This maintains data integrity across different systems and transfer methods, providing users with the freedom to choose the most appropriate format for their specific use case. Optional encryption addresses potential GDPR and privacy concerns, giving users control over their data security while maintaining ease of use.
+
+To enhance the utility of the provenance data and provide Swarm-specific functionality, additional metadata fields are included in the JSON structure. The inclusion of the `stamp_id` enables users to easily check the storage duration of their provenance data and potentially extend it, aligning with Swarm's storage management mechanisms. Additionally, the `content_hash` provides a means to verify data integrity, particularly when the provenance data is stored in systems other than Swarm, allowing users to match the data across different storage locations.
+
+Swarm's stamp-based TTL management system aligns with the network's existing storage incentive mechanism, offering users a familiar way to control storage duration and cost. The toolkit approach simplifies the integration of Swarm storage for provenance use cases and allows for future extensions, such as AI agents for data validation, without modifying core functionality.
+
+Finally, leveraging Swarm's decentralized network as a trusted third party aligns with Data Spaces Support Centre specifications and offers a more scalable and potentially cost-effective solution compared to blockchain-based alternatives. This positions Swarm as a flexible and standards-compatible storage layer for provenance data, catering to emerging market needs while leveraging its unique features.
+
 
 ## Backwards Compatibility
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
