@@ -141,7 +141,22 @@ It operates on top of the existing Swarm infrastructure and adheres to establish
 
 ## Test Cases
 <!--Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.-->
-Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.
+
+## Test Cases
+
+Given that this is an informational SWIP, the test cases provided here are conceptual and aim to illustrate how the proposed system would work.
+
+1.  **Provenance File Upload and Retrieval**:
+    -   Scenario: A user uploads a JSON file containing provenance metadata and data to Swarm.
+    -   Expected Result: The file is successfully stored on Swarm, and the Swarm reference hash is returned to the user. The user can then retrieve the file using the hash and verify that the content matches the original file.
+
+2.  **TTL Check and Storage Extension**:
+    -   Scenario: A user checks the remaining TTL for a provenance file stored on Swarm.
+    -   Expected Result: The toolkit queries the Swarm network and returns the remaining TTL for the associated stamp. The user can then extend the storage duration by topping up the stamp.
+
+These test cases provide a high-level overview of the key functionalities of the proposed system and demonstrate its ability to store, retrieve, and manage provenance data on Swarm.
+
+
 
 ## Implementation
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
