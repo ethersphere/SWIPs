@@ -1,8 +1,7 @@
 ---
 SWIP: 35
 title: Feed Wrapping
-author: Viktor Trón @zelig
-Viktor Trón <viktor@ethswarm.org> (@zelig)
+author: Viktor Trón <viktor@ethswarm.org> (@zelig)
 discussions-to: https://discord.gg/Q6BvSkCv
 dcreated: 2025-03-09
 ---
