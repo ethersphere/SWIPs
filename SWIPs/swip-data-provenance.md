@@ -62,37 +62,61 @@ This proposal aims to align with the Data Spaces Support Centre blueprint for a 
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
 
 
-### 1. Provenance Record Structure
-The provenance file will be stored in JSON format with the following structure:
+### 1. Provenance Record Structure  
+The provenance record will be stored as a single JSON file containing both metadata and the actual provenance data. The structure is:
 
 ```json
 {
-  "provenance_metadata_id": "UUID string",
   "content_hash": "sha256:9f86d...a9e",
   "provenance_standard": "DaTA v1.0.0",
-  "data_swarm_reference": "",
+  "encryption": "none",  // Optional field (e.g., "aes-256-gcm" if encrypted)
+  "data": "",
   "stamp_id": "0xfe2f...c3a1"
 }
 ```
 
-*This structure allows a unique identification of the metadata itself (UUID), a reference to the actual provenance data via a Swarm hash, a declaration of the provenance standard used, and the stamp associated with the storage.*
+**Key Fields**:
+- `content_hash`: SHA-256 hash of the raw provenance data (before Base64 encoding) for integrity verification.
+- `provenance_standard`: Declares the standard used (e.g., DaTA, W3C PROV, or custom).
+- `encryption`: Optional field to indicate encryption method (default: `"none"`).
+- `data`: Base64-encoded provenance data (actual content in any format).
+- `stamp_id`: Swarm stamp ID for TTL management.
 
-### 2. Toolkit Features
-The toolkit provides functionalities to interact with the Swarm network:
+*This structure ensures self-contained provenance records while maintaining compatibility with any standard. The `data` field can store provenance information in formats like JSON, XML, or binary.*
 
-- **Provenance Metadata Upload**: Uploads the JSON metadata file to Swarm.
-- **Provenance Data Upload**: Uploads the actual provenance data file to Swarm.
-- **Provenance Metadata Access**: Retrieves the JSON metadata file using its Swarm reference hash.
-- **Provenance Data Access**: Retrieves the actual provenance data file using its Swarm reference hash.
-- **Check TTL**: Queries the stamp associated with the storage to determine the remaining storage duration for both the metadata and the data.
-- **Stamp Top-Up**: Extends the storage period for the associated stamp (both the metadata and the data are extended).
-- **Data Existence Check**: Verifies whether the data (provenance metadata and/or actual provenance data) exists on the Swarm network.
 
-These features can utilize a Swarm gateway or a local Bee node, as per the user’s choice.
+### 2. Toolkit Features  
+The toolkit interacts with Swarm to manage provenance records via a single JSON file:
 
-### 3. Privacy Controls
+- **Upload**:
+  - Action: Uploads the JSON file to Swarm.
+  - Workflow:  
+    1. User prepares provenance data in any format (e.g., DaTA spec, W3C PROV).  
+    2. Toolkit generates SHA-256 hash of raw data, encodes it to Base64, and wraps it into the JSON structure.  
+    3. JSON file is uploaded to Swarm via Bee node or gateway.  
+  - Returns: Swarm reference hash for the JSON file.
 
-*Privacy controls are optional at later stages and are left to the discretion of the user. The user can choose to encrypt the data before uploading it.*
+- **Download**:
+  - Action: Retrieves the JSON file using its Swarm reference hash.  
+  - Workflow: Toolkit fetches the JSON, decodes the Base64 `data` field, and verifies integrity via `content_hash`.  
+
+- **Check TTL**:
+  - Action: Queries remaining storage validity for the JSON file.  
+  - Workflow: Toolkit uses the `stamp_id` to check TTL via Swarm’s stamp management system.  
+
+- **Top-Up**:
+  - Action: Extends storage validity for the JSON file.  
+  - Workflow: Toolkit tops up the existing `stamp_id` (assumes user has pre-funded their Bee node).  
+  - *Note: Acquiring funds (e.g., xBZZ) is out of scope for this toolkit.*  
+
+- **Existence Check**:
+  - Action: Verifies if the JSON file exists on Swarm.  
+  - Workflow: Toolkit checks Swarm for the reference hash.  
+
+### 3. Privacy Controls  
+- **Optional Encryption**: Users may encrypt the raw provenance data before Base64 encoding. The `encryption` field can declare the method (e.g., `aes-256-gcm`), but key management is left to the user.  
+- **No AI Screening**: Privacy checks (e.g., PII detection) are deferred to future enhancements or third-party services.  
+
 
 
 ## Rationale
