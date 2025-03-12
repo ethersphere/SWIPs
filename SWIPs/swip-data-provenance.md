@@ -20,11 +20,30 @@ The title should be 44 characters or less.
 
 ## Simple Summary
 <!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
-This SWIP outlines how Swarm decentralized storage can be utilized as a trusted third-party solution for storing and managing data provenance - tracking the origins and transformations of data. It highlights potential use cases, technical considerations, and business benefits for leveraging Swarm in provenance-related applications. The intended audience are developers, that would be using Swarm as provenance recording solution. 
+
+This SWIP proposes Swarm as a decentralized storage layer for provenance metadata and data. Provenance, the documented history of a dataset's origin and transformations, is increasingly important for regulatory compliance, ethical AI, and data accountability. A toolkit will provide utilities to:
+- Upload/Download: Store and retrieve provenance files (in any format) with Swarm reference hashes.
+- Metadata Management: Track storage validity (TTL) and extend it via stamp top-ups.
+- Data Integrity: Verify content through SHA-256 hashes.
+
+The framework does not enforce specific provenance standards but ensures compatibility by decoupling metadata (structured JSON) from the actual provenance data (stored as arbitrary files). Developers and enterprises retain full control over their data format and privacy measures.
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
-Provenance ensures accountability and integrity by tracking the origins and transformations of data. This SWIP explores how Swarm’s decentralized storage can serve as a foundation for provenance systems by leveraging its immutability, trustless design, and scalability. The document discusses compatibility with existing standards (e.g., W3C PROV, Data & Trust Alliance spec), technical requirements for uploading and accessing provenance data, and considerations for privacy and encryption. It also addresses potential extensions, such as integrating AI agents for data validation and interpretation.
+
+Provenance systems require immutable, scalable storage to track data lineage effectively. This SWIP leverages Swarm’s decentralized network to:
+- Store Provenance Data: Users upload files in any format (e.g., W3C PROV-JSONLD, DaTA spec, or custom schemas).
+- Manage Metadata: A JSON wrapper includes:
+  - `provenance_metadata_id` (UUID for unique identification)
+  - `data_swarm_reference` (Swarm hash pointing to the provenance file)
+  - `stamp_id` (for TTL tracking and renewal)
+  - `content_hash` (SHA-256 for integrity checks)
+  - `provenance_standard` (optional field for self-declared standards)
+- Ensure Flexibility: No Swarm-level validation of provenance formats—compatibility is achieved by design.
+
+A prototype toolkit (developed under the DataFund Fellowship) will provide CLI and API access to Swarm, enabling integration into existing workflows. Privacy and encryption remain optional, allowing users to comply with regulations like GDPR independently.
+
+
 
 ## Motivation
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
