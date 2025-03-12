@@ -1,6 +1,6 @@
 ---
 SWIP: <to be assigned>
-title: Data provenance on Swarm
+title: Swarm-Based Provenance Framework for Data Accountability and Trust
 author: Črt Ahlin (@crtahlin)
 discussions-to: https://discord.com/channels/799027393297514537/1239813439136993280
 status: WIP
