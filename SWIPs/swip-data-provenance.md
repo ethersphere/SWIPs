@@ -131,6 +131,19 @@ Swarm's stamp-based TTL management system aligns with the network's existing sto
 
 Finally, leveraging Swarm's decentralized network as a trusted third party aligns with Data Spaces Support Centre specifications and offers a more scalable and potentially cost-effective solution compared to blockchain-based alternatives. This positions Swarm as a flexible and standards-compatible storage layer for provenance data, catering to emerging market needs while leveraging its unique features.
 
+TODO Add diagram
+
+**Diagram Description:**
+
+The diagram illustrates Swarm acting as a trusted third party for storing Provenance and Traceability (P&T) data. It consists of three main entities:
+
+1.  **Consumer:** A data consumer, labeled "Consumer".
+2.  **Provider:** A data provider, labeled "Provider".
+3.  **VAS Provider:** Represented as a centralized storage, labeled as "Swarm."
+
+Both the Consumer and the Provider connect to the Swarm Network. The Swarm Network stores P&T data and takes the role of "Value Added Service (VAS) Provider" to allow other services or tooling on top of it. This VAS Provider contains "P&T", to indicate that they are providing Provenance data.
+
+This positions Swarm as a flexible and standards-compatible storage layer for provenance data, catering to emerging market needs while leveraging its unique features.
 
 ## Backwards Compatibility
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
