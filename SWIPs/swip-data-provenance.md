@@ -1,12 +1,12 @@
 ---
 SWIP: <to be assigned>
-title: Swarm-Based Provenance Framework for Data Accountability and Trust
+title: Swarm-Based Data Provenance Framework 
 author: Črt Ahlin (@crtahlin)
 discussions-to: https://discord.com/channels/799027393297514537/1239813439136993280
 status: WIP
 type: Informational
 <!-- category (*only required for Standard Track): <Core | Networking | Interface | ERC> -->
-created: 2025-03-06
+created: 2025-03-13
 requires (*optional): <SWIP number(s)>
 replaces (*optional): <SWIP number(s)>
 ---
