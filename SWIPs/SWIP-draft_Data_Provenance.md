@@ -70,7 +70,7 @@ The provenance record will be stored as a single JSON file containing both metad
 - `provenance_standard`: Declares the standard used (e.g., DaTA, W3C PROV, or custom).
 - `encryption`: Optional field to indicate encryption method (default: `"none"`).
 - `data`: Base64-encoded provenance data (actual content in any format).
-- `stamp_id`: Swarm stamp ID for TTL management.
+- `stamp_id`: Swarm stamp ID used for TTL management, purchased based on the size of the JSON file and desired storage duration.
 
 *This structure ensures self-contained provenance records while maintaining compatibility with any standard. The `data` field can store provenance information in formats like JSON, XML, or binary.*
 
@@ -81,9 +81,14 @@ The toolkit interacts with Swarm to manage provenance records via a single JSON 
   - Action: Uploads the JSON file to Swarm.
   - Workflow:  
     1. User prepares provenance data in any format (e.g., DaTA spec, W3C PROV).  
-    2. Toolkit generates SHA-256 hash of raw data, encodes it to Base64, and wraps it into the JSON structure.  
-    3. JSON file is uploaded to Swarm via Bee node or gateway.  
+    2. Toolkit generates SHA-256 hash of raw data, encodes it to Base64, and wraps it into the JSON structure.
+    3. The toolkit calculates the size of the JSON file to determine the required stamp size.
+    4. The user specifies a desired TTL for storage, or a default value is used.
+    5. The toolkit purchases a stamp from the Bee node or gateway using available funds.
+    6. The returned stamp ID is used to upload the JSON file to Swarm.
+    7. JSON file is uploaded to Swarm via Bee node or gateway.  
   - Returns: Swarm reference hash for the JSON file.
+  - *Note: Acquiring funds (e.g., xBZZ for stamp purchase) is out of scope for this toolkit, it is assumed the node has the funds available.*
 
 - **Download**:
   - Action: Retrieves the JSON file using its Swarm reference hash.  
@@ -162,11 +167,12 @@ A prototype toolkit is being developed under the DataFund Fellowship with the fo
 -   **Core Functionality**:
     -   The toolkit will be implemented in Python.
     -   It will provide command-line access to Swarm for uploading, downloading, and managing provenance files.
+    -   It will support calculation of JSON size and purchase stamps based on user-specified or default TTL values.
     -   It will support the JSON-based provenance record structure as outlined in the Specification section.
     -   It will use the Bee client to interact with the Swarm network.
 
 -   **Key Components**:
-    -   **Upload Module**: Handles the upload of provenance data to Swarm, including the preparation of the JSON metadata file and the selection of appropriate storage options (e.g., encryption).
+    -   **Upload Module**: Handles the upload of provenance data to Swarm, including the preparation of the JSON metadata file and the selection of appropriate storage options (e.g., appropriate stamp).
     -   **Download Module**: Retrieves provenance data from Swarm, verifies data integrity using the content hash, and presents the data to the user.
     -   **TTL Management Module**: Provides functionality to check the remaining storage duration (TTL) for a provenance file and extend the storage by topping up the associated stamp.
 
