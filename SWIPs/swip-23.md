@@ -1,5 +1,5 @@
 ---
-SWIP: <to be assigned>
+SWIP: 23
 title: Access Control Trie (ACT)
 author: András Arányi <andras.aranyi@solarpunk.buzz> (@aranyia)
 discussions-to: https://discord.com/channels/799027393297514537/1239813439136993280 (Swarm Discord '#swips')
