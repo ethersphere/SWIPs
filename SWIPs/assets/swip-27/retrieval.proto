@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package swarm.retrieval;
+
+import "common.proto";
+
+option go_package = "pb";
+
+// Request message requests a chunk by address
+message Request {
+    // The address of the requested chunk
+    bytes chunk_addr = 1;
+}
+
+// Delivery message delivers a requested chunk
+// This implements the explicit error handling principle for fallible operations
+// by using a oneof field to handle the success or error cases
+message Delivery {
+    // Only one of the following should be set
+    oneof result {
+        // The full chunk data
+        swarm.common.Chunk chunk = 1;
+
+        // Error information when the chunk cannot be delivered
+        swarm.common.Error error = 2;
+    }
+}

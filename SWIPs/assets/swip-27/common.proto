@@ -1,0 +1,76 @@
+syntax = "proto3";
+
+package swarm.common;
+
+import "google/protobuf/any.proto";
+
+option go_package = "pb";
+
+// ChunkType enum defines the different chunk formats
+// This follows the type information preservation principle
+// by explicitly encoding the chunk type for protocol handlers
+enum ChunkType {
+    CAC = 0;  // Content-addressed chunk
+    SOC = 1;  // Single-owner chunk
+}
+
+// Chunk represents a data chunk in the Swarm network
+// This follows the type information preservation principle by
+// including explicit type and version fields that inform handlers
+// how to interpret the remaining fields
+message Chunk {
+    // Chunk type identifier
+    ChunkType chunk_type = 1;
+
+    // Chunk format version
+    uint32 version = 2;
+
+    // Chunk type-specific header
+    bytes header = 3;
+
+    // Chunk data payload (serialized based on chunk_type)
+    bytes payload = 4;
+
+    // Optional proof of chunk authenticity (from a system perspective)
+    bytes proof = 5;
+}
+
+// PostageStamp represents a stamp proving chunk postage payment
+message PostageStamp {
+    // The batch ID of the stamp
+    bytes batch_id = 1;
+
+    // The index of the stamp within its batch
+    uint32 index = 2;
+
+    // Timestamp of the stamp
+    uint64 timestamp = 3;
+
+    // Signature validating the stamp
+    bytes signature = 4;
+}
+
+// BzzAddress contains addressing information for a Swarm node
+message BzzAddress {
+    // Underlay network address bytes
+    bytes underlay = 1;
+
+    // Cryptographic signature of handshake
+    bytes signature = 2;
+
+    // Nonce used for overlay address generation
+    bytes nonce = 3;
+
+    // Overlay address bytes (optional)
+    bytes overlay = 4;
+}
+
+// Error represents a standardized error response
+// This implements the explicit error handling principle
+message Error {
+    // The error code
+    uint32 code = 1;
+
+    // An optional error message
+    string message = 2;
+}

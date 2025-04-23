@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package swarm.swapprotocol;
+
+option go_package = "pb";
+
+// SwapMessageType indicates the type of swap message
+enum SwapMessageType {
+    EMIT_CHEQUE = 0;
+    HANDSHAKE = 1;
+}
+
+// SwapMessage is the wrapper for all swap protocol messages
+// This implements the stateful protocol pattern with explicit message types
+message SwapMessage {
+    // The type of swap message
+    SwapMessageType type = 1;
+
+    // Only one of the following messages should be set based on the type
+    oneof message {
+        EmitCheque emit_cheque = 2;
+        Handshake handshake = 3;
+    }
+}
+
+// EmitCheque message contains a signed cheque
+message EmitCheque {
+    // The serialised cheque
+    bytes cheque = 1;
+}
+
+// Handshake message for swap protocol initialisation
+message Handshake {
+    // The beneficiary address
+    bytes beneficiary = 1;
+}
