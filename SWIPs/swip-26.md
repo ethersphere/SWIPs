@@ -12,10 +12,10 @@ created: 2025-03-03
 This SWIP introduces a standardised framework for defining chunk types in Swarm, improving security and interoperability through consistent type identification and validation.
 
 ## Abstract
-This SWIP proposes a standardised framework for defining and processing chunk types in Swarm. By creating a formal type system for chunks, including content-addressed chunks (CAC) and single-owner chunks (SOC), we improve security, interoperability, and maintainability across the Swarm ecosystem. The proposal defines a structured approach to chunk identification, versioning, and validation without modifying the wire protocol. Key innovations include fixed-length type-specific headers, deterministic address calculation, and formalised validation rules.
+This SWIP proposes a standardised framework for defining and processing chunk types in Swarm. By creating a formal type system for chunks, including content-addressed chunks (CAC) and single-owner chunks (SOC), we improve security, interoperability, and maintainability across the Swarm ecosystem. The proposal defines a structured approach to chunk identification, versioning, and validation. The key innovation is the formal definition of fixed-length type-specific headers to be delivered alongside chunks and formally documenting address determination and payload validation rules.
 
 ## Motivation
-Swarm's storage layer is built around chunks as the fundamental unit of data. Currently, the system supports multiple chunk types, but lacks a standardised type system. This creates several issues:
+Swarm's storage layer is built around chunks as the fundamental unit of data. Currently, the system supports multiple chunk types, but lack standardised headers. This creates several issues:
 
 1. **Ambiguous Processing**: Without explicit type information, chunk processing depends on implicit detection methods, leading to potential security vulnerabilities.
 
