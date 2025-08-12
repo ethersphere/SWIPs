@@ -13,21 +13,21 @@ created: 2025-08-11
 
 ## Simple Summary
 <!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
-Define manifest metadata and intermediate-chunk conventions that enable nodes to read recursively encrypted Swarm chunks.  
-This supports the practice of address chunk hashes into less-collided postage buckets by mining per-chunk keys (chunk compaction) and remains backward compatible with legacy content.  
-In this document, “legacy” refers to unencrypted chunks and non-recursively encrypted BMTs, which are not deprecated.
+Define mantaray manifest metadata, intermediate-chunk encoding, and encryption conventions that enable nodes to read recursively encrypted Swarm chunks.  
+Recursive encryption supports the practice of address hashes into less-collided postage buckets by mining per-chunk keys (chunks compaction).
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
-This proposal standardizes how clients detect and decode recursively encrypted data and intermediate chunks.  
-It introduces two manifest metadata fields and an intermediate-chunk "hash-key" schema that together provide the information needed to decrypt child chunks during traversal.  
-The proposal is read-only in scope: it does not mandate how keys are produced nor how chunk hashes are optimized.  
-Mantaray node chunks remain compatible as-is, using their existing obfuscation mechanism. Legacy content continues to decode unchanged when the new metadata is absent.  
+This proposal standardizes how clients decode recursively encrypted chunks.  
+It introduces two manifest metadata fields and an intermediate-chunk "hash-key" schema that together provide the information needed to decrypt child chunks during traversal. It also defines the chunk encryption method.  
+This proposal does not mandate how keys are produced nor how chunk hashes are optimized.  
+Mantaray node chunks remain compatible as-is, using their existing obfuscation mechanism. Legacy (not compacted) content continues to decode unchanged when the new metadata is absent.  
 With these conventions, implementations can interoperate with chunks that use recursive encryption to improve postage-batch utilization without breaking existing content.
 
 ## Motivation
 <!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
-Chunks produced with recursive encryption improve postage-batch utilization by enabling a more uniform distribution of chunk hashes across postage buckets. However, without a shared read convention to discover per-child decryption keys during traversal, such chunks are unreadable for clients. A minimal, interoperable read specification is needed so that:
+Chunks produced with recursive encryption permit to improve postage-batch utilization by enabling a more uniform distribution of chunk hashes across postage buckets.  
+However, without a shared convention such chunks are unreadable for clients. A common specification is needed so that:
 - legacy content remains readable with no changes,
 - new content can signal recursive encryption and supply the necessary keys,
 - clients can implement a deterministic traversal and decryption procedure with clear error handling.
@@ -53,40 +53,40 @@ Scope: read/decoding only. This SWIP does not prescribe key generation or any wr
 - A table length MUST be a multiple of 64 bytes and MUST NOT exceed 4096 bytes.
 - Inheritance: intermediate chunks inherit the recursiveEncrypt reading mode from their parent. If the parent is read with recursive encryption, the child must be read recursive encryption too.
 
-3) Decoding procedure (reader)
+3) Decoding procedure
+- When a chunkEncryptKey is present, the key is applied repeated with XOR over the chunk Data (payload) bytes only; the Span MUST NOT be XOR-encrypted to avoid possibility of simplier XOR key scan rebuilding the Span from the length of leaf chunks.
 - If recursiveEncrypt is absent or false:
   - Use legacy decoding; nothing changed.
   - If chunkEncryptKey is present while recursiveEncrypt is absent/false:
     - Decrypt only the root data chunk with the provided key.
     - Treat all intermediate and leaf chunks as legacy (no recursive decryption).
 - If recursiveEncrypt is true:
-  - Obtain the 32-byte root decryption key (from chunkEncryptKey or an application/API parameter).
-  - Decrypt referred chunk with the provided key.
+  - Obtain the 32-byte root decryption key (from chunkEncryptKey metadata or API parameter).
+  - Decrypt the chunk with the provided key.
   - For each intermediate chunk:
     - Parse its key table into up to 64 entries.
     - For each child reference, lookup at childRefHash on Swarm DISC, and use childEncKey as the XOR key for that child's data.
   - Continue recursively until leaves are read.
-- Mantaray node chunks:
-  - Unchanged: read using existing obfuscation rules; this SWIP does not alter mantaray decoding.
 
 4) Error handling
 - Invalid metadata:
-    - `recursiveEncrypt == true` and no chunkEncryptKey provided.
+  - `recursiveEncrypt == true` and no chunkEncryptKey provided.
+  - `chunkEncryptKey` not 32 bytes.
 - Intermediate table inconsistencies:
-    - Data length not multiple of 64 bit when `recursiveEncrypt == true`
+  - Data length not multiple of 64 bytes when `recursiveEncrypt == true`.
 
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
 - Backward compatibility by default: absent metadata yields legacy decoding.
-- Minimal surface: two manifest fields and a fixed-size key table reuse existing structures without introducing new chunk types.
+- Minimal surface: two manifest fields and a CAC reuse existing structures without introducing new chunk types.
 - Fixed-size table (64 × (32+32) = 4096 bytes) aligns with intermediate chunk capacity, enabling O(1) lookups and simple parsing.
-- Per-file granularity: same mantaray allows pointing at the same time to both encrypted and unencrypted contents. This permits full compatibility with already published contents.
+- Per-file granularity: same mantaray allows pointing at the same time to both encrypted and unencrypted content. This permits full compatibility with not compacted content.
 
 ## Backwards Compatibility
 <!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
-- Legacy readers that ignore the new metadata and intermediate chunk's schema will not be able to read recursively encrypted content; however, legacy content is unaffected and continues to decode unchanged.
+- Legacy readers that ignore the new metadata and intermediate chunk's schema will not be able to read recursively encrypted content.
 - Mantaray node chunks remain as-is; chunks compaction is implemented with already implemented mantaray nodes obfuscation.
-- Default behavior (metadata absent) preserves existing datasets and workflows.
+- Default behavior (metadata absent) preserves existing workflows.
 
 ## Test Cases
 <!--Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.-->
