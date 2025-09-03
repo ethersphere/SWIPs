@@ -18,10 +18,11 @@ This SWIP describes a more efficient way to synchronise content between peers in
 _from the SWIP perspective_
 
 - **Pullsync**: A protocol that is responsible for syncing all the chunks that our node needs to store.
-- **Proximity Order**: How many starting bits are common between two addresses.
-- **Bin X**: A set of chunks that has exactly X starting bits common with the address of the node holding it.
+- **Proximity Order (PO)**: How many starting bits are common between two addresses.
+- **Bin X**: Bin X of a node M contains all the chunks in the network that has X as PO with M.
 - **Storage Radius**: The minimum proximity order of chunk addresses matching with the pivot node address.
-- **Neighbourhood**: A set of peers that are close to each other in the address space (their proximity order is at least the storage radius).
+- **Storage Radius**: Smallest integer `D` such that all chunks in the network whose proximity order with the pivot node address is at least `D` fit into the storage space that node dedicates to its reserve.
+- **Neighbourhood**  A set of peers in the network which proximity order with the pivot node address is at least `D`.
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
@@ -34,22 +35,34 @@ depth of their peers within the neighbourhood. As they are receiving new chunks 
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
-Each peer `P` takes all their peers they are allowed to synchronise with: `np = p_0, p_1, ..., p_n`. 
-Two types of bins a peer can have:
-- unique bins: its neighbors have different chunk set
-- common bins: at least one peer shares the same chunk set
-unique bins must be synchronised with all peers, but common bins can be synchronised with only one peer on that branch. In order to find out what nodes share common chunk sets and what are unique ones, a binary tree of addresses from `np` can be made. In this structure, every node holds a prefix and every edge corresponds to the continuation of that prefix by a single bit 0 or 1. Since the bins must be synchronised only above or equal to storage radius, the root node should represent the common prefix of all peers until the storage radius and initialize the `level` with storage radius. Each step in the binary tree reflects a further position within the binary representation of the addresses and increments the `level` by 1. The depth of any path extends only as far as is necessary to separate one group of addresses from another. By that, the `level` of a node is the number of the bin that is common to all addresses in the subtree rooted at that node.
+Each peer `P` takes all their peers they are allowed to synchronise with: `p_0, p_1, ..., p_n`. 
+All chunks need to be syncronized only once.
+How about we syncronize each chunks from its closest peer among the neighborhood peers.
 
-Now for each peer `p_i` we start subscribing to all bins greater or equal to their level in the binary tree `level(p_i)`.
-A folding algorithm can aggregate all subsumed addresses for intermediate nodes and decide on which peer should sync that corresponding bin. Therefore, in addition to `bin>=level(p_i)`, a peer may be chosen to synchronise some common bins below its level as well.
+In order to find out what nodes share common chunk sets and what are unique ones, a leaf compacted binary tree of addresses from neighborhood peers can be made. The depth of any path extends only as far as is necessary to separate one group of addresses from another.
+In this structure, every tree node represents a prefix and each step in the binary tree reflects a further position within the binary representation of the addresses and increments the `level` by 1.
+Since the bins must be synchronised only above or equal to storage radius, the root node should represent the common prefix of the neighborhood and initialize the `level` with storage radius.
 
-Note that unlike the earlier algorithm, this one is extremely sensitive to the changing peerset, so every single time there is a change in the neighbours, pullsync stretegy needs to be reevaluated. 
+Each leaf holds a particular peer $p$ and its `level` is $p$'s uniqueness depth. Conseqently, each chunk sharing the prefix represented by the leaf is closest to $p$.
+Each compactible node (i.e. that has one child) is the indication that all the chunks on the missing branch has no single closest peer and are equidistant from the two peers on the existing branch.
+
+Ideally To sync all the chunks we need to cover all the branches of the trie:
+- all chunks of leaf nodes must be syncronized from its stored peer.
+- all chunks on the missing branch of a compactible node must be synced from a peer on the existing branch.
+
+This is achieved if we traverse the trie in a depth-first manner and for each leaf node we subscribe to all bins greater or equal to its `level`. After then we accumulate peers at the intermediate nodes. While doing this, compatible nodes of level `X` we sync `bin X` from a peer from the accumulated set.
+
+Note that those tree nodes that have two children of the trie represent prefixes that is fully covered by one of the peers below.
+
+If all the peers we synced from are finished, the respective nodes reserve for any depth equal or higher to storage radius will be the same. 
+
+Unlike the earlier algorithm, this one is extremely sensitive to the changing peerset, so every single time there is a change in the neighbours, pullsync stretegy needs to be reevaluated. 
 
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
 
-One can see that each chunk is taken from its most immediate neighbourhood only. So depending on to what extent the peer addresses are balanced we save a lot on not taking anything twice. Imagine a peer with neighbourhood depth `d`, and in the hood 2 neighbours each having a common 2 bit prefix. Their levels in the tree is `d+3` for each peer, and we synchronise `Bin d+3`, `Bin d+4`, `Bin d+5`, etc. from each peer. `Bin d`, `Bin d+1` and `Bin d+2` are common for both peers and these can be synchronised with one peer only. 
-This means the synchronisation is halved for the first 3 bins (most probably broader sets than higher numbered bins) than what we need to synchronise with the current process.
+One can see that each chunk is taken from its most immediate neighbourhood only. So depending on to what extent the peer addresses are balanced we save a lot on not taking anything more than once. Imagine a peer with neighbourhood depth `d`, and in the hood 2 neighbours each having a common 2 bit prefix. Their levels in the tree is `d+3` for each peer, and we synchronise chunks closest to them on their `Bin d+3`, `Bin d+4`, `Bin d+5`, etc. The peers share the same parent tree node on level `d+2` therefore their `Bin d+2` is not needed to be synchronised. `Bin d` and `Bin d+1` should contain the same chunks for both peers so each bin can be synchronised with one peer only. 
+This means the synchronisation is halved for the first 2 levels and one bin is not synchronised at all for the peers that we need to synchronise with the current process in this setting.
 
 One potential caveat is that if a peer quits or is no longer contactable before the pivot finished syncing with them, then another peer needs to start the process.
 
