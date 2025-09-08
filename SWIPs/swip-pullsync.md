@@ -1,7 +1,7 @@
 ---
 SWIP: 25
 title: More efficient pull syncing within neighbourhood
-author: Viktor Tron <@zelig>    
+author: Viktor Tron <@zelig>, Viktor Tóth <@nugaon>   
 discussions-to: https://discord.com/channels/799027393297514537/1239813439136993280
 status: Draft
 type: <Standards Track (Core)>
@@ -20,7 +20,6 @@ _from the SWIP perspective_
 - **Pullsync**: A protocol that is responsible for syncing all the chunks that our node needs to store.
 - **Proximity Order (PO)**: How many starting bits are common between two addresses.
 - **Bin X**: Bin X of a node M contains all the chunks in the network that has X as PO with M.
-- **Storage Radius**: The minimum proximity order of chunk addresses matching with the pivot node address.
 - **Storage Radius**: Smallest integer `D` such that all chunks in the network whose proximity order with the pivot node address is at least `D` fit into the storage space that node dedicates to its reserve.
 - **Neighbourhood**  A set of peers in the network which proximity order with the pivot node address is at least `D`.
 
@@ -38,21 +37,6 @@ depth of their peers within the neighbourhood. As they are receiving new chunks 
 Each peer `P` takes all their peers they are allowed to synchronise with: `p_0, p_1, ..., p_n`. 
 All chunks need to be syncronized only once.
 How about we syncronize each chunks from its closest peer among the neighborhood peers.
-
-In order to find out what nodes share common chunk sets and what are unique ones, a leaf compacted binary tree of addresses from neighborhood peers can be made. The depth of any path extends only as far as is necessary to separate one group of addresses from another.
-In this structure, every tree node represents a prefix and each step in the binary tree reflects a further position within the binary representation of the addresses and increments the `level` by 1.
-Since the bins must be synchronised only above or equal to storage radius, the root node should represent the common prefix of the neighborhood and initialize the `level` with storage radius.
-
-Each leaf holds a particular peer $p$ and its `level` is $p$'s uniqueness depth. Conseqently, each chunk sharing the prefix represented by the leaf is closest to $p$.
-Each compactible node (i.e. that has one child) is the indication that all the chunks on the missing branch has no single closest peer and are equidistant from the two peers on the existing branch.
-
-Ideally To sync all the chunks we need to cover all the branches of the trie:
-- all chunks of leaf nodes must be syncronized from its stored peer.
-- all chunks on the missing branch of a compactible node must be synced from a peer on the existing branch.
-
-This is achieved if we traverse the trie in a depth-first manner and for each leaf node we subscribe to all bins greater or equal to its `level`. After then we accumulate peers at the intermediate nodes. While doing this, compatible nodes of level `X` we sync `bin X` from a peer from the accumulated set.
-
-Note that those tree nodes that have two children of the trie represent prefixes that is fully covered by one of the peers below.
 
 If all the peers we synced from are finished, the respective nodes reserve for any depth equal or higher to storage radius will be the same. 
 
@@ -76,6 +60,21 @@ Thorough testing is neeeded, cos this can produce inconsistencies in the localst
 
 ## Implementation
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
+In order to find out what nodes share common chunk sets and what are unique ones, a leaf compacted binary tree of addresses from neighborhood peers can be made. The depth of any path extends only as far as is necessary to separate one group of addresses from another.
+In this structure, every tree node represents a prefix and each step in the binary tree reflects a further position within the binary representation of the addresses and increments the `level` by 1.
+Since the bins must be synchronised only above or equal to storage radius, the root node should represent the common prefix of the neighborhood and initialize the `level` with storage radius.
+
+Each leaf holds a particular peer $p$ and its `level` is $p$'s uniqueness depth. Conseqently, each chunk sharing the prefix represented by the leaf is closest to $p$.
+Each compactible node (i.e. that has one child) is the indication that all the chunks on the missing branch has no single closest peer and are equidistant from two or more peers on the existing branch.
+
+Ideally To sync all the chunks we need to cover all the branches of the trie:
+- all chunks of leaf nodes must be syncronized from its stored peer.
+- all chunks on the missing branch of a compactible node must be synced from a peer on the existing branch.
+
+This is achieved if we traverse the trie in a depth-first manner and for each leaf node we subscribe to all bins greater or equal to its `level`. After then we accumulate peers at the intermediate nodes. While doing this, compatible nodes of level `X` we sync `bin X` from a peer from the accumulated set.
+
+Note that those tree nodes that have two children of the trie represent prefixes that is fully covered by one of the peers below.
+
 The assumption behind the loose specification is that we do not need to support for any kind of pull-sync change and existing data flow will be sufficient. In particular, the following assumptions are made:
 - pullsync primary indexes the chunks by PO (relative to the node address)
 - as secondary ordering within a bin is based on first time of storage.
