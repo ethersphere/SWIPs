@@ -1,7 +1,7 @@
 ---
 SWIP: 25
 title: More efficient pull syncing within neighbourhood
-author: Viktor Tron <@zelig>    
+author: Viktor Tron <@zelig>, Viktor Tóth <@nugaon>   
 discussions-to: https://discord.com/channels/799027393297514537/1239813439136993280
 status: Draft
 type: <Standards Track (Core)>
@@ -14,6 +14,15 @@ created: 2025-02-24
 <!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
 This SWIP describes a more efficient way to synchronise content between peers in the same neighbourhood.
 
+### Glossary
+_from the SWIP perspective_
+
+- **Pullsync**: A protocol that is responsible for syncing all the chunks that our node needs to store.
+- **Proximity Order (PO)**: How many starting bits are common between two addresses.
+- **Bin X**: Bin X of a node M contains all the chunks in the network that has X as PO with M.
+- **Storage Radius**: Smallest integer `D` such that all chunks in the network whose proximity order with the pivot node address is at least `D` fit into the storage space that node dedicates to its reserve.
+- **Neighbourhood**  A set of peers in the network which proximity order with the pivot node address is at least `D`.
+
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
 If a node is connected to swarm as a full node, it fires up the pullsync protocol, which is responsible for syncing all the chunks that our node needs to store.Currently the algorithm we use makes sure that on each peer connection, both parties try synchronising their entire reserve. More precisely, each peer start streaming the chunk hashes in batches for each proximity order that is greater or equal to the pull-sync depth (usually the neighbourhood depth). In this proposal, we offer a much more efficient algorithm, still capable of replicating the reserve.
@@ -25,20 +34,19 @@ depth of their peers within the neighbourhood. As they are receiving new chunks 
 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
-Each peer takes all their neighbours they are allowed to synchronise with (have full node ambitions): p_0, p_1, ..., p_n. For each peer, they decide their uniquness depth, i.e., the PO, within which they are the only peer in the set: `UD_i, UD_1, ... UD_n`. Now for each peer `p_i` we start subscribing to all POs greater or equal to `UD_i`. Note that unlike the earlier algorithm, this one is extremely sensitive to the changing peerset, so every single time there is a change in the neighbours, pullsync stretegy needs to be reevaluated. In addition to `po>=UD_i`, our pivot peer needs to sync the PO corresponding to their PO with the peer in order to get all the chunks that they are closer to than their peer. To sum up, for any pivot peer P:
+Each peer `P` takes all their peers they are allowed to synchronise with: `p_0, p_1, ..., p_n`. 
+All chunks need to be syncronized only once.
+How about we syncronize each chunks from its closest peer among the neighborhood peers.
 
-for every change in the neighbourhood peer set or change of depth `D`:
-    for every `p` in `peers(D,P)`; do
-        synchronise `p`-s own bin `PO(addr(p), addr(P))`
-        for every PO bin `i>=UD(p,peers(D,P)`, synchronise  `p`-s own bin `i`
+If all the peers we synced from are finished, the respective nodes reserve for any depth equal or higher to storage radius will be the same. 
 
-
+Unlike the earlier algorithm, this one is extremely sensitive to the changing peerset, so every single time there is a change in the neighbours, pullsync stretegy needs to be reevaluated. 
 
 ## Rationale
 <!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
 
-One can see that each chunk is taken from its most immediate neighbourhood only. So depending on to what extent the peer addresses are balanced we save a lot on not taking anything twice. Imagine a peer with neighbourhood depth `d`, and in the hood 3 neighbours each having a different 2 bit prefix within the neighbourhood. Then `UD_i=d+3` for each peer, so we synchronise PO=d+3,d+4,d+5,etc. from each peer.
-this is exactly 16 times less chunks than what we need to syncronise with the current process. Also we need to synchronise PO=d+2 chunks from each peer. 
+One can see that each chunk is taken from its most immediate neighbourhood only. So depending on to what extent the peer addresses are balanced we save a lot on not taking anything more than once. Imagine a peer with neighbourhood depth `d`, and in the hood 2 neighbours each having a common 2 bit prefix. Their levels in the tree is `d+3` for each peer, and we synchronise chunks closest to them on their `Bin d+3`, `Bin d+4`, `Bin d+5`, etc. The peers share the same parent tree node on level `d+2` therefore their `Bin d+2` is not needed to be synchronised. `Bin d` and `Bin d+1` should contain the same chunks for both peers so each bin can be synchronised with one peer only. 
+This means the synchronisation is halved for the first 2 levels and one bin is not synchronised at all for the peers that we need to synchronise with the current process in this setting.
 
 One potential caveat is that if a peer quits or is no longer contactable before the pivot finished syncing with them, then another peer needs to start the process.
 
@@ -52,8 +60,23 @@ Thorough testing is neeeded, cos this can produce inconsistencies in the localst
 
 ## Implementation
 <!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
+In order to find out what nodes share common chunk sets and what are unique ones, a leaf compacted binary tree of addresses from neighborhood peers can be made. The depth of any path extends only as far as is necessary to separate one group of addresses from another.
+In this structure, every tree node represents a prefix and each step in the binary tree reflects a further position within the binary representation of the addresses and increments the `level` by 1.
+Since the bins must be synchronised only above or equal to storage radius, the root node should represent the common prefix of the neighborhood and initialize the `level` with storage radius.
+
+Each leaf holds a particular peer $p$ and its `level` is $p$'s uniqueness depth. Conseqently, each chunk sharing the prefix represented by the leaf is closest to $p$.
+Each compactible node (i.e. that has one child) is the indication that all the chunks on the missing branch has no single closest peer and are equidistant from two or more peers on the existing branch.
+
+Ideally To sync all the chunks we need to cover all the branches of the trie:
+- all chunks of leaf nodes must be syncronized from its stored peer.
+- all chunks on the missing branch of a compactible node must be synced from a peer on the existing branch.
+
+This is achieved if we traverse the trie in a depth-first manner and for each leaf node we subscribe to all bins greater or equal to its `level`. After then we accumulate peers at the intermediate nodes. While doing this, compatible nodes of level `X` we sync `bin X` from a peer from the accumulated set.
+
+Note that those tree nodes that have two children of the trie represent prefixes that is fully covered by one of the peers below.
+
 The assumption behind the loose specification is that we do not need to support for any kind of pull-sync change and existing data flow will be sufficient. In particular, the following assumptions are made:
-- pullsync primary index indexes the chunks by PO (relative to the node address)
+- pullsync primary indexes the chunks by PO (relative to the node address)
 - as secondary ordering within a bin is based on first time of storage.
 - the chronology makes it possible to have live (during session) and historical syncing.
 
