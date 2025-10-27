@@ -15,13 +15,17 @@ created: 2025-02-24
 This SWIP describes a more efficient way to synchronise content between peers in the same neighbourhood.
 
 ### Glossary
-_from the SWIP perspective_
 
-- **Pullsync**: A protocol that is responsible for syncing all the chunks that our node needs to store.
-- **Proximity Order (PO)**: How many starting bits are common between two addresses.
-- **Bin X**: Bin X of a node M contains all the chunks in the network that has X as PO with M.
-- **Storage Radius**: Smallest integer `D` such that all chunks in the network whose proximity order with the pivot node address is at least `D` fit into the storage space that node dedicates to its reserve.
-- **Neighbourhood**  A set of peers in the network which proximity order with the pivot node address is at least `D`.
+- **Pull-sync**: A protocol that is responsible for syncing all the chunks that all nodes within a neighbourhood need to store in their reserve. The protocol itself is well established and shall not change. 
+- **Pivot**: Strategies of pull-syncing involve the perspective of a particular node, the **pivot node**, and concern the algorithm that dictates which particular address bins and binID ranges the pivot should be requesting from their peers.
+- **Proximity Order (PO)**: measure of proximity, calculating the number of matching leading bits that are common to (the big-endian binary representation of) two addresses.
+- **Reserve**: network-wide reserve is the set of chunks pushed to the network with a valid postage stamp.
+- **Bin X of M**: Bin $x$ of a node $M$ contains all the chunks in the network reserve the PO of which with M is not lower than $D$:   $\mathrm{Bin}_X(M) := \lbrace c\in\mathrm{Reserve}\mid\mathit{PO}(\mathit{Addr}(c), \mathit{Addr}(M)) = X\rbrace$.
+- **A's Neighbourhood of depth D**  An address range, elements of which share at least $D$ bits with $A$: 
+  $\lbrace c \in \mathrm{Chunks}\mid \mathit{PO}(\mathit{Addr}(c),\mathit{Addr}(M)) \geq D\rbrace$.
+  Alternatively if $A$ is the address of node $M$, the chunks in $M$'s neighbourhood of depth $D$ can also be expressed as the union of all $M$'s bins at and beyond $D$,
+  $\lbrace c\in\mathrm{Chunks}\mid \mathrm{NH}_D(\mathit{Addr}(M))\rbrace$ = $\bigcup_{x\geq D} \mathrm{bin}_X(M)$.
+- **Storage depth**: Smallest integer $D$ such that $2^D$ neighbourhoods of depth $D$ (holding a disjoint replication sets of all their bins X, s.t. $X \geq D$ in ) is able to accommodate the network reserve. Assuming uniform utilisation across nh-s, and a node reserve depth of $t$, $D_s := \lceil \mathit{log}_2(N)  \rceil - t$.
 
 ## Abstract
 <!--A short (~200 word) description of the technical issue being addressed.-->
