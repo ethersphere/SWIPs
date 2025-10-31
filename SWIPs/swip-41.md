@@ -1,4 +1,5 @@
 ---
+SWIP: 41
 title: Stake registry update queue
 author: Andrew Macpherson (@awmacpherson)
 discussions-to: https://discord.gg/Q6BvSkCv (Swarm Discord)
