@@ -20,7 +20,7 @@ When the "content" field of ENS was conceived, it was not initally forseen that 
 ## Specification
 <!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
 
-At present, when an ENS name is presented a Swarm gateway, the content hash is checked and, upon finding that it is a 32 byte hex value prefixed by the bzz protocol indicator "bzz://". 
+At present, when an ENS name is presented a Swarm gateway, the content hash is checked and, upon finding that it is a 32 byte hex value prefixed by the bzz protocol indicator "bzz://", the content is retrieved from the deferenced hash.
 
 Now, if the content hash is empty, or not prefixed by bzz://, the ENS TEXT records will next be checked. Upon finding a record with key "bzz", which consists of a 32 byte hex value, handle this in the same way as if it as if it had been found in the content hash.
 
