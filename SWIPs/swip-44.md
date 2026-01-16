@@ -57,7 +57,15 @@ function currentMinimumDepth() public view returns (uint8) {
 }
 ```
 
-The function calculates a minimum depth requirement based on the number of skipped rounds, which is then checked in the `reveal()` function. This logic needs to be modified to remove the skipped rounds constraint.
+The function calculates a minimum depth requirement based on the number of skipped rounds, which is then checked in the `reveal()` function at line 375:
+
+```solidity
+if (_depth < currentMinimumDepth()) {
+    revert OutOfDepth();
+}
+```
+
+This minimum depth check should be removed entirely. There should be no minimum depth requirement.
 
 **Note:** Client implementations that rely on checking participation eligibility are not affected by this change, as the contract-level validation is the authoritative check.
 
