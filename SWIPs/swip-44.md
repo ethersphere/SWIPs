@@ -1,8 +1,8 @@
 ---
 SWIP: 44
 title: Remove skipped rounds guard
-author: <author name and contact>
-discussions-to: <URL>
+author: Viktor Tron (@zelig)
+discussions-to: https://github.com/ethersphere/SWIPs/pull/TBD
 status: Draft
 type: Standards Track
 category: Core
@@ -43,13 +43,33 @@ where $\Delta d := depth_{last}-depth_{curr}$
 
 This check currently prevents claims when the depth has decreased by $\Delta d$ unless at least $\Delta d$ rounds have been skipped.
 
+The specific implementation is in the `currentMinimumDepth()` function in the [Redistribution contract](https://github.com/ethersphere/storage-incentives/blob/master/src/Redistribution.sol#L854-L866):
+
+```solidity
+function currentMinimumDepth() public view returns (uint8) {
+    uint256 difference = currentCommitRound - currentClaimRound;
+    uint8 skippedRounds = uint8(difference > 254 ? 254 : difference) + 1;
+
+    uint8 lastWinnerDepth = winner.depth;
+
+    // We ensure that skippedRounds is not bigger than lastWinnerDepth, because of overflow
+    return skippedRounds >= lastWinnerDepth ? 0 : lastWinnerDepth - skippedRounds;
+}
+```
+
+The function calculates a minimum depth requirement based on the number of skipped rounds, which is then checked in the `reveal()` function. This logic needs to be modified to remove the skipped rounds constraint.
+
+**Note:** Client implementations that rely on checking participation eligibility are not affected by this change, as the contract-level validation is the authoritative check.
+
+See also: [storage-incentives#302](https://github.com/ethersphere/storage-incentives/issues/302)
+
 ## Rationale
 
 The skipped rounds guard was originally implemented to mitigate the singleton-node zero-depth attack. With the implementation of phase 3 of storage incentives, which attaches r8 proofs to claims, this attack vector is now addressed through a different mechanism. The guard now serves only to create friction for legitimate operators experiencing radius decreases, without providing meaningful security benefits.
 
 ## Backwards Compatibility
 
-This change modifies the redistribution contract behavior and will require coordination with node operators. Nodes running older versions may behave differently during radius decrease events.
+This change is backwards compatible. The modification relaxes a constraint in the redistribution contract, allowing claims to proceed in cases that were previously blocked. Existing valid claims will continue to work as before, while additional scenarios (depth decreases without sufficient skipped rounds) will now also be permitted.
 
 ## Test Cases
 
@@ -60,7 +80,9 @@ Test cases should verify:
 
 ## Implementation
 
-The implementation requires removing the conditional check from the redistribution contract that enforces the relationship between depth decrease and skipped rounds.
+The implementation requires modifying the `currentMinimumDepth()` function in the redistribution contract to remove the logic that enforces the relationship between depth decrease and skipped rounds.
+
+A reference implementation is available at: [storage-incentives#301](https://github.com/ethersphere/storage-incentives/pull/301)
 
 ## Copyright
 
