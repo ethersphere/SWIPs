@@ -15,7 +15,7 @@ This SWIP introduces a standardised framework for defining chunk types in Swarm,
 This SWIP proposes a standardised framework for defining and processing chunk types in Swarm. By creating a formal type system for chunks, including content-addressed chunks (CAC) and single-owner chunks (SOC), we improve security, interoperability, and maintainability across the Swarm ecosystem. The proposal defines a structured approach to chunk identification, versioning, and validation. The key innovation is the formal definition of fixed-length type-specific headers to be delivered alongside chunks and formally documenting address determination and payload validation rules.
 
 ## Motivation
-Swarm's storage layer is built around chunks as the fundamental unit of data. Currently, the system supports multiple chunk types, but lack standardised headers. This creates several issues:
+Swarm's storage layer is built around chunks as the fundamental unit of data. Currently, the system supports multiple chunk types, but lacks standardised headers. This creates several issues:
 
 1. **Ambiguous Processing**: Without explicit type information, chunk processing depends on implicit detection methods, leading to potential security vulnerabilities.
 
@@ -78,7 +78,7 @@ For any chunk type, the address derivation function can be formally defined as:
 $$f_{\text{type}}(\text{header}, \text{payload}) = \mathcal{H}(g_{\text{type}}(\text{header}, \text{payload}))$$
 
 Where:
-- $\mathcal{H}$ is a cryptographic hash function (i.e. `keccak256`)
+- $\mathcal{H}$ is a cryptographic hash function (e.g. `keccak256`)
 - $g_{\text{type}}$ is a type-specific data preparation function
 
 Different chunk types will implement specific derivation functions based on their requirements.
@@ -127,6 +127,55 @@ flowchart TD
     H --> I[Pass processed chunk to appropriate protocol handler]
     I --> End[Protocol-specific processing]
 ```
+
+### Wire Protocol Representation
+
+To enable typed chunks at the wire level, the following Protocol Buffer definitions shall be used:
+
+#### Chunk Message
+
+```protobuf
+message Chunk {
+  uint32 type = 1;    // Chunk type identifier (see type table)
+  uint32 version = 2; // Chunk format version
+  bytes payload = 3;  // Type-specific header + chunk data
+}
+```
+
+The `payload` field contains the concatenation of the type-specific header and the chunk data. Based on the `type` and `version` fields, the receiver can determine the fixed-length type-specific header size and extract it from the beginning of the payload.
+
+For example:
+- **CAC (type=0, version=0)**: `payload` = span (8 bytes) || BMT chunk data
+- **SOC (type=0x01, version=0)**: `payload` = ID (32 bytes) || signature (65 bytes) || wrapped chunk data
+
+#### Integration with Existing Protocols
+
+All protocol buffer definitions that reference chunk data MUST use the typed `Chunk` message instead of raw `bytes`. This ensures consistent type information is available at the wire level across all protocols.
+
+For example, the `Delivery` message used by pushsync and pullsync protocols shall be updated:
+
+```protobuf
+message Delivery {
+  bytes address = 1;
+  Chunk data = 2;
+  bytes stamp = 3;
+}
+```
+
+This pattern applies universally: any protocol message that transmits chunk content MUST embed the `Chunk` message type, ensuring:
+
+1. Chunk type and version are always available at the wire level
+2. Recipients can determine the expected type-specific header size
+3. Address calculation and validation can be performed using type-specific rules
+4. Consistent handling across all protocols that deal with chunks
+
+#### Migration Path
+
+During the transition period, implementations should:
+
+1. Accept both legacy `Delivery` messages (with raw bytes) and new typed `Delivery` messages
+2. When receiving legacy messages, attempt heuristic type detection for backward compatibility
+3. When sending, prefer the new typed format if the peer supports it
 
 ## Rationale
 
