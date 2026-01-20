@@ -171,11 +171,13 @@ This pattern applies universally: any protocol message that transmits chunk cont
 
 #### Migration Path
 
-During the transition period, implementations should:
+This specification represents a breaking change; implementations MUST use the typed `Chunk` message for all wire protocol communications.
 
-1. Accept both legacy `Delivery` messages (with raw bytes) and new typed `Delivery` messages
-2. When receiving legacy messages, attempt heuristic type detection for backward compatibility
-3. When sending, prefer the new typed format if the peer supports it
+For existing data in the localstore that lacks type information, implementations should:
+
+1. Determine the chunk type heuristically upon access (e.g. by examining the chunk structure)
+2. Lazily populate the type information in the localstore when chunks are retrieved
+3. Avoid a large upfront migration by only updating type metadata as chunks are accessed
 
 ## Rationale
 
