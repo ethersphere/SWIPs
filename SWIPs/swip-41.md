@@ -6,30 +6,53 @@ discussions-to: https://discord.gg/Q6BvSkCv (Swarm Discord)
 status: WIP
 category: Core
 created: 2025-10-10
+requires: SWIP-40
 ---
 
 # Stake registry update queue
 
 ## Abstract
 
-Introduce a FIFO queue that adds controlled delays to all updates to stake balances and metadata (i.e. height and overlay address).
+Introduce per-owner parallel FIFO queues that add parametrised delays to all updates to stake balances and metadata (i.e. height and overlay address). This replaces the 2-round thaw imposed on stakers after any change to stake balance or metadata.
 
 ## Motivation
+
+### Advance signalling of service changes
 
 Currently, the following operations are possible on a stake balance:
 
 * Create/destroy.
-* Deposit/withdraw.
+* Deposit/withdraw excess.
 * Update height (up/down).
 * Update overlay address.
 
-Some of these operations — for example, height reduction — result in a node's exit from or reduced financial commitment to a neighbourhood, negatively affecting the storage service. For the sake of service stability, we propose a method to throttle such operations by means of an update queue which imposes additional delays on service-reducing changes. 
+Some of these operations — for example, height reduction — result in a node's exit from or reduced financial commitment to a neighbourhood, negatively affecting the storage service. In an ideal world, any reduction of service commitment from one node would be compensated by another node arriving to take its place. However, since there is currently no reliable way to predict changes in service commitment, this hand-over cannot happen without at least a short service disruption. Introducing a mandatory "unwinding" delay before such changes come into effect, during which nodes continue to participate under their previous commitments, would provide a reliable signal allowing for smoother handoff of responsibilities between outgoing and incoming nodes.
 
-The 2 round thaw currently imposed on stakers after any change to participation metadata is absorbed into the logic of this queue. Instead of being blocked from participation, possibly leading to service disruption, stakers can continue to play using their existing stake metadata during the 2 round delay.
+This issue becomes particularly pertinent if stake withdrawals are enabled (cf. SWIP-40), allowing nodes to completely exit their commitment to the network. A mandatory wait period to exit a stake position would be familiar from many types of risky investment, where delays are a standard measure to facilitate orderly unwinding of positions.
 
-Requests to update registered information (committed stake, height, and overlay address) are placed on a FIFO queue, maintained by a new UpdateQueue subsystem, and executed lazily on calls to getter methods in the Stake Registry contract. An update is not processed unless a certain number of complete rounds has elapsed since it was placed on the queue. The number of rounds depends on the nature of the update; updates that allow stake balances to be reduced or nodes to remove neighbourhoods from their area of responsibility are subjected to longer delays.
+### Stake record update freeze
+
+The current system design imposes a 2-round "thaw" on nodes, during which they may not participate, after any change to their stake record. The intention of this freeze is to prevent consensus manipulation attacks that are possible if the node can change their stake record mid-round, after the round anchor is revealed.
+
+The system decides when to apply this block using an inline check in `Redistribution.commit()`, which also doubles up as checking for the "frozen" status which is applied as a penalty for consensus faults. This design has a number of flaws:
+
+* It is inflexible, being based on anonymous logic and a hardcoded "magic number" value;
+* Overloads the `lastUpdatedBlockNumber` variable which is also used to track frozen state and record initialisation;
+* Breaks the obvious semantic meaning of freeze penalty lengths by adding 2 to the number of rounds in which the node cannot participate;
+* Splits responsibility for imposing "freeze-like" penalties between the `Redistribution` and `StakeRegistry` contracts;
+* Blocking the node from participating and earning rewards during this time could lead to service disruptions.
+
+Moving the logic into a flexible, carefully designed delay system would address the first four complaints. The fifth point, an economic impact, is also easily addressed. Indeed, the defensive effect of preventing nodes from switching commitments mid-round is still achieved if the node is allowed to continue participating during the delay, but under their old balance and metadata. We find no reason to prevent the node from participating entirely.
 
 ## Specification
+
+### Overview
+
+Requests to update registered information (committed stake, height, and overlay address) are placed on a FIFO queue parallelised by owner, maintained by a new UpdateQueue subsystem, and executed lazily on calls to getter methods in the Stake Registry contract. An update is not processed unless a certain number of complete rounds has elapsed since it was placed on the queue. The number of rounds depends on the nature of the update; updates that allow stake balances to be reduced or nodes to remove neighbourhoods from their area of responsibility are subjected to longer delays.
+
+The 2-round participation freeze currently imposed on stakers who update their stake data is removed and replaced with a 2 round delay managed by the queue introduced here. 
+
+The previously overloaded stake field `lastUpdatedBlockNumber` is now only responsible for freezing. We rename some endpoints and ABI elements to reflect this change, and hand responsibility for checking frozen state entirely over to the stake registry.
 
 ### Architecture
 
@@ -37,36 +60,138 @@ The proposal calls for the deployment of a new UpdateQueue contract that manages
 
 ### Parameters
 
+#### Queue parameters
+
 | Name                      | Value  | Description                                                  |
 | ------------------------- | ------ | ------------------------------------------------------------ |
-| `EXIT_DELAY`              | `3184` | Minimum delay in rounds to impose for height reduction       |
-| `OVERLAY_CHANGE_DELAY`    | `796`  | Minimum delay in rounds to impose for change of overlay address. |
-| `BASE_UPDATE_DELAY`       | `2`    | Minimum delay in rounds to impose for all operations.        |
 | `UPDATE_QUEUE_MAX_LENGTH` | `10`   | Maximum number of pending request items per owner.           |
 
-Malicious changes to these variables could have the effect of trapping nodes indefinitely, so we propose that their values be embedded into the UpdateQueue contract at deployment time and not be modifiable by the admin.
+Embedded in the update queue at deployment time.
+
+#### Delay lengths
+
+| Name                       | Value | Description                                                  |
+| -------------------------- | ----- | ------------------------------------------------------------ |
+| `CAPACITY_REDUCTION_DELAY` |       | Minimum delay in rounds to impose for height reduction.      |
+| `OVERLAY_CHANGE_DELAY`     |       | Minimum delay in rounds to impose for change of overlay address. |
+| `BASE_UPDATE_DELAY`        | `2`   | Minimum delay in rounds to impose for all operations.        |
+
+Malicious changes to these variables could have the effect of trapping nodes in their positions indefinitely, so we propose that their values be embedded into the `StakeRegistry` contract at deployment time and not be modifiable by the admin.
+
+To change these parameters, a new `StakeRegistry` must be deployed with the new parameters passed into the constructor. The usual flow for deploying a new `StakeRegistry` applies: the old registry paused, stake migrated, a new `Redistribution` deployed with a reference to the new `StakeRegistry`, and the Redistributor role on the `Postage` contract moved from the old `Redistribution` contract to the new one.
+
+The values for `CAPACITY_REDUCTION_DELAY` and `OVERLAY_CHANGE_DELAY` are specified in a separate SWIP.
 
 ### StakeRegistry
 
-* Updates that would have been managed by calling `StakeRegistry:manageStake` are added to a request queue and triggered lazily after a delay, which is determined by the queue subsystem, instead of executing instantly. The type of delay to impose depends on the update and is decided at the time of adding the update to the queue.
+Line numbers in this section refer to version 0.9.4.
 
-  The delay to impose is decided as follows:
+#### Interface
 
-  1. If `height` is reduced, apply `ExitDelay`.
-  2. Otherwise, if overlay address is changed, apply `OverlayChangeDelay`.
-  3. Otherwise apply `BaseDelay`.
+The contract must maintain a reference `updateQueue` to a unique `UpdateQueue` contract. The getter for this reference may be `private`, as it is not intended that users will call the queue directly.
 
-  A new access-controlled call `StakeRegistry:_manageStake` that can only be called by the UpdateQueue contract must be implemented to actually apply the updates.
+We introduce two new functions:
 
-* Calls to `StakeRegistry:migrateStake` clear the queue and withdraw immediately.
+```solidity
+function applyUpdates(address _owner) public {
+	// pop and apply all items from _owner's update queue
+	// then write to storage
+}
 
-* The logic of `withdrawFromStake` must define `_surplusStake` using the look-ahead value of `committedStake` rather than the active value.
+function minimumUpdateDelay(address _owner, bytes32 _setNonce, uint256 _addAmount, uint8 _height) public view returns uint64 {
+    // calculate and return the minimum delay in rounds that
+    // would be applied for this update called by the given owner
+    // (owner could be replaced by msg.sender)
+}
+```
 
-* `lastUpdatedBlockNumber` is now only used for freezing.
+Since under this proposal, the field `lastUpdatedBlockNumber` is only used to check freezing status and whether the stake has ever been touched, we recommend the field is to be renamed to `frozenUntil`. This affects the ABI for the `stakes()` endpoint. 
 
-* The `Redistribution.commit()` method wants to pop all valid updates from the queue before getting the values of the view functions `overlayOfAddress()`, `nodeEffectiveStake()`, `lastUpdatedBlockNumberOfAddress()`, and `heightOfAddress()`. Should it do this explicitly, or should it be baked into the definition of those functions (which breaks the `view` property)? 
+Its getter function is also renamed, and the `addressNotFrozen` endpoint is made public so that the stake registry takes responsibility for the definition of "frozen" status.
 
-  I think we need two sets of endpoints: `view` endpoints that apply pending updates in memory but do not modify state, and endpoints with side-effects that apply the updates to state before returning.
+```solidity
+// function lastUpdatedBlockNumberOfAddress(address _owner) public view returns (uint256);
+function frozenUntil(address _owner) public view returns (uint256);
+
+// function addressNotFrozen(address _owner) internal view returns (bool);
+function addressNotFrozen(address _owner) public view returns (bool);
+```
+
+A new enum `DelayType` is introduced to semantically classify operations in terms of the commitment change they induce.
+
+The constructor method gets a new parameter where a mapping of delay types to delay lengths is embedded.
+
+```solidity
+enum DelayType { CapacityReductionDelay, TransferDelay, BaseDelay };
+
+// constructor(address _bzzToken, uint64 _NetworkId, address _oracleContract)
+constructor(
+    address _bzzToken, 
+    uint64 _NetworkId, 
+    address _oracleContract, 
+    mapping(DelayType => uint64) delays,
+);
+```
+
+Otherwise, the interface of `StakeRegistry` is unchanged.
+
+#### Events
+
+The function served by the events `StakeUpdated` and `OverlayChanged` are taken over by the `UpdateEnqueued` event emitted by the `UpdateQueue` contract, so these event types may be removed from the `StakeRegistry` contract. 
+
+#### Semantics
+
+The semantics of the newly introduced methods are as follows:
+
+* `applyUpdates` — iteratively get updates from the sender's update queue until `noPendingUpdate` error is raised. Apply updates to stake table.
+
+* `minimumUpdateDelay` — classifies updates into delay types. Updates are classified as follows:
+
+  * If the new height is less than the old height, the update is a *capacity reduction*.
+  * If the new overlay differs from the old overlay, the update is a *commitment transfer*.
+
+  Capacity reduction and commitment transfer have associated `DelayType`s. If more than one condition applies, the longest delay type is selected. If no conditions apply, `BaseDelay` is selected.
+
+  In Solidity:
+
+  ```solidity
+  if new_height < old_height
+      return DelayType.CapacityReductionDelay
+  else if new_overlay != old_overlay
+      return DelayType.TransferDelay
+  else
+      return DelayType.BaseDelay
+  ```
+
+The semantics of the following setter methods of `StakeRegistry` are affected:
+
+```solidity
+function manageStake(bytes32 _setNonce, uint256 _addAmount, uint8 _height) external whenNotPaused;
+function withdrawFromStake() external; // REMOVED in SWIP-40
+function migrateStake() external whenPaused;
+```
+
+As follows:
+
++ `manageStake` — does not write to the `stakes` table. Instead, the change to be applied is recorded in an `Update` object, a suitable `DelayType` is selected, and the data are pushed to the update queue. Because this proposal replaces the 2-round freeze after updates to stake metadata with a delay managed by the queue, the field `frozenUntil` (formerly `lastUpdatedBlockNumber` — see above) is not modified on calls to `manageStake`. This logic replaces lines 152–158 (https://github.com/ethersphere/storage-incentives/blob/v0.9.4/src/Staking.sol#L152C1-L158C12).
+
+  Event emission responsibilities are delegated to the `UpdateQueue`, so the top-level logic of this call does not emit any events. Lines [163–170](https://github.com/ethersphere/storage-incentives/blob/v0.9.4/src/Staking.sol#L163C4-L170C15) and [174–176](https://github.com/ethersphere/storage-incentives/blob/v0.9.4/src/Staking.sol#L174C1-L176C1) are removed.
+
++ `withdrawFromStake()` — REMOVED in SWIP-40. [This function should use the getters that apply updates before returning in its calculation of `potentialStake`, `committedStake`, and `height`.]
+
++ `migrateStake()` — SHOULD clean up the update queue as well as deleting the stake registry entry.
+
+The semantics of getter methods of `StakeRegistry` that read from the stake table, other than the `frozenUntil` (formerly `lastUpdatedBlockNumber`) field, are affected. There are five such methods:
+
+```solidity
+function nodeEffectiveStake(address _owner) public view returns (uint256);
+function withdrawableStake() public view returns (uint256);
+function overlayOfAddress(address _owner) public view returns (bytes32);
+function heightOfAddress(address _owner) public view returns (uint8);
+function stakes(address _owner) public view returns (Stake); // implicitly defined
+```
+
+Instead of returning the current values registered in the `stakes` table, these methods must pop and apply updates from an in-memory copy of the referenced `UpdateQueue` before returning a value. To maintain the `view` status of these methods, the updates are not written to storage.
 
 #### Tests
 
@@ -79,87 +204,13 @@ Malicious changes to these variables could have the effect of trapping nodes ind
 * Call to `migrateStake` correctly processes enqueued deposit liabilities and withdraws all deposited tokens (when paused).
 * Call to `withdrawFromStake` takes enqueued stake commitment into account when computing stake surplus. If there is some surplus, enqueuing another update makes that surplus instantly committed and inaccessible to `withdrawFromStake`.
 
-#### Sample implementation
+### Redistribution
 
-```solidity
-enum delay_t { BaseDelay, ExitDelay, OverlayChangeDelay };
-IUpdateQueue UpdateQueue;
+The interface to the redistribution contract is unchanged.
 
-contract StakeRegistry {
-    function manageStake(bytes32 _setNonce, uint256 _addAmount, uint8 _height) external whenNotPaused {
-        // As in v0.9.3 except with the following section removed:
-        /*  
-            stakes[msg.sender] = Stake({
-                overlay: _newOverlay,
-                committedStake: updatedCommittedStake,
-                potentialStake: updatedPotentialStake,
-                lastUpdatedBlockNumber: block.number,
-                height: _height
-            });
-        */ 
-        // and the following added:
-        
-        // Select delay type based on nature of update
-        delay_t delay;
-        if (_height < stakes[msg.sender].height)
-            delay = delay_t.ExitDelay;
-        else if (_newOverlay != _previousOverlay)
-            delay = delay_t.OverlayChangeDelay;
-        else
-            delay = delay_t.BaseDelay;
-        
-        // Encode call and push to queue with configured delay
-        bytes request = encodeUpdate(
-            (msg.sender, _newOverlay, updatedCommittedStake, updatedPotentialStake, block.number, _height)
-        );
-        UpdateQueue.push(msg.sender, request, delay);
-    }
-     
-    // private method to be called directly by requests popped from the queue
-    function setStake internal (
-        address owner, 
-        bytes32 overlay, 
-        uint committedStake, 
-        uint potentialStake, 
-        uint blockNumber,
-        uint8 height
-    ) {
-        stakes[owner] = Stake({
-            overlay: overlay,
-            committedStake: committedStake,
-            potentialStake: potentialStake,
-            lastUpdatedBlockNumber: blockNumber,
-            height: height
-        });
-    }
-    
-    // Getter methods that apply valid updates in state before returning
-    function updateAndGetOverlay(address owner) external returns bytes32;
-    function updateAndGetCommittedStake(address owner) external returns uint256;
-    function updateAndGetPotentialStake(address owner) external returns uint256;
-    function updateAndGetHeight(address owner) external returns uint8;
-    
-    // OPTIONAL — check if devs really need these
-    // Pure variants of the above that apply valid updates in memory before returning but don't modify state
-    function getOverlay(address owner) external view returns bytes32;
-    function getCommittedStake(address owner) external view returns uint256;
-    function getPotentialStake(address owner) external view returns uint256;
-    function getHeight(address owner) external view returns uint8;
-    
-    // Getter methods that apply all enqueued updates (without waiting) in memory before returning.
-    function lookAheadCommittedStake(address owner) external view returns uint256;
-    // Required by withdrawFromStake.
-    
-    function lookAheadPotentialStake(address owner) external view returns uint256;
-    // OPTIONAL — could be used by migrateStake.
-}
-```
+Since the semantics of the `StakeRegistry` getter functions has changed, so too have the semantics of the three `Redistribution` functions that call them: `commit`, `reveal`, and `isParticipatingInUpcomingRound`. Note that the latter is a `view` function, so the calls it makes to fetch `overlay` and `height` records must also be `view` (i.e. they cannot apply updates in place first).
 
-#### Redistribution
-
-No calls need to interact directly with the queue. 
-
-The functionality of `lastUpdatedBlockNumber` has changed: it is no longer used to apply the 2 round freeze after a call to `manageStake`. It is still used for freezing. Therefore, the inline constant `2*ROUND_LENGTH` in the check
+Since the 2 round cool-off after a call to `manageStake` has been replaced with a delay managed by `UpdateQueue`, the following check in the logic of `commit()` is no longer needed and should be removed:
 
 ```solidity
         if (_lastUpdate >= block.number - 2 * ROUND_LENGTH) {
@@ -167,94 +218,93 @@ The functionality of `lastUpdatedBlockNumber` has changed: it is no longer used 
         }
 ```
 
-(see https://github.com/ethersphere/storage-incentives/blob/v0.9.4/src/Redistribution.sol#L303) should be removed.
+(see https://github.com/ethersphere/storage-incentives/blob/v0.9.4/src/Redistribution.sol#L303). 
 
-Since the field `lastUpdatedBlockNumber` and this check are now *only* used for freezing, we suggest that objects be renamed as follows:
+Instead, it must be replaced with a check that the owner is not currently frozen.
 
-* `Stake.lastUpdatedBlockNumber` -> `frozenUntil`
-* `lastUpdatedBlockNumberOfAddress()` -> `Stakes.frozenUntil()`
-* `error MustStake2Rounds` -> `Frozen`
+Since this is the only use of the `MustStake2Rounds` error, this error type can be removed.
 
 **Tests.**
 
 * `commit()` does not access stale state. Pending updates are always applied before values are used.
 * If less than 2 rounds have elapsed since any update was enqueued, `commit()` sees the same metadata as before. Therefore the same `obfuscatedHash` should be usable.
 
-#### UpdateQueue
+#### Implementation notes
 
-When an update is added to the queue, the delay length is added to the number of the current round and recorded along with it. The `Update` object records the owner and the mutation to be performed on the corresponding `Stake` object. We leave the details of how this works to the implementer.
+The frozen check is semantically equivalent to `StakeRegistry.stakes[owner].frozenUntil >= block.number / ROUND_LENGTH`. Since the stake registry is responsible for tracking this value, it makes sense for it to also take responsibility for this check via a call to the `addressNotFrozen()` endpoint instead of repeating the predicate in the redistribution contract. 
 
-The queue is FIFO with delays of various lengths classified by an enum:
+### UpdateQueue
 
-* `ExitDelay` 
-* `OverlayChangeDelay`
-* `BaseDelay`
+#### Overview
 
-The delay can be thought of as a "not valid before" timer. An update is not necessarily applicable immediately after this delay expires: due to FIFO ordering, it could be held up by another request higher up in the queue with a longer delay.
+The contract owns a mapping of owner addresses to FIFO queue objects. Each queue object exposes a simple put/get queue interface for enqueuing opaque `Update` structs, each of which encodes a mutation to the owner's stake record. The put and get operations MUST be permissioned to the stake registry. The queue itself MAY be publicly readable, if it facilitates the signalling function that motivates its introduction. It MUST at least be readable by the stake registry, which needs to be able to make in-memory copies for evaluating `view` functions.
 
-The queue must provide look-ahead overlay address, height, and committed stake balance. Due to FIFO ordering, this can be computed simply by applying the most recently enqueued update.
-
-```solidity
-struct UpdateQueue {
-    Queue<Update> updates;
-    bytes32 lookAheadOverlay;
-    uint256 lookAheadCommittedStake;
-    uint8 lookAheadHeight;
-}
-
-mapping(address => UpdateQueue) public updateQueue;
-```
+When an update is added to the queue along with a specified delay, a round number `effectiveFromRound` is calculated and recorded along with it. This number is either the current round plus the delay, or the `effectiveFromRound` of the last item in the queue, whichever is larger. When the current round is at least `effectiveFromRound`, the update item is said to be in *pending* state. The queue will only return updates in pending state; if none are found, it raises an exception.
 
 #### Interface
 
 ````solidity
-library ApplyUpdate {
-    struct Update {
-        // private fields
-    }
-    
-    // Apply update to Stake s and return an in-memory copy.
-    function updateApply(Update update, Stake memory s) public returns Stake;
-    
-    // Apply update to Stake s in place. 
-    function updateApplyInPlace(Update update, Stake storage s) public;
-}
-
-interface IUpdateQueue {
-    function push(address owner, Update update, delay_t delay) external;
-    // Add update `encodedCall` to the queue of updates for `owner` with validity 
-    // in rounds starting after a delay of type `delay`.
-    
-    function pop(address owner) external returns bytes;
-    // Pop an encoded function call from the queue if any valid calls are pending
-    // otherwise throw an error
-    
-    function clear(address owner) external whenPaused returns uint256;
-    // Delete queue data associated to owner. Can only be called via migrateStake.
-}
+mapping(address => Queue<UpdateItem>) public updateQueue;
 
 // UpdateQueue entry
 struct UpdateItem {
-    uint validAfterRound;
+    uint64 effectiveFromRound;
     Update update;
 }
+
+// Update struct
+struct Update {
+    // private fields
+    // bundle with library exposing update.applyTo(Stake record)
+}
+
+// Add update to the queue of updates for `owner` with validity 
+// in rounds starting after a delay of `delay` rounds.
+// Only StakeRegistry may call.
+// Emit UpdateEnqueued event.
+function put(address owner, Update update, uint64 delay) external;
+
+// Pop an update from the queue if any valid calls are pending
+// otherwise throw NoPendingUpdates error   
+// Only StakeRegistry may call.
+function get(address owner) external returns Update;
+
+// Delete queue data associated to owner. Can only be called via migrateStake.
+function clear(address owner) external whenPaused;
 ````
+
+#### Events
+
+```solidity
+// emitted on call to updateQueue.push()
+// replaces OverlayChanged, StakeUpdated
+event UpdateEnqueued {
+    uint256 effectiveFromRound;
+    uint256 balance;
+    bytes32 overlay;
+    uint8 height;
+}
+```
+
+#### Tests
+
+TODO
 
 ## Rationale
 
 * *One queue.* All types of updates for all stake owners are considered to be part of one queue. While some queue designs may allow for handling different owners or different update types in isolation, others — such as a global churn rate limiter — require tracking global state. To future proof the queue interface against possible changes to queue design, other components of the system must treat the entire network-wide queue as a single black box.
 
-* *Separate UpdateQueue contract.* We propose the update queue be maintained in a separate contract from the Stake Registry for the sake of maximising modularity and potentially isolating parts of deployments from unrelated upgrades.
+* *Separate UpdateQueue contract.* We propose the update queue be maintained in a separate contract from the Stake Registry for the sake of maximising modularity and isolating parts of deployments from unrelated future upgrades.
 
   For the sake of gas efficiency, the UpdateQueue contract could be inlined into the StakeRegistry. However, we find this to be a premature optimisation that gives up modularity for the sake of gas fees that are basically insignificant (millionths of a dollar) in practice.
 
 * *2 round thaw.* The 2 round thaw currently implemented (but not fully documented) in the `commit()` method of the Redistribution contract is absorbed into this queue. The delay length is preserved as the `BASE_UPDATE_DELAY` parameter. However, unlike in the old model, participation is still allowed during the thaw period — but under the old stake position.
 
-* *Event emission.* Requesting updates should emit an event, because NOs will want to track these for their strategies. We don't need to emit an event when the update is actually applied. In any case, the time that the update is processed is not really economically significant; it just gets done whenever that node is next able to participate.
+* *Signalling.* To act as a signal, node operators must be able to easily index enqueued updates along with the round number at which they come into effect. Since the `UpdateQueue` contract is responsible for tracking when updates come into effect, the events used for indexing must be emitted from there. There is no need to emit an event when the update is actually applied in state, which is inconsequential.
 
 * *Per-neighbourhood delay scaling.* It may make sense to adjust the delay of changes depending on the before and after population of each neighbourhood affected by the change. The core example is to reduce delay for nodes leaving a neighbourhood with large population (and in the case of overlay change, entering one with small population). This would require the queue system to be able to estimate replication depth and enlarges the design space considerably, so we omit it from the present proposal.
 
-* *Maximum queue length.* Although unlikely to be an issue in practice, in principle an update queue could grow so long that it cannot be emptied in a single block. Therefore, there shold be a maximum number of updates that can be held in the queue for each owner. It probably won't cause a big problem if the number is quite small, e.g. 10.
+* *Maximum queue length.* In principle, an update queue could grow so long that it cannot be emptied in a single block. Therefore, there shold be a maximum number of updates that can be held in the queue for each owner. It probably won't cause a big problem if the number is quite small, e.g. 10.
 
   An alternative approach would be to internally merge operations using an internal representation closed under composition. While we can imagine ways to do this for the set of operations the queue is currently expected to process, it would complicate the process of adding any new types of operation to the queue or changing the queue algorithm. A simple maximum queue length is easy to implement, universal, and unlikely to raise any serious objections.
   
@@ -262,22 +312,18 @@ struct UpdateItem {
 
 * *Liability tracking.* The proposed changes mean that the `potentialStake` recorded under a given `owner` in the Stake Registry does not always equal the total amount of BZZ deposited by that owner (net of surplus withdrawals). Rather, the records of liabilities of the Stake Registry to a given owner are split between the Registry itself and the Update Queue. Since these records control what can be withdrawn by calling the `withdrawFromStake` and `migrateStake` methods, these processes must either block on not-yet-active updates, or fast track and apply them.
 
-* *Manual queue triggering.* Manual popping of updates from the queue can be allowed, but since the updated metadata is only used during participation, there is not likely to be much incentive to do that. (This changes if reducing committed stake is allowed.)
+* *Manual queue triggering.* To preserve the getter interface of the `StakeRegistry` and make minimal changes to `Redistribution`, getter methods do not actually apply pending updates in place. However, the contract still needs a way to apply updates in place, or the queue will grow without bound, hence the `applyUpdates` endpoint. It is expected that clients will trigger `applyUpdates` regularly, either immediately after a new update comes into effect or before calling `Redistribution.commit()` during the next round that the overlay comes into proximity.
 
-* *Lookahead.* In the present design, the following methods make use of a lookahead:
-
-  * `migrateStake`. Since this is called when the Stake Registry is paused, withdrawable amounts should be accelerated (?). The new Stake Registry may reference the same queue. Two Stake Registries should not simultaneously be able to mutate the queue state.
-  * `withdrawFromStake`. Because surplus stake is defined in terms of a "committed stake" quantity that is locked in at the time an update is enqueued, this method needs to look ahead to see how much has been committed. Under a generally withdrawable stake system that eliminates dependence on the storage price, this wouldn't be needed.
-  * `reveal`. Because we ask that the reveal counter look ahead at nodes that are committed to exit for the sake of adjusting prices, this method needs to look ahead to `overlay` and `height`.
-
-  The FIFO design considerably simplifies the calculation of lookahead compared to other designs. 
+* *Update classification.* To apply different delays to different updates, updates need to be classified into types to be processed by the queueing system. Currently, the logic of `manageStake` implicitly classifies updates by the four non-reverting branches it takes, according to the independent predicates `(_addAmount > 0)` or `(_previousOverlay != _newOverlay)`. In the interests of allowing `UpdateQueue` to concern itself exclusively with queueing semantics, and not with staking, we propose that the responsibility of semantic classification of updates remain with `manageStake`, while `UpdateQueue` deals with sizes of updates.
 
 * *Update encoding.* There are two basic approaches to recording the data of an "update" in the UpdateQueue:
 
   1. Record the new values to be applied in a struct.
   2. Directly encode the calldata of the call that will be made.
 
-  Option (2) is future-proof in the sense that the same encoding will make sense if new types of update are introduced. OTOH it is less suitable for introspection than (1). We argue that the Queue contract itself should not be doing any introspection — it simply keeps track of *when* each update should be applied, and it is the caller's responsibility to hand it enough data to make that call. From this perspective, the opacity of an encoded call is also an advantage.
+  Option (2) is future-proof in the sense that the same encoding will make sense if new types of update are introduced. OTOH it is less suitable for introspection than (1). We argue that the Queue contract itself should not be doing any introspection — it simply keeps track of *when* each update should be applied, and it is the caller's responsibility to hand it enough data to make that call. From this perspective, the opacity of an encoded call is also an advantage. 
+
+  The matter of encoding is relevant from an interface perspective because the queue needs to emit events for each update. Therefore TODO: we need to make a call on this. The "future-proof" model seems over-engineered.
 
 ### Effect of pending status on other components
 
@@ -289,7 +335,7 @@ struct UpdateItem {
 
   And so on. Moreover, the way that node balancing and replication rate is tracked may change substantially in the near future with something along the lines of SWIP-39. Therefore, we'd rather defer implementing price oracle pre-emption.
 
-* *Reward sharing.* For most of the benefits of an exit queue to work, nodes must be incentivised to continue operating while they are in the queue. Hence, they must be able to continue participating in reward sharing (and penalties) using their previous participation metadata while waiting. Accordingly, they must participate in all the activities that qualify them for reward sharing, i.e. reserve consensus and storage and density proofs.
+* *Reward sharing.* For the advance signalling function of an exit queue to work, nodes must be incentivised to continue operating while they are in the queue. Hence, they must be able to continue participating in reward sharing (and penalties) using their previous participation metadata while waiting. Accordingly, they must participate in all the activities that qualify them for reward sharing, i.e. reserve consensus and storage and density proofs.
 
 * *Freezing.* If a node gets frozen while waiting to withdraw funds, what happens?
 
@@ -313,9 +359,19 @@ struct UpdateItem {
   * On the other hand, allowing out-of-order execution will probably make the analysis much more complicated. It will be harder to use the queue state to make a forecast and to implement lookahead.
 * *Request cancellation.* Requires a way to specify which request should be cancelled, and again substantially complicates making use of the information benefits of a public queue. It is simpler and more elegant not to allow cancellations.
 
-## Implementation notes
+### Contract and parameter upgrades
 
-* Following standard practice, the event queue for each owner can be implemented with an integer-indexed mapping with marked begin and end indices. (Cf. [OpenZeppelin deque implementation](https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/utils/structs/DoubleEndedQueue.sol) and a [Medium article](https://medium.com/@hayeah/diving-into-the-ethereum-vm-the-hidden-costs-of-arrays-28e119f04a9b) warning us about the use of arrays.)
+Can the reference to `UpdateQueue` maintained by `StakeRegistry` be changed by the admin? With a delay? Broadly speaking, we see three approaches:
+
+1. Reference is immutable. To change the update queue logic, a new stake registry must be deployed.
+2. Reference is instantly mutable. Admin can burn stake by imposing infinite delays.
+3. Reference is mutable with a delay, emitting an event. Under SWIP-40, stakers may withdraw if they do not want to be subject to the new queue logic.
+
+Under the current implementation, the admin can lock all stake indefinitely, effectively burning it, by never pausing the contract. The proposed changes should not make this attack worse and expose stake to a malicious admin.
+
+Can multiple `StakeRegistry` deployments reference a single `UpdateQueue`? *No*, because that would screw everything up. Write changes to `UpdateQueue` must be permissioned to a unique `StakeRegistry`. (`UpdateQueue` does not need to maintain a reference to `StakeRegistry`, only a commitment.)
+
+An intermediate option is that the *logic* of `UpdateQueue` is immutable, but the *delay parameters* can be changed. This doesn't improve much, as it still gives the admin to lock stake indefinitely.
 
 ## Security implications
 
@@ -326,7 +382,7 @@ struct UpdateItem {
 
 The main effect, which is intended, is to slow down interactions with the stake registry, particularly those that could threaten data replication.
 
-* The most serious threat to stability comes from height reduction, which removes a node entirely from the service of a particular neighbourhood. Incentives to reduce height may include:
+* Among the currently permitted changes, the most serious threat to stability comes from height reduction, which removes a node entirely from the service of a particular neighbourhood. Incentives to reduce height may include:
   * Save on storage costs by reducing commitment.
   * Maintain stake density after a drawdown.
 * We expect that the incentives for drawing down stake occur frequently, driven by market conditions and the attractiveness of other opportunities. Currently, the opportunities to withdraw stake are limited to when the storage price quote has gone down from when the stake was last "committed." Since only "uncommitted" stake can be withdrawn, withdrawing it has no immediate impact on the incentive to continue providing good service on the node, so no delay is needed.
@@ -335,7 +391,7 @@ The main effect, which is intended, is to slow down interactions with the stake 
 
 ## Interactions with other proposals
 
-* *Self-custodial/upgradable stake registry.* This change would retire the `migrateStake` endpoint and possibly separate balance and participation metadata management into different contracts.
+* *Self-custodial/upgradable stake registry.* An upgradable stake registry change would not need the `migrateStake` endpoint and possibly separate balance and participation metadata management into different contracts.
 
   When a change to the queue design occurs, metadata updates already waiting in the queue should ideally continue be processed under the old queue logic. If the queue state is part of the Stake Registry contract, there is no way to protect it from arbitrary updates. Thus the queue ought to be part of a new contract accessible by the Redistributor.
 
@@ -345,6 +401,6 @@ The main effect, which is intended, is to slow down interactions with the stake 
 
   If stake is withdrawable under more general circumstances, we expect that freezing will prevent such withdrawals.
   
-* *Automatic address balancing.* Current versions of automatic neighbourhood assignment call for a delayed commit/execute scheme to be allocated a neighbourhood after staking. The present update queue proposal provides a subsystem to implement this delay.
+* *Automatic address assignment.* Current versions of automatic neighbourhood assignment call for a delayed commit/execute scheme to be allocated a neighbourhood after staking. The present update queue proposal provides a subsystem to implement this delay.
 
   Changes to the way that balancing and node count are tracked could have implications for how the price oracle is adjusted, which would interact with variants of this proposal that use the queue to pre-empt price changes.
