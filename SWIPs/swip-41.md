@@ -373,12 +373,14 @@ Can multiple `StakeRegistry` deployments reference a single `UpdateQueue`? *No*,
 
 An intermediate option is that the *logic* of `UpdateQueue` is immutable, but the *delay parameters* can be changed. This doesn't improve much, as it still gives the admin to lock stake indefinitely.
 
-## Security implications
+## Impact
+
+### Security implications
 
 * The update queue subsystem takes ownership, in the form of `BASE_UPDATE_DELAY`, of the 2 round metadata update delay currently found in the initial validation checks of the `Redistribution:commit()` call. A top-up or deposit delay of at least until the end of the current round is required to prevent shadow stake attacks. No immediate changes to security model for shadow stake or penalty evasion are implied by the current proposal, but care needs to be taken in future to preserve the `BASE_UPDATE_DELAY` minimum.
 * In the proposed access control model, anyone may trigger processing of valid updates from anyone else's queue. Since updates cannot be cancelled and would be processed anyway before the state can be used in redistribution, this is harmless.
 
-## Economic implications
+### Economic implications
 
 The main effect, which is intended, is to slow down interactions with the stake registry, particularly those that could threaten data replication.
 
@@ -389,7 +391,7 @@ The main effect, which is intended, is to slow down interactions with the stake 
 * Changing overlay address does not affect the mean replication rate, but it weakens one neighbourhood while strengthening another. The design of the revenue sharing system implies that the incentives will often be for nodes to move from more populated neighbourhoods to less populated ones, but this need not always be the case. 
   Introducing a modest delay gives the network time to react to such changes, for example by migrating nodes from other neighbourhoods to fill a gap. Discounting exiting nodes from the replication rate counter of the source neighbourhood allows new nodes to enter without triggering downward price pressure.
 
-## Interactions with other proposals
+### Interactions with other proposals
 
 * *Self-custodial/upgradable stake registry.* An upgradable stake registry change would not need the `migrateStake` endpoint and possibly separate balance and participation metadata management into different contracts.
 
@@ -404,3 +406,4 @@ The main effect, which is intended, is to slow down interactions with the stake 
 * *Automatic address assignment.* Current versions of automatic neighbourhood assignment call for a delayed commit/execute scheme to be allocated a neighbourhood after staking. The present update queue proposal provides a subsystem to implement this delay.
 
   Changes to the way that balancing and node count are tracked could have implications for how the price oracle is adjusted, which would interact with variants of this proposal that use the queue to pre-empt price changes.
+
