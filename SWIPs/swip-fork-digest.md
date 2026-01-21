@@ -84,7 +84,7 @@ message Handshake {
 }
 ```
 
-Nodes must reject connections where `peer.fork_digest != local.fork_digest`.
+Nodes MUST reject connections where `peer.fork_digest != local.fork_digest`.
 
 ### Hive Protocol Integration
 
@@ -126,16 +126,16 @@ signature = eip191_sign(data)
 
 The `"bee-handshake-"` prefix is removed in v1 as EIP-191 personal sign already provides domain separation via `"\x19Ethereum Signed Message:\n<length>"`.
 
-During migration, nodes must support verifying both signature formats:
+During migration, nodes MUST support verifying both signature formats:
 
 1. If `fork_digest` is present, verify using the v1 scheme.
 2. If `fork_digest` is absent, verify using the legacy v0 scheme.
 
-Nodes should generate v1 signatures when creating new BzzAddress entries once fork digest support is enabled.
+Nodes SHOULD generate v1 signatures when creating new BzzAddress entries once fork digest support is enabled.
 
 ### Grace Period
 
-During fork transitions (a one-hour window around activation), nodes may accept both pre-fork and post-fork digests to accommodate clock skew.
+During fork transitions (a one-hour window around activation), nodes MAY accept both pre-fork and post-fork digests to accommodate clock skew.
 
 ## Rationale
 
