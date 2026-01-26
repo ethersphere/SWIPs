@@ -21,16 +21,16 @@ Introduce per-owner parallel FIFO queues that add parametrised delays to all upd
 
 Currently, the following operations are possible on a stake balance:
 
-* Create/destroy.
-* Deposit/withdraw excess.
-* Update height (up/down).
+* Create or destroy.
+* Deposit or withdraw excess.
+* Update height up or down.
 * Update overlay address.
 
 Some of these operations — for example, height reduction — result in a node's exit from or reduced financial commitment to a neighbourhood, negatively affecting the storage service. In an ideal world, any reduction of service commitment from one node would be compensated by another node arriving to take its place. However, since there is currently no reliable way to predict changes in service commitment, this hand-over cannot happen without at least a short service disruption. Introducing a mandatory "unwinding" delay before such changes come into effect, during which nodes continue to participate under their previous commitments, would provide a reliable signal allowing for smoother handoff of responsibilities between outgoing and incoming nodes.
 
 This issue becomes particularly pertinent if stake withdrawals are enabled (cf. SWIP-40), allowing nodes to completely exit their commitment to the network. A mandatory wait period to exit a stake position would be familiar from many types of risky investment, where delays are a standard measure to facilitate orderly unwinding of positions.
 
-### Stake record update freeze
+### Stake record update induced freeze
 
 The current system design imposes a 2-round "thaw" on nodes, during which they may not participate, after any change to their stake record. The intention of this freeze is to prevent consensus manipulation attacks that are possible if the node can change their stake record mid-round, after the round anchor is revealed.
 
@@ -150,14 +150,14 @@ The semantics of the newly introduced methods are as follows:
   * If the new height is less than the old height, the update is a *capacity reduction*.
   * If the new overlay differs from the old overlay, the update is a *commitment transfer*.
 
-  Capacity reduction and commitment transfer have associated `DelayType`s. If more than one condition applies, the longest delay type is selected. If no conditions apply, `BaseDelay` is selected.
+  Capacity reduction and commitment transfer have associated `DelayType`s. If more than one condition applies, the longest delay type is selected. If no conditions apply, or if this update creates a new stake record, `BaseDelay` is selected.
 
   In Solidity:
 
   ```solidity
   if new_height < old_height
       return DelayType.CapacityReductionDelay
-  else if new_overlay != old_overlay
+  else if old_overlay != 0 && new_overlay != old_overlay
       return DelayType.TransferDelay
   else
       return DelayType.BaseDelay
@@ -185,24 +185,13 @@ The semantics of getter methods of `StakeRegistry` that read from the stake tabl
 
 ```solidity
 function nodeEffectiveStake(address _owner) public view returns (uint256);
-function withdrawableStake() public view returns (uint256);
+function withdrawableStake() public view returns (uint256); // REMOVED in SWIP-40
 function overlayOfAddress(address _owner) public view returns (bytes32);
 function heightOfAddress(address _owner) public view returns (uint8);
 function stakes(address _owner) public view returns (Stake); // implicitly defined
 ```
 
 Instead of returning the current values registered in the `stakes` table, these methods must pop and apply updates from an in-memory copy of the referenced `UpdateQueue` before returning a value. To maintain the `view` status of these methods, the updates are not written to storage.
-
-#### Tests
-
-* The Stake Registry cannot report stale values. All `view` endpoints as well as `updateAndGet*` endpoints
-* Calls to `manageStake` should be enqueued in order and with correct delays.
-  * A "trivial" update with `_setNonce` and `height` the same as before and `_addAmount = 0` receives the Base Delay. Trivial updates may still result in a change to `committedStake`. More generally, any update which leaves `_setNonce` unchanged and does not decrease `height` receives Base Delay.
-  * Any update that decreases `height` receives the Exit Delay, regardless of what other changes it makes.
-  * An update that changes `_setNonce` and either leaves `height` the same or increases it receives the Overlay Change Delay.
-  * FIFO structure: if a `height` decrease is enqueued, then an update with a short delay is enqueued, the second update is not applied until after the full `EXIT_DELAY`.
-* Call to `migrateStake` correctly processes enqueued deposit liabilities and withdraws all deposited tokens (when paused).
-* Call to `withdrawFromStake` takes enqueued stake commitment into account when computing stake surplus. If there is some surplus, enqueuing another update makes that surplus instantly committed and inaccessible to `withdrawFromStake`.
 
 ### Redistribution
 
@@ -223,11 +212,6 @@ Since the 2 round cool-off after a call to `manageStake` has been replaced with 
 Instead, it must be replaced with a check that the owner is not currently frozen.
 
 Since this is the only use of the `MustStake2Rounds` error, this error type can be removed.
-
-**Tests.**
-
-* `commit()` does not access stale state. Pending updates are always applied before values are used.
-* If less than 2 rounds have elapsed since any update was enqueued, `commit()` sees the same metadata as before. Therefore the same `obfuscatedHash` should be usable.
 
 #### Implementation notes
 
@@ -269,8 +253,9 @@ function put(address owner, Update update, uint64 delay) external;
 // Only StakeRegistry may call.
 function get(address owner) external returns Update;
 
-// Delete queue data associated to owner. Can only be called via migrateStake.
-function clear(address owner) external whenPaused;
+// Pop all items associated to owner, even if not yet effective, and delete queue.
+// May only be called via migrateStake.
+function fast_forward(address owner) external whenPaused returns UpdateItem[];
 ````
 
 #### Events
@@ -285,10 +270,6 @@ event UpdateEnqueued {
     uint8 height;
 }
 ```
-
-#### Tests
-
-TODO
 
 ## Rationale
 
@@ -337,18 +318,13 @@ TODO
 
 * *Reward sharing.* For the advance signalling function of an exit queue to work, nodes must be incentivised to continue operating while they are in the queue. Hence, they must be able to continue participating in reward sharing (and penalties) using their previous participation metadata while waiting. Accordingly, they must participate in all the activities that qualify them for reward sharing, i.e. reserve consensus and storage and density proofs.
 
-* *Freezing.* If a node gets frozen while waiting to withdraw funds, what happens?
+* *Freezing.* Under the current system, frozen nodes are not allowed to mutate stake records. The effect of this is that if a frozen node decides they wish to update their stake record, they must wait until the freeze ends, execute the update, *and wait another 2 rounds* to participate again. In other words, as well as blocking participation, freeze penalties delay executing changes to the stake record. This behaviour appears to be undocumented (cf. https://docs.ethswarm.org/docs/concepts/incentives/redistribution-game#penalties), and it's not clear if it's important.
 
-  * If withdrawal is allowed even if the stake is frozen at the end of the wait period, the penalty implied by freezing is effectively reduced gradually as the period nears its end.
-  * If, on the other hand, frozen nodes cannot actually withdraw funds until the freeze period is ended, the freeze penalty has the effect of restricting access to capital. The fact that a withdrawal was attempted suggests that the value of being able to deploy that capital has recently become greater than the potential revenue, which is value of the freezing penalty under normal circumstances. Therefore it is not disproportionate for freezing to prevent withdrawal of funds if the freezing period would overlap the end of the `DRAWDOWN_DELAY` period.
-  * Currently, frozen nodes are allowed to make deposits. Under the proposed queue system, funds are deposited at the time a deposit request is entered, but only registered for the purposes of redistribution after the delay `BASE_UPDATE_DELAY`. This only matters if the node participates, which it cannot if frozen. So the choice in this case is irrelevant.
-  * If being frozen prevents or delays a node from executing an AoR change at the end of a period, it becomes harder to forecast node movements from queue state (because getting frozen screws that up). But that's the case with freezing anyway. Also, a frozen node cannot participate so its AoR is irrelevant.
-
-  We therefore suggest that freezing be allowed to prevent the withdrawal of funds. All other changes have effect only during participation, which is anyway prevented during freezing.
-
-  Can frozen nodes put in new update requests? I don't see why not.
-
-* *Pausing.* When the Staking contract is paused, `migrateStake` is allowed and `manageStake` is not. Pausing the staking contract has no effect on participation in redistribution. The intention of this construction is to allow stake to move to a new version of the stake registry, so we see no reason to make `migrateStake` calls go via the queue. Instead, they should immediately clear and delete the queue, making sure to process all updates to liabilities in the form of `potentialStake`, and process the withdrawal.
+  This SWIP does not propose to change this behaviour, but we note that its effects are exacerbated by introducing longer record update delays. A node operator who decides while frozen to update their stake record must wait the update delay sequentially after the freeze period. On the other hand, if an update is enqueued and *then* the node gets frozen, the freeze period and the update delay run concurrently. 
+  
+  Applying pending updates is purely a gas economisation measure, and does not affect any values that can be read from the contract. Therefore frozen node should not be prevented from calling `applyUpdates`.
+  
+* *Pausing.* When the Staking contract is paused, `migrateStake` is allowed and `manageStake` is not. Pausing the staking contract has no effect on participation in redistribution. The intention of this construction is to allow stake to move to a new version of the stake registry, so we see no reason to make `migrateStake` calls go via the queue. Instead, they should immediately fast forward and delete the queue, making sure to process all updates to liabilities in the form of `potentialStake` including those that are not yet effective, then process the withdrawal.
 
 ### Concurrency
 
@@ -407,3 +383,329 @@ The main effect, which is intended, is to slow down interactions with the stake 
 
   Changes to the way that balancing and node count are tracked could have implications for how the price oracle is adjusted, which would interact with variants of this proposal that use the queue to pre-empt price changes.
 
+## Testing strategy
+
+*Note: this section was written by Claude Opus 4.5 with minor revisions by the author.*
+
+This section defines the testing strategy for validating a correct implementation of this SWIP.
+
+### Testing Philosophy
+
+#### Guiding Principles
+
+- **Isolation**: Each component (UpdateQueue, StakeRegistry modifications, Redistribution modifications) should be testable independently
+- **State machine verification**: The queue system introduces new state transitions that must be verified exhaustively
+- **Delay correctness**: Core invariant is that updates are never applied before their `effectiveFromRound`
+- **Backwards compatibility**: Getters must return correct values whether or not `applyUpdates` has been called
+- **Security boundaries**: Only StakeRegistry should be able to mutate UpdateQueue state
+
+#### Test Framework
+
+Tests should use the existing storage-incentives test infrastructure:
+- **Framework**: Hardhat + Mocha + Chai (TypeScript)
+- **Fixtures**: `hardhat-deploy` fixtures for fresh contract deployments
+- **Utilities**: Existing `test/util/tools.ts` helpers for block mining, token operations
+- **Named accounts**: `node_0` through `node_7` for multi-staker scenarios
+
+---
+
+### Test Categories and Coverage Matrix
+
+| Category                          | UpdateQueue | StakeRegistry | Redistribution | Integration |
+| --------------------------------- | ----------- | ------------- | -------------- | ----------- |
+| Unit tests                        | ✓           | ✓             | ✓              | -           |
+| State transitions                 | ✓           | ✓             | -              | -           |
+| Access control                    | ✓           | ✓             | -              | -           |
+| Delay enforcement                 | ✓           | ✓             | -              | ✓           |
+| Event emission                    | ✓           | ✓             | -              | -           |
+| View function correctness         | -           | ✓             | ✓              | ✓           |
+| Error conditions                  | ✓           | ✓             | ✓              | -           |
+| Multi-round scenarios             | -           | -             | -              | ✓           |
+| Concurrency (queued updates) TODO | ✓           | ✓             | -              | ✓           |
+
+---
+
+### UpdateQueue Contract Tests
+
+#### Core Queue Operations
+
+```
+describe('UpdateQueue', function () {
+  describe('queue structure', function () {
+    - should initialize with empty queue for any address
+    - should maintain FIFO order when multiple updates enqueued
+    - should track effectiveFromRound correctly for each item
+    - should enforce UPDATE_QUEUE_MAX_LENGTH (10 items per owner)
+    - should revert when queue length exceeded
+  })
+
+  describe('put operation', function () {
+    - should only allow StakeRegistry to call put()
+    - should revert if called by non-StakeRegistry address
+    - should calculate effectiveFromRound as max(currentRound + delay, lastItem.effectiveFromRound)
+    - should emit UpdateEnqueued event with correct parameters
+    - should accept delay of 0 (becomes current round)
+    - should handle first item in queue (no predecessor)
+  })
+
+  describe('get operation', function () {
+    - should only allow StakeRegistry to call get()
+    - should revert with NoPendingUpdates if queue is empty
+    - should revert with NoPendingUpdates if no items have effectiveFromRound <= currentRound
+    - should return and remove the oldest pending update
+    - should not return items where effectiveFromRound > currentRound
+    - should correctly handle partial queue (some items pending, some not)
+  })
+
+  describe('fast forward operation', function () {
+    - should revert if called by non-StakeRegistry address
+    - should return all queued items for owner, including ones not yet effective
+  })
+
+  describe('effectiveFromRound calculation', function () {
+    - should use currentRound + delay when queue is empty
+    - should use predecessor's effectiveFromRound when it's larger than currentRound + delay
+    - should chain delays: item2.effectiveFrom >= item1.effectiveFrom regardless of delay
+  })
+})
+```
+
+#### Edge Cases
+
+```
+describe('UpdateQueue edge cases', function () {
+  - should handle round boundary transitions correctly
+  - should handle updates enqueued in same block
+  - should handle maximum queue length exactly (10 items)
+  - should handle updates becoming pending during the same transaction
+})
+```
+
+---
+
+### StakeRegistry Modification Tests
+
+#### Delay Classification (`minimumUpdateDelay`)
+
+```
+describe('minimumUpdateDelay', function () {
+  describe('BaseDelay classification', function () {
+    - should return BASE_UPDATE_DELAY for trivial update (same nonce, same height, 0 amount)
+    - should return BASE_UPDATE_DELAY for height increase
+    - should return BASE_UPDATE_DELAY for deposit-only (same nonce, same height, amount > 0)
+    - should return BASE_UPDATE_DELAY for any mixture of the above
+  })
+
+  describe('CapacityReductionDelay classification', function () {
+    - should return CAPACITY_REDUCTION_DELAY when new height < old height
+    - should prioritize CapacityReduction over other delay types
+    - should apply CapacityReduction even when overlay also changes
+  })
+
+  describe('TransferDelay classification', function () {
+    - should return OVERLAY_CHANGE_DELAY when overlay changes (different nonce)
+    - should apply TransferDelay when overlay changes with height increase
+    - should not apply TransferDelay for first stake (no previous overlay)
+  })
+})
+```
+
+#### `manageStake` Semantics Changes
+
+```
+describe('manageStake with queue', function () {
+  describe('enqueueing behavior', function () {
+    - should make no change to stakes table
+    - should push update to UpdateQueue with correct delay
+    - should not modify frozenUntil on manageStake calls
+    - should transfer tokens immediately (liability recorded)
+    - should not emit StakeUpdated event (delegated to queue)
+    - should not emit OverlayChanged event (delegated to queue)
+  })
+
+  describe('token handling', function () {
+    - should transfer tokens on enqueue for adding stake, not on apply
+    - should correctly track liabilities across enqueued deposits
+    - should handle multiple deposits in queue
+  })
+
+  describe('FIFO enforcement', function () {
+    - if height decrease queued, then deposit queued, deposit waits for height decrease
+    - short delay operations cannot leapfrog long delay operations
+    - effectiveFromRound of item N+1 >= effectiveFromRound of item N
+  })
+})
+```
+
+#### View Functions (Lazy Evaluation)
+
+```
+describe('view functions with pending updates', function () {
+  describe('nodeEffectiveStake', function () {
+    - should apply pending updates in-memory before returning
+    - should return frozen-aware value (0 if frozen)
+    - should handle multiple pending updates
+  })
+
+  describe('overlayOfAddress', function () {
+    - should return current overlay if no pending updates
+    - should return updated overlay if update is pending and effective
+    - should return old overlay if update is not yet effective
+  })
+
+  describe('heightOfAddress', function () {
+    - should apply pending updates in-memory
+    - should return old height if pending update not yet effective
+  })
+
+  describe('stakes(address)', function () {
+    - should return struct with pending updates applied
+    - should handle first deposit gracefully (return null values for 2 rounds)
+  })
+})
+```
+
+#### `applyUpdates` Function
+
+```
+describe('applyUpdates', function () {
+  - should pop and apply all pending updates to storage
+  - should stop when NoPendingUpdates is raised
+  - should be callable by anyone (permissionless)
+  - should handle empty queue gracefully
+  - should correctly update stakes mapping
+  - should leave no pending items on queue
+  - should be idempotent if called twice within same round
+})
+```
+
+#### `frozenUntil` Renaming and repurposing
+
+```
+describe('frozenUntil (renamed from lastUpdatedBlockNumber)', function () {
+  - should not be modified by manageStake
+  - addressNotFrozen should be equivalent to frozenuntil <= currentRound
+})
+```
+
+#### `migrateStake` with Queue
+
+```
+describe('migrateStake with queue', function () {
+  - should return all tokens (potentialStake + enqueued deposits, including those not yet in effect)
+  - should only work when paused
+})
+```
+
+---
+
+### Redistribution Contract Tests
+
+#### Removal of MustStake2Rounds Check
+
+```
+describe('commit without MustStake2Rounds', function () {
+  - should allow commit with old metadata immediately after update to existing stake
+  - should not allow commit immediately after first deposit, only after BASE_UPDATE_DELAY rounds
+  - should not allow commit during a freeze penalty
+})
+```
+
+---
+
+### Integration Tests
+
+#### Full Round Participation with Queue
+
+```
+describe('integration: round participation with queue', function () {
+  - node stakes, waits BASE_UPDATE_DELAY rounds, can participate
+  - node stakes, immediately tries commit, uses old metadata (none initially)
+  - node updates height down, continues participating with old height during delay
+  - node changes overlay, continues participating with old overlay during delay
+  - node updates, waits, and triggers applyUpdates before commit, uses new metadata
+  - node updates, waits, but does not trigger applyUpdates before commit, uses new metadata
+})
+```
+
+#### Multi-Update Scenarios
+
+```
+describe('integration: multiple updates', function () {
+  - deposit, then deposit again: both applied in order
+  - deposit, then change overlay: overlay change waits for deposit
+  - height reduction queued, then deposit: deposit waits for height reduction
+  - 10 updates queued: all applied correctly in order
+  - 11th update: should revert with queue full error
+})
+```
+
+---
+
+### Security-Focused Tests
+
+```
+describe('security', function () {
+  describe('shadow stake prevention', function () {
+    - cannot use newly deposited stake in same round (BASE_UPDATE_DELAY)
+    - cannot change overlay mid-round and participate with new overlay
+  })
+
+  describe('access control', function () {
+    - UpdateQueue.put only callable by StakeRegistry
+    - UpdateQueue.get only callable by StakeRegistry
+    - UpdateQueue.clear only callable when paused
+    - multiple stake registries cannot call into same UpdateQueue deployment
+  })
+
+  describe('denial of service', function () {
+    - queue max length prevents unbounded iteration
+    - applyUpdates completes in bounded gas
+  })
+})
+```
+
+Note. Reentrancy is not a concern for this proposal, none of whose methods call into an untrusted contract.
+
+
+---
+
+### Event Tests
+
+```
+describe('events', function () {
+  describe('UpdateEnqueued', function () {
+    - should emit on manageStake with correct effectiveFromRound
+    - should include post-update balance, overlay, height
+  })
+
+  describe('removed events', function () {
+    - StakeUpdated should not be emitted from StakeRegistry on manageStake
+    - OverlayChanged should not be emitted from StakeRegistry on manageStake
+  })
+})
+```
+
+---
+
+### Test Data Requirements
+
+#### Pre-computed values needed
+
+- Overlays for multiple nonces (as in existing tests)
+- Round numbers for delay calculations
+
+#### Test fixtures
+
+- Multiple stakers (`node_0` through `node_7` available)
+- `TestToken` with mint capability
+- Deployed `UpdateQueue`, `StakeRegistry`, `Redistribution`
+
+#### Constants
+
+```typescript
+const ROUND_LENGTH = 152;
+const BASE_UPDATE_DELAY = 2;  // rounds
+const UPDATE_QUEUE_MAX_LENGTH = 10;
+// CAPACITY_REDUCTION_DELAY and OVERLAY_CHANGE_DELAY TBD in separate SWIP
+```
