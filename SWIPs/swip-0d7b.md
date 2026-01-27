@@ -13,30 +13,116 @@ created: 2024-08-07
 
 ## Abstract
 
-Make stake fully and ==instantly== withdrawable except while frozen or while participating in a round.
+Return the stake record data model to a single variable system in which a node's share of redistribution is proportional to the number of tokens deposited. Make stake fully withdrawable except while frozen or while participating in a round.
+
+## Motivation
+
+* Swarm's staking model does not generally allow withdrawal of stake, except during smart contract migrations. 
+* There is an intricate notion of "excess stake" that can be withdrawn, after [SWIP-20](https://github.com/ethersphere/SWIPs/blob/master/SWIPs/swip-20.md) "improved staking." This concept substantially complicates the codebase — 1/3 of the tests for the stake registry are testing this function — 
+* The fact that Swarm stakers generally cannot recover their principal except via revenue makes staking a risky prospect, akin to a small venture investment. It's likely that only larger operators will be prepared to take such risks, exacerbating inequality among noder operators. Conversely, the current capacity of the investment is likely too small to attract the interest of sophisticated operators.
+* It also goes against the common understanding of what "stake" is.
+* Making stake recoverable actually gives the system more leverage over node operators to behave well, potentially enhancing system service quality — the system can threaten penalties over the principal, instead of only over future revenue.
 
 ## Specification
 
-* Introduce a new function `exit()` which withdraws the full stake balance as long as the address is not frozen, and clears the state.
+Instead of using one field (`potentialStake`) to track a liability to the owner and a second, computed field (`committedStake`) to define the owner's equity in the redistribution game, return to a single field that fulfils both roles. In other words, a staker's stake balance is exactly their equity in redistribution. Revert SWIP-20. 
 
-* The functionality of `exit()` should be identical to calling `withdrawFromStake(amount)` with `amount` equal to the full stake balance, that is, the return value of `stakes()[msg.sender]`.
+A node's "effective stake," as defined by the return value of the public function `nodeEffectiveStake`, is either its stake balance, or zero if the node is frozen.
 
-* The `withdrawFromStake` method gets a new parameter `uint256 amount` which is the amount to withdraw. The conditionals should be changed to the following:
+The stake registry gets two new workflows:
 
-  ```solidity
-  if (addressNotFrozen(msg.sender) && !findCommit(msg.sender)) {
-      // begin lock
-      stakes[msg.sender] -= amount
-      if !ERC20(bzzToken).transfer(msg.sender, amount)
-          revert TransferFailed()
-      // end lock
-      emit StakeWithdrawn(msg.sender, amount);
-  }
-  ```
+* Draw down stake — withdraw some tokens, but remain in the stake table with the same overlay and height commitments.
+* Exit stake — withdraw position completely and clear the stake record.
 
-  Here `findCommit(owner)` is a function that finds a commit owned by `owner` in the `currentCommits` array in the Redistribution contract. It is similar to the internal method `findCommit(bytes32 _overlay, bytes32 _obfuscatedHash) internal view returns (uint256)`. For this function to be implementable, the stake registry would need a reference to the redistribution contract, which it currently does not have.
+One old workflow is eliminated:
 
-* Discontinue maintenance of the `CommittedStake` field of the stake registry. Stake weights are again provided by raw BZZ values.
+* Withdraw "excess" stake — implemented by the function `withdrawFromStake()`, which no longer needs to exist.
+
+### Interface
+
+The stake record data model is modified as follows:
+
+```solidity
+/* OLD
+
+    struct Stake {
+        // ...
+        uint256 committedStake;
+        uint256 potentialStake;
+        // ...
+    }
+
+*/ 
+
+// NEW 
+
+    struct Stake {
+        // ...
+        uint256 balance;
+        // ...
+    }
+```
+
+Correspondingly, all methods and event schemata that reference those fields are modified:
+
+```solidity
+/* OLD
+
+    event StakeUpdated(
+        // ...
+        uint256 committedStake,
+        uint256 potentialStake,
+        // ...
+    );
+    
+*/ 
+
+// NEW 
+
+    event StakeUpdated(
+        // ...
+        uint256 balance,
+        // ...
+    );
+```
+
+The following new methods are added:
+
+```solidity
+// Withdraw `amount` from stake position of `msg.sender`.
+// Atomically reduce `balance` and transfer tokens in the same amount.
+// Raise error if this would reduce balance below minimum stake.
+// SWIP-41: place withdrawal request on update queue, but do not update records or transfer tokens
+function withdraw(uint256 amount) public;
+
+// Delete stake record of `msg.sender` from table and return all tokens.
+// Atomically reduce `balance` to zero and transfer `balance` tokens to sender.
+// SWIP-41: place exit request on update queue, but do not update records or transfer tokens
+function exit() public;
+```
+
+The following public methods and errors are removed completely:
+
+```solidity
+function withdrawFromStake() external;
+function withdrawableStake() public view returns (uint256);
+
+error DecreasedCommitment();
+```
+
+### Semantics
+
+The semantics of the following methods are impacted:
+
+```solidity
+function manageStake(bytes32 _setNonce, uint256 _addAmount, uint8 _height) external;
+function nodeEffectiveStake(address _owner) public view returns (uint256);
+```
+
+as follows:
+
+* `manageStake` — straightforward elimination of logic computing `committedStake`. Compute updated balance, write updated balance to stake record, and emit an event. The computation in [lines 141–149](https://github.com/ethersphere/storage-incentives/blob/v0.9.4/src/Staking.sol#L141C45-L149C55), including the branch that raises `DecreasedCommitment` error, is removed. The `DecreasedCommitment` error type is not used, and can be removed. 
+* `nodeEffectiveStake(address _owner)` — simply returns the owner's `balance`, or zero if frozen.
 
 ## Rationale
 
