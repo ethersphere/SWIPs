@@ -1,5 +1,6 @@
 ```yaml
 ---
+SWIP: 40
 title: Withdrawable stake
 author: Andrew Macpherson (@awmacpherson)
 discussions-to: https://discord.gg/Q6BvSkCv (Swarm Discord)
