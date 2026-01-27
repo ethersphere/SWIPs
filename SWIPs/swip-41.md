@@ -52,8 +52,6 @@ Requests to update registered information (committed stake, height, and overlay 
 
 The 2-round participation freeze currently imposed on stakers who update their stake data is removed and replaced with a 2 round delay managed by the queue introduced here. 
 
-The previously overloaded stake field `lastUpdatedBlockNumber` is now only responsible for freezing. We rename some endpoints and ABI elements to reflect this change, and hand responsibility for checking frozen state entirely over to the stake registry.
-
 ### Architecture
 
 The proposal calls for the deployment of a new UpdateQueue contract that manages a queue of calls to setter methods in the Stake Registry. The Stake Registry maintains a reference to the UpdateQueue contract so that it can push requests to and pop from the queue. No other contracts or entities need to access the UpdateQueue contract directly. 
@@ -62,9 +60,9 @@ The proposal calls for the deployment of a new UpdateQueue contract that manages
 
 #### Queue parameters
 
-| Name                      | Value  | Description                                                  |
-| ------------------------- | ------ | ------------------------------------------------------------ |
-| `UPDATE_QUEUE_MAX_LENGTH` | `10`   | Maximum number of pending request items per owner.           |
+| Name                      | Value | Description                                         |
+| ------------------------- | ----- | --------------------------------------------------- |
+| `UPDATE_QUEUE_MAX_LENGTH` | `10`  | Maximum number of enqueued request items per owner. |
 
 Embedded in the update queue at deployment time.
 
@@ -105,18 +103,6 @@ function minimumUpdateDelay(address _owner, bytes32 _setNonce, uint256 _addAmoun
 }
 ```
 
-Since under this proposal, the field `lastUpdatedBlockNumber` is only used to check freezing status and whether the stake has ever been touched, we recommend the field is to be renamed to `frozenUntil`. This affects the ABI for the `stakes()` endpoint. 
-
-Its getter function is also renamed, and the `addressNotFrozen` endpoint is made public so that the stake registry takes responsibility for the definition of "frozen" status.
-
-```solidity
-// function lastUpdatedBlockNumberOfAddress(address _owner) public view returns (uint256);
-function frozenUntil(address _owner) public view returns (uint256);
-
-// function addressNotFrozen(address _owner) internal view returns (bool);
-function addressNotFrozen(address _owner) public view returns (bool);
-```
-
 A new enum `DelayType` is introduced to semantically classify operations in terms of the commitment change they induce.
 
 The constructor method gets a new parameter where a mapping of delay types to delay lengths is embedded.
@@ -143,7 +129,7 @@ The function served by the events `StakeUpdated` and `OverlayChanged` are taken 
 
 The semantics of the newly introduced methods are as follows:
 
-* `applyUpdates` — iteratively get updates from the sender's update queue until `noPendingUpdate` error is raised. Apply updates to stake table.
+* `applyUpdates` — iteratively get updates from the sender's update queue until `noEffectiveUpdate` error is raised. Apply updates to stake table.
 
 * `minimumUpdateDelay` — classifies updates into delay types. Updates are classified as follows:
 
@@ -173,7 +159,7 @@ function migrateStake() external whenPaused;
 
 As follows:
 
-+ `manageStake` — does not write to the `stakes` table. Instead, the change to be applied is recorded in an `Update` object, a suitable `DelayType` is selected, and the data are pushed to the update queue. Because this proposal replaces the 2-round freeze after updates to stake metadata with a delay managed by the queue, the field `frozenUntil` (formerly `lastUpdatedBlockNumber` — see above) is not modified on calls to `manageStake`. This logic replaces lines 152–158 (https://github.com/ethersphere/storage-incentives/blob/v0.9.4/src/Staking.sol#L152C1-L158C12).
++ `manageStake` — does not write to the `stakes` table. Instead, the change to be applied is recorded in an `Update` object, a suitable `DelayType` is selected, and the data are pushed to the update queue. Because this proposal replaces the 2-round freeze after updates to stake metadata with a delay managed by the queue, the field `lastUpdatedBlockNumber` is not modified on calls to `manageStake`. This logic replaces lines 152–158 (https://github.com/ethersphere/storage-incentives/blob/v0.9.4/src/Staking.sol#L152C1-L158C12).
 
   Event emission responsibilities are delegated to the `UpdateQueue`, so the top-level logic of this call does not emit any events. Lines [163–170](https://github.com/ethersphere/storage-incentives/blob/v0.9.4/src/Staking.sol#L163C4-L170C15) and [174–176](https://github.com/ethersphere/storage-incentives/blob/v0.9.4/src/Staking.sol#L174C1-L176C1) are removed.
 
@@ -181,7 +167,7 @@ As follows:
 
 + `migrateStake()` — SHOULD clean up the update queue as well as deleting the stake registry entry.
 
-The semantics of getter methods of `StakeRegistry` that read from the stake table, other than the `frozenUntil` (formerly `lastUpdatedBlockNumber`) field, are affected. There are five such methods:
+The semantics of getter methods of `StakeRegistry` that read from the stake table, other than `lastUpdatedBlockNumberOfAddress`, are affected. There are five such methods:
 
 ```solidity
 function nodeEffectiveStake(address _owner) public view returns (uint256);
@@ -209,13 +195,9 @@ Since the 2 round cool-off after a call to `manageStake` has been replaced with 
 
 (see https://github.com/ethersphere/storage-incentives/blob/v0.9.4/src/Redistribution.sol#L303). 
 
-Instead, it must be replaced with a check that the owner is not currently frozen.
+Since `nodeEffectiveStake` is zero for a frozen node, frozen nodes cannot participate even when this check is removed. Nonetheless, the implementer MAY wish to add a freeze status check to `commit()` so that participation fails early for a frozen node, saving on computation.
 
 Since this is the only use of the `MustStake2Rounds` error, this error type can be removed.
-
-#### Implementation notes
-
-The frozen check is semantically equivalent to `StakeRegistry.stakes[owner].frozenUntil >= block.number / ROUND_LENGTH`. Since the stake registry is responsible for tracking this value, it makes sense for it to also take responsibility for this check via a call to the `addressNotFrozen()` endpoint instead of repeating the predicate in the redistribution contract. 
 
 ### UpdateQueue
 
@@ -223,7 +205,7 @@ The frozen check is semantically equivalent to `StakeRegistry.stakes[owner].froz
 
 The contract owns a mapping of owner addresses to FIFO queue objects. Each queue object exposes a simple put/get queue interface for enqueuing opaque `Update` structs, each of which encodes a mutation to the owner's stake record. The put and get operations MUST be permissioned to the stake registry. The queue itself MAY be publicly readable, if it facilitates the signalling function that motivates its introduction. It MUST at least be readable by the stake registry, which needs to be able to make in-memory copies for evaluating `view` functions.
 
-When an update is added to the queue along with a specified delay, a round number `effectiveFromRound` is calculated and recorded along with it. This number is either the current round plus the delay, or the `effectiveFromRound` of the last item in the queue, whichever is larger. When the current round is at least `effectiveFromRound`, the update item is said to be in *pending* state. The queue will only return updates in pending state; if none are found, it raises an exception.
+When an update is added to the queue along with a specified delay, a round number `effectiveFromRound` is calculated and recorded along with it. This number is either the current round plus the delay, or the `effectiveFromRound` of the last item in the queue, whichever is larger. When the current round is at least `effectiveFromRound`, the update item is said to be in *effective* state. The queue will only return updates in effective state; if none are found, it raises an exception.
 
 #### Interface
 
@@ -248,14 +230,18 @@ struct Update {
 // Emit UpdateEnqueued event.
 function put(address owner, Update update, uint64 delay) external;
 
-// Pop an update from the queue if any valid calls are pending
-// otherwise throw NoPendingUpdates error   
+// Pop an effective update from the queue
+// or throw NoEffectiveUpdates error   
 // Only StakeRegistry may call.
 function get(address owner) external returns Update;
 
 // Pop all items associated to owner, even if not yet effective, and delete queue.
 // May only be called via migrateStake.
-function fast_forward(address owner) external whenPaused returns UpdateItem[];
+function fastForward(address owner) external whenPaused returns UpdateItem[];
+
+// Create and return an in-memory copy of the list of effective updates
+// for applying changes in view functions.
+function cloneEffective(address owner) external returns Update[];
 ````
 
 #### Events
@@ -293,7 +279,7 @@ event UpdateEnqueued {
 
 * *Liability tracking.* The proposed changes mean that the `potentialStake` recorded under a given `owner` in the Stake Registry does not always equal the total amount of BZZ deposited by that owner (net of surplus withdrawals). Rather, the records of liabilities of the Stake Registry to a given owner are split between the Registry itself and the Update Queue. Since these records control what can be withdrawn by calling the `withdrawFromStake` and `migrateStake` methods, these processes must either block on not-yet-active updates, or fast track and apply them.
 
-* *Manual queue triggering.* To preserve the getter interface of the `StakeRegistry` and make minimal changes to `Redistribution`, getter methods do not actually apply pending updates in place. However, the contract still needs a way to apply updates in place, or the queue will grow without bound, hence the `applyUpdates` endpoint. It is expected that clients will trigger `applyUpdates` regularly, either immediately after a new update comes into effect or before calling `Redistribution.commit()` during the next round that the overlay comes into proximity.
+* *Manual queue triggering.* To preserve the getter interface of the `StakeRegistry` and make minimal changes to `Redistribution`, getter methods do not actually apply effective updates in place. However, the contract still needs a way to apply updates in place, or the queue will grow without bound, hence the `applyUpdates` endpoint. It is expected that clients will trigger `applyUpdates` regularly, either immediately after a new update comes into effect or before calling `Redistribution.commit()` during the next round that the overlay comes into proximity.
 
 * *Update classification.* To apply different delays to different updates, updates need to be classified into types to be processed by the queueing system. Currently, the logic of `manageStake` implicitly classifies updates by the four non-reverting branches it takes, according to the independent predicates `(_addAmount > 0)` or `(_previousOverlay != _newOverlay)`. In the interests of allowing `UpdateQueue` to concern itself exclusively with queueing semantics, and not with staking, we propose that the responsibility of semantic classification of updates remain with `manageStake`, while `UpdateQueue` deals with sizes of updates.
 
@@ -306,7 +292,7 @@ event UpdateEnqueued {
 
   The matter of encoding is relevant from an interface perspective because the queue needs to emit events for each update. Therefore TODO: we need to make a call on this. The "future-proof" model seems over-engineered.
 
-### Effect of pending status on other components
+### Effect of waiting status on other components
 
 * *Price oracle.* For the purposes of adjusting storage prices, the reveal counter could discount nodes currently waiting to exit a neighbourhood. The basic reason to do this is to allow prices to pre-emptively respond to an upcoming decrease in supply, and hence mean replication rate. However, there are quite a lot of questions about on what principles the design of this feature should be based and how it should be implemented.
 
@@ -322,7 +308,7 @@ event UpdateEnqueued {
 
   This SWIP does not propose to change this behaviour, but we note that its effects are exacerbated by introducing longer record update delays. A node operator who decides while frozen to update their stake record must wait the update delay sequentially after the freeze period. On the other hand, if an update is enqueued and *then* the node gets frozen, the freeze period and the update delay run concurrently. 
   
-  Applying pending updates is purely a gas economisation measure, and does not affect any values that can be read from the contract. Therefore frozen node should not be prevented from calling `applyUpdates`.
+  Applying effective updates in state is purely a gas management measure, and does not affect any values that can be read from the contract. Therefore frozen nodes should not be prevented from calling `applyUpdates`.
   
 * *Pausing.* When the Staking contract is paused, `migrateStake` is allowed and `manageStake` is not. Pausing the staking contract has no effect on participation in redistribution. The intention of this construction is to allow stake to move to a new version of the stake registry, so we see no reason to make `migrateStake` calls go via the queue. Instead, they should immediately fast forward and delete the queue, making sure to process all updates to liabilities in the form of `potentialStake` including those that are not yet effective, then process the withdrawal.
 
@@ -450,11 +436,11 @@ describe('UpdateQueue', function () {
 
   describe('get operation', function () {
     - should only allow StakeRegistry to call get()
-    - should revert with NoPendingUpdates if queue is empty
-    - should revert with NoPendingUpdates if no items have effectiveFromRound <= currentRound
-    - should return and remove the oldest pending update
+    - should revert with NoEffectiveUpdates if queue is empty
+    - should revert with NoEffectiveUpdates if no items have effectiveFromRound <= currentRound
+    - should return and remove the oldest effective update
     - should not return items where effectiveFromRound > currentRound
-    - should correctly handle partial queue (some items pending, some not)
+    - should correctly handle partial queue (some items effective, some not)
   })
 
   describe('fast forward operation', function () {
@@ -477,7 +463,7 @@ describe('UpdateQueue edge cases', function () {
   - should handle round boundary transitions correctly
   - should handle updates enqueued in same block
   - should handle maximum queue length exactly (10 items)
-  - should handle updates becoming pending during the same transaction
+  - should handle multiple updates becoming effective during the same transaction
 })
 ```
 
@@ -517,7 +503,6 @@ describe('manageStake with queue', function () {
   describe('enqueueing behavior', function () {
     - should make no change to stakes table
     - should push update to UpdateQueue with correct delay
-    - should not modify frozenUntil on manageStake calls
     - should transfer tokens immediately (liability recorded)
     - should not emit StakeUpdated event (delegated to queue)
     - should not emit OverlayChanged event (delegated to queue)
@@ -540,26 +525,26 @@ describe('manageStake with queue', function () {
 #### View Functions (Lazy Evaluation)
 
 ```
-describe('view functions with pending updates', function () {
+describe('view functions with effective updates', function () {
   describe('nodeEffectiveStake', function () {
-    - should apply pending updates in-memory before returning
+    - should apply effective updates in-memory before returning
     - should return frozen-aware value (0 if frozen)
-    - should handle multiple pending updates
+    - should handle multiple effective updates
   })
 
   describe('overlayOfAddress', function () {
-    - should return current overlay if no pending updates
-    - should return updated overlay if update is pending and effective
+    - should return current overlay if no effective updates
+    - should return updated overlay if update is effective
     - should return old overlay if update is not yet effective
   })
 
   describe('heightOfAddress', function () {
-    - should apply pending updates in-memory
-    - should return old height if pending update not yet effective
+    - should apply effective updates in-memory
+    - should return old height if waiting update not yet effective
   })
 
   describe('stakes(address)', function () {
-    - should return struct with pending updates applied
+    - should return struct with effective updates applied
     - should handle first deposit gracefully (return null values for 2 rounds)
   })
 })
@@ -569,22 +554,13 @@ describe('view functions with pending updates', function () {
 
 ```
 describe('applyUpdates', function () {
-  - should pop and apply all pending updates to storage
-  - should stop when NoPendingUpdates is raised
+  - should pop and apply all effective updates to storage
+  - should stop when NoEffectiveUpdates is raised
   - should be callable by anyone (permissionless)
   - should handle empty queue gracefully
   - should correctly update stakes mapping
-  - should leave no pending items on queue
+  - should leave no effective items on queue
   - should be idempotent if called twice within same round
-})
-```
-
-#### `frozenUntil` Renaming and repurposing
-
-```
-describe('frozenUntil (renamed from lastUpdatedBlockNumber)', function () {
-  - should not be modified by manageStake
-  - addressNotFrozen should be equivalent to frozenuntil <= currentRound
 })
 ```
 
@@ -596,6 +572,16 @@ describe('migrateStake with queue', function () {
   - should only work when paused
 })
 ```
+
+#### Invalidated tests (8)
+
+Of the 34 tests in `Staking.test.ts`;
+
+* 9 are tests for `withdrawFromStake`, which will be replaced under SWIP-40.
+* 17 are unaffected by the changes proposed.
+* Of the remaining 8:
+  * 4 (lines 131, 155, 274, 355) expect a `StakeUpdated` event — these will need to be updated to expect an `UpdateEnqueued` event instead.
+  * 6 (lines 131, 155, 219, 664, 671, 677) check the stake record immediately after a call to `manageStake` — a suitable delay must be inserted.
 
 ---
 
@@ -610,6 +596,25 @@ describe('commit without MustStake2Rounds', function () {
   - should not allow commit during a freeze penalty
 })
 ```
+
+#### Invalidated Tests (5)
+
+The following existing tests are invalidated and should be removed:
+
+| Line | Test                                                         | Reason                                                       |
+| ---- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 253  | should not create a commit with recently staked node         | Expects `MustStake2Rounds` error (removed in SWIP-41)        |
+| 266  | should create a commit with staked node                      | Expects `MustStake2Rounds` error                             |
+| 288  | should create a commit with staked node and height 2         | Expects `MustStake2Rounds` error                             |
+
+The following tests are impacted and should be modified, either by fastforwarding the chain to allow for height change delay, or by splitting each into two separate tests, one at each height.
+
+| Line | Test                                                         | Reason                                                       |
+| ---- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| 513  | should create a commit with failed reveal... but good reveal if height is changed | Calls `manageStake()` mid-test to change height, expects immediate effect |
+| 582  | should create a commit with successful reveal... with height 2 | Calls `manageStake()` then immediately commits expecting new height |
+
+The remaining 44 tests in `Redistribution.test.ts` are unaffected.
 
 ---
 
