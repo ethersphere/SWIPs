@@ -195,6 +195,8 @@ sequenceDiagram
     participant Trie
 
     Client->>Registry: Register(a)
+    Registry-->>Client: ack
+    Client->>Registry: GetPrefix(a)
     Registry-->>Client: prefix
     Client->>Registry: Validate(a,o)
     Registry->>Trie: update(F,E)
