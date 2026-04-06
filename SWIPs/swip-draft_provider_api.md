@@ -637,7 +637,7 @@ A reference implementation exists in [Freedom Browser](https://github.com/solard
 - **Origin normalization:** [`src/shared/origin-utils.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/src/shared/origin-utils.js) — dweb-aware origin extraction
 - **Test page:** [`docs/swarm-provider-test/index.html`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/docs/swarm-provider-test/index.html) — interactive test harness
 
-A reference dApp consuming this API exists in [Swarmit](https://github.com/solardev-xyz/swarmit), a decentralized message board that uses `swarm_requestAccess`, `swarm_publishData`, `swarm_createFeed`, and `swarm_updateFeed` for its full publishing pipeline.
+A reference dApp consuming this API exists in [Swarmit](https://github.com/flotob/swarmit), a decentralized message board that uses `swarm_requestAccess`, `swarm_publishData`, `swarm_createFeed`, and `swarm_updateFeed` for its full publishing pipeline.
 
 ## Copyright
 
