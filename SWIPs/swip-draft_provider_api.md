@@ -51,9 +51,7 @@ if (typeof window.swarm !== 'undefined') {
 
 #### Properties
 
-| Property | Type | Description |
-|---|---|---|
-| `isFreedomBrowser` | `boolean` | **(OPTIONAL, implementation-specific)** Implementations MAY include a boolean property identifying themselves. This is NOT part of the standard interface and MUST NOT be relied upon for feature detection. Use `swarm_getCapabilities` instead. |
+Implementations MAY include additional boolean properties identifying themselves (e.g., `isFreedomBrowser`). These are NOT part of the standard interface and MUST NOT be relied upon for feature detection. Use `swarm_getCapabilities` for capability discovery.
 
 > **Note:** Future versions of this specification may define a standard `isSwarmProvider` property or a capability-based detection mechanism.
 
@@ -72,7 +70,7 @@ The method MUST return a `Promise` that resolves with the method's result, or re
 
 ### Convenience Methods
 
-Implementations SHOULD expose convenience wrappers for each standard method:
+Implementations MUST expose convenience wrappers for each standard method:
 
 ```javascript
 window.swarm.requestAccess()                     // swarm_requestAccess
@@ -84,7 +82,7 @@ window.swarm.createFeed({ name })                 // swarm_createFeed
 window.swarm.updateFeed({ feedId, reference })    // swarm_updateFeed
 ```
 
-These MUST be equivalent to calling `window.swarm.request()` with the corresponding method name.
+Each convenience method MUST be equivalent to calling `window.swarm.request()` with the corresponding method name and parameters.
 
 ### Events
 
@@ -151,7 +149,7 @@ Requests the user's permission to interact with their Swarm node from this origi
 **Errors:** `4001` if the user rejects.
 
 **Behavior:**
-- Calling `swarm_requestAccess` when already connected SHOULD return the existing connection state without re-prompting.
+- Calling `swarm_requestAccess` when already connected MUST return the existing connection state without re-prompting.
 - After a successful `swarm_requestAccess`, the provider MUST emit a `connect` event.
 
 ---
@@ -166,6 +164,7 @@ Returns the current capabilities of the provider for this origin. Does NOT requi
 
 ```javascript
 {
+  specVersion: string,     // Specification version (e.g. "1.0")
   canPublish: boolean,     // true if connected AND node is ready
   reason: string | null,   // null if canPublish is true, otherwise a reason code
   limits: {
@@ -186,6 +185,8 @@ Returns the current capabilities of the provider for this origin. Does NOT requi
 | `"node-not-ready"` | Node is running but not yet synced/ready. |
 | `"no-usable-stamps"` | No postage stamps with remaining capacity. |
 
+**`specVersion`:** The version of this specification that the provider implements. This SWIP defines version `"1.0"`. Implementations SHOULD return this field regardless of whether the origin has called `swarm_requestAccess`. DApps can use this field to detect available features and adapt to different provider versions.
+
 ---
 
 #### `swarm_publishData`
@@ -196,7 +197,7 @@ Upload a single blob of data to Swarm.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `data` | `string \| Uint8Array \| ArrayBuffer` | Yes | The content to upload. |
+| `data` | `string \| Uint8Array \| ArrayBuffer` | Yes | The content to upload. Strings are encoded as UTF-8. |
 | `contentType` | `string` | Yes | MIME type (e.g. `"text/html"`, `"application/json"`). |
 | `name` | `string` | No | Display name for the upload. |
 
@@ -208,6 +209,8 @@ Upload a single blob of data to Swarm.
   bzzUrl: string       // "bzz://<reference>"
 }
 ```
+
+> **Note on `bzz://` URLs:** The `bzz://` URI scheme is a Swarm convention for content-addressed references. It is not an IANA-registered scheme. Implementations resolve `bzz://` URLs through a local Bee gateway or native protocol handler.
 
 **Errors:** `4100` if not connected, `4900` if node unavailable, `-32602` if params invalid or payload exceeds `maxDataBytes`.
 
@@ -286,6 +289,8 @@ Query the upload progress of a previously initiated file upload.
 
 **Security:** Implementations MUST enforce origin-scoped tag ownership. A page MUST NOT be able to query upload status for tags created by a different origin. This prevents cross-origin upload snooping.
 
+**Persistence:** Tag ownership is session-scoped. Upload status for tags created in a previous browser session MAY be unavailable. Implementations are NOT REQUIRED to persist tag ownership across restarts.
+
 ---
 
 #### `swarm_createFeed`
@@ -357,6 +362,8 @@ Update a feed to point at a new content reference.
 ```
 
 **Errors:** `4100` if not connected or feed access not granted, `4900` if node unavailable, `-32602` if params invalid or feed doesn't exist.
+
+**Failure semantics:** Swarm feeds use sequence-based indexing. If the underlying feed write succeeds on the node but the response is lost (e.g., due to a network timeout), retrying `swarm_updateFeed` with the same reference SHOULD be safe — implementations SHOULD detect that the feed already points to the requested reference and return success without writing a duplicate sequence entry.
 
 ---
 
@@ -437,6 +444,50 @@ Feeds involve key material (signing) and have long-term implications (the feed U
 This SWIP introduces a new API surface. There are no backwards compatibility concerns as no prior standard for `window.swarm` exists. Implementations that predate this specification SHOULD migrate to conform to these interfaces.
 
 Web pages that do not use `window.swarm` are unaffected. The provider MUST NOT modify any existing browser APIs or globals.
+
+## Security Considerations
+
+### Origin Trust Model
+
+The provider relies on the host application (browser) to supply the correct origin for each request. If the host misidentifies a page's origin, the entire permission model breaks. Implementations MUST derive the origin from the user-visible URL (address bar), not from `window.location` or any value the page can control. The page context MUST NOT be able to influence its own origin identification.
+
+### Resource Exhaustion
+
+A connected origin could repeatedly publish data up to the size limit, consuming postage stamp capacity and local storage. Implementations SHOULD consider:
+
+- **Rate limiting:** Throttling publish requests per origin per time window.
+- **Stamp monitoring:** Warning the user when stamp capacity is running low due to dApp activity.
+- **Per-origin accounting:** Tracking cumulative usage per origin so users can identify heavy consumers.
+
+This specification does not mandate a specific rate-limiting scheme, as appropriate limits depend on the node's capacity and the user's preferences.
+
+### Iframe and Nested Context Behavior
+
+This specification does not define behavior for `window.swarm` inside iframes or nested browsing contexts. Implementations SHOULD restrict provider availability to the top-level browsing context. If an implementation chooses to expose the provider to iframes, the iframe's origin MUST be evaluated independently — it MUST NOT inherit the parent frame's permissions.
+
+### Feed Key Material
+
+App-scoped feed identities involve derived signing keys. Implementations MUST ensure that:
+
+- Private key material is never exposed to the page context.
+- Key derivation is deterministic (same origin always produces the same key) but not reversible (the page cannot derive the master key from its app-scoped key).
+- Feed signing occurs in a trusted context (main process or secure enclave), never in the renderer or page context.
+
+### Temporary Artifacts
+
+Implementations that create temporary files or directories during upload processing (e.g., for `swarm_publishFiles` manifest construction) MUST clean up these artifacts regardless of whether the upload succeeds or fails.
+
+## Future Extensions
+
+The following capabilities are anticipated for future versions of this specification and are explicitly out of scope for version 1.0:
+
+- **`swarm_listFeeds`** — Enumerate existing feeds for the calling origin. This would allow dApps to discover feeds without maintaining their own registry of feed names.
+- **`capabilitiesChanged` event** — Proactive notification when the provider's capabilities change (e.g., node goes offline, stamps exhausted). Currently dApps must poll `swarm_getCapabilities` to detect state changes.
+- **`preferredIdentityMode` parameter for `swarm_createFeed`** — Allow dApps to express a preference for `app-scoped` or `bee-wallet` identity mode, rather than relying solely on user/implementation choice.
+
+Additionally, the `specVersion` field in `swarm_getCapabilities` is currently a SHOULD. A future revision may promote it to MUST once multiple implementations exist and version negotiation becomes necessary.
+
+Implementations MAY experiment with these features, but they are not part of the 1.0 standard interface and MUST NOT be required for conformance.
 
 ## Test Cases
 
@@ -528,17 +579,65 @@ try {
 }
 ```
 
+### Post-Disconnect Behavior
+
+```javascript
+// After user revokes access, all methods reject with 4100
+// (simulate disconnect via browser UI, then:)
+try {
+  await window.swarm.publishData({ data: 'test', contentType: 'text/plain' });
+  assert.fail('Should have thrown');
+} catch (err) {
+  assert(err.code === 4100); // Unauthorized
+}
+```
+
+### Feed Idempotency
+
+```javascript
+// Creating the same feed twice returns identical metadata
+const feed1 = await window.swarm.createFeed({ name: 'my-blog' });
+const feed2 = await window.swarm.createFeed({ name: 'my-blog' });
+assert(feed1.manifestReference === feed2.manifestReference);
+assert(feed1.owner === feed2.owner);
+assert(feed1.topic === feed2.topic);
+```
+
+### Re-Connection Without Re-Prompt
+
+```javascript
+// Second requestAccess call returns existing state without prompting
+const first = await window.swarm.requestAccess();
+const second = await window.swarm.requestAccess();
+assert(second.connected === true);
+assert(second.origin === first.origin);
+```
+
+### Capabilities Before Connection
+
+```javascript
+// getCapabilities works without prior requestAccess
+const caps = await window.swarm.getCapabilities();
+assert(caps.canPublish === false);
+assert(caps.reason === 'not-connected');
+assert(typeof caps.limits.maxDataBytes === 'number');
+// specVersion is optional (SHOULD) in 1.0
+if (caps.specVersion) assert(typeof caps.specVersion === 'string');
+```
+
 ## Implementation
 
 A reference implementation exists in [Freedom Browser](https://github.com/solardev-xyz/freedom-browser) (PR [#19](https://github.com/solardev-xyz/freedom-browser/pull/19)):
 
-- **Provider injection:** [`src/main/webview-preload.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing/src/main/webview-preload.js) — `window.swarm` object injected into webview page context
-- **Main-process enforcement:** [`src/main/swarm/swarm-provider-ipc.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing/src/main/swarm/swarm-provider-ipc.js) — method dispatch, validation, origin enforcement
-- **Publishing:** [`src/main/swarm/publish-service.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing/src/main/swarm/publish-service.js) — data and file uploads via `bee-js`
-- **Feeds:** [`src/main/swarm/feed-service.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing/src/main/swarm/feed-service.js) — feed creation and updates
-- **Permissions:** [`src/main/swarm/swarm-permissions.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing/src/main/swarm/swarm-permissions.js) — origin-scoped permission store
-- **Origin normalization:** [`src/shared/origin-utils.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing/src/shared/origin-utils.js) — dweb-aware origin extraction
-- **Test page:** [`docs/swarm-provider-test/index.html`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing/docs/swarm-provider-test/index.html) — interactive test harness
+- **Provider injection:** [`src/main/webview-preload.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/src/main/webview-preload.js) — `window.swarm` object injected into webview page context
+- **Main-process enforcement:** [`src/main/swarm/swarm-provider-ipc.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/src/main/swarm/swarm-provider-ipc.js) — method dispatch, validation, origin enforcement
+- **Publishing:** [`src/main/swarm/publish-service.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/src/main/swarm/publish-service.js) — data and file uploads via `bee-js`
+- **Feeds:** [`src/main/swarm/feed-service.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/src/main/swarm/feed-service.js) — feed creation and updates
+- **Permissions:** [`src/main/swarm/swarm-permissions.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/src/main/swarm/swarm-permissions.js) — origin-scoped permission store
+- **Origin normalization:** [`src/shared/origin-utils.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/src/shared/origin-utils.js) — dweb-aware origin extraction
+- **Test page:** [`docs/swarm-provider-test/index.html`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/docs/swarm-provider-test/index.html) — interactive test harness
+
+A reference dApp consuming this API exists in [Swarmit](https://github.com/solardev-xyz/swarmit), a decentralized message board that uses `swarm_requestAccess`, `swarm_publishData`, `swarm_createFeed`, and `swarm_updateFeed` for its full publishing pipeline.
 
 ## Copyright
 
