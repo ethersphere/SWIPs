@@ -120,12 +120,14 @@ The *effective balance* of a stake position is defined to be either zero, if the
 ```python 
 def node_effective_stake(owner: EthAddress) -> int:
     if address_not_frozen(owner):
-        return 0
-    else:
         return state.stakes[owner].balance
+    else:
+        return 0
 ```
 
 *This replaces a behaviour which defined effective stake of an unfrozen node in terms of its committed and potential stake. A helper function `calculateEffectiveStake` is no longer needed and may be removed.*
+
+The methods `slashDeposit` and `migrateStake` reference the existing `potentialStake` field; these are mechanically renamed to `balance` with no change in semantics.
 
 The redistribution contract consumes a stake position via the `nodeEffectiveStake` endpoint, read during a call to `commit()`. The updated semantics of participation are therefore to use the node's registered stake `balance` as a redistribution share.
 
