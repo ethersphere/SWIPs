@@ -67,6 +67,8 @@ event StakeWithdrawn(address node, uint256 amount);
 error DecreasedCommitment();
 ```
 
+The `PriceOracle` contract reference (`OracleContract`) is removed from the staking contract. It was only consumed by the committed stake computation in `manageStake` and by `calculateEffectiveStake`, both of which are removed under this proposal. The constructor parameter `_oracleContract` and the `IPriceOracle` interface import are also removed.
+
 ### Semantics
 
 We describe semantics in terms of the following (Python pseudocode) model of EVM state:
