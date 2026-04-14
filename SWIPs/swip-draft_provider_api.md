@@ -11,11 +11,11 @@ created: 2026-04-03
 
 ## Simple Summary
 
-A standard JavaScript API (`window.swarm`) that enables web pages to request access to a user's Swarm node for publishing data, uploading files, managing mutable feeds, and reading/writing indexed feed entries — with user consent and origin-scoped permissions.
+A standard JavaScript API (`window.swarm`) that enables web pages to request access to a user's Swarm node for publishing data, uploading files, managing mutable feeds, reading/writing indexed feed entries, and introspecting their own feed records — with user consent and origin-scoped permissions.
 
 ## Abstract
 
-This SWIP defines a browser-injected JavaScript provider object (`window.swarm`) that allows web applications to interact with a user's local Swarm (Bee) node. The API follows the request/response pattern established by [EIP-1193](https://eips.ethereum.org/EIPS/eip-1193) for Ethereum providers, adapted for Swarm's publishing and feed primitives. It specifies nine RPC methods covering connection, capability discovery, data/file publishing, upload tracking, mutable feed management, and indexed feed entry read/write. The provider includes a permission model with explicit user consent, origin isolation, and upload size limits.
+This SWIP defines a browser-injected JavaScript provider object (`window.swarm`) that allows web applications to interact with a user's local Swarm (Bee) node. The API follows the request/response pattern established by [EIP-1193](https://eips.ethereum.org/EIPS/eip-1193) for Ethereum providers, adapted for Swarm's publishing and feed primitives. It specifies ten RPC methods covering connection, capability discovery, data/file publishing, upload tracking, mutable feed management, indexed feed entry read/write, and origin-scoped feed introspection. The provider includes a permission model with explicit user consent, origin isolation, and upload size limits. Read-only methods that operate on public Swarm data — including feed entry reads and the calling origin's own feed introspection — do not require a connection grant.
 
 ## Motivation
 
@@ -82,6 +82,7 @@ window.swarm.createFeed({ name })                 // swarm_createFeed
 window.swarm.updateFeed({ feedId, reference })    // swarm_updateFeed
 window.swarm.writeFeedEntry({ name, data })       // swarm_writeFeedEntry
 window.swarm.readFeedEntry({ name, owner })       // swarm_readFeedEntry
+window.swarm.listFeeds()                          // swarm_listFeeds
 ```
 
 Each convenience method MUST be equivalent to calling `window.swarm.request()` with the corresponding method name and parameters.
@@ -423,7 +424,7 @@ This enables the **journal pattern** — an append-only log where each entry is 
 
 #### `swarm_readFeedEntry`
 
-Read a feed entry at a specific index, or read the latest entry. This is a read-only operation that does NOT require feed-level permission — only a basic connection (`swarm_requestAccess`).
+Read a feed entry at a specific index, or read the latest entry. This is a read-only operation on public Swarm data and does NOT require any permission grant — neither connection (`swarm_requestAccess`) nor feed-level. Any web page MAY call it.
 
 **Params:**
 
@@ -461,7 +462,7 @@ const bytes = Uint8Array.from(atob(result.data), c => c.charCodeAt(0))
 const text = new TextDecoder().decode(bytes)
 ```
 
-**Errors:** `4100` if not connected, `4900` if node unreachable, `-32602` if params invalid.
+**Errors:** `4900` if node unreachable, `-32602` if params invalid. Notably does NOT return `4100` — no permission is required to call this method.
 
 Structured error reasons in `data.reason`:
 
@@ -473,10 +474,52 @@ Structured error reasons in `data.reason`:
 
 **Behavior:**
 
-- This method does NOT require feed-level permission — only connection permission (`swarm_requestAccess`). Feeds are public data on Swarm; the connection gate ensures the origin has been approved to use the user's Bee node.
+- This method does NOT require any permission grant. Feeds are public data on Swarm and the same lookup is available from any Bee gateway without auth; gating it would be friction without security benefit. This is symmetric with `swarm_listFeeds`.
 - Pre-flight checks MUST be limited to verifying the Bee node's HTTP API is reachable. Mode checks (ultra-light), readiness checks, and stamp checks MUST NOT be applied — reads work regardless of node mode and do not consume stamps.
 - Implementations MUST distinguish "not found" errors (HTTP 404/500 from the Bee API) from transient errors (network timeouts, internal failures). Transient errors MUST propagate as `-32603` (Internal Error), NOT be misclassified as `feed_empty` or `entry_not_found`.
 - When reading the latest entry (`index` omitted), `nextIndex` indicates the next index available for writing. When reading a specific index, `nextIndex` is `null`.
+
+---
+
+#### `swarm_listFeeds`
+
+Return the calling origin's feed records — every feed previously created via `swarm_createFeed` under the caller's normalized origin.
+
+This is an introspection method scoped to the calling origin. It does NOT require any permission grant — neither connection (`swarm_requestAccess`) nor feed-level. Any web page MAY call it.
+
+**Params:** None. The result is determined entirely by the caller's normalized origin. Implementations SHOULD silently ignore any params supplied; strict rejection buys nothing for an introspection-only method.
+
+**Result:**
+
+```javascript
+[
+  {
+    name: string,                  // Feed name (as passed to swarm_createFeed)
+    topic: string,                 // 64-character hex topic (no 0x prefix)
+    owner: string,                 // Checksummed Ethereum address of the signing key
+    manifestReference: string,     // 64-character hex reference to the feed manifest
+    bzzUrl: string,                // "bzz://<manifestReference>"
+    createdAt: number,             // ms unix timestamp when createFeed was called
+    lastUpdated: number | null,    // ms unix timestamp of last swarm_updateFeed (null otherwise)
+    lastReference: string | null   // last reference written via swarm_updateFeed (null otherwise)
+  },
+  ...
+]
+```
+
+Returns an empty array `[]` for origins with no feeds — including origins that have never granted permission, origins that have granted but not created feeds, and origins whose permission has been revoked.
+
+**Errors:** None expected on the happy path. `-32603` (Internal Error) only on unexpected internal failures (e.g., feed-store read errors).
+
+**Behavior:**
+
+- **Origin scoping is mandatory.** The result MUST contain only feeds created under the calling page's normalized origin. Implementations MUST NOT return feeds created under any other origin.
+- **No permission required**, by design:
+  - Feed coordinates are deterministic given `(origin, name)` — the calling origin can compute the same set itself given the names of feeds it created. Listing them does not reveal anything beyond what the caller already knows.
+  - Feed metadata persists across permission revocation by design (so an origin re-granted access after revocation resumes its prior identity and can continue using its existing feeds). Requiring permission for introspection would create UX friction without security benefit.
+  - Symmetric with `swarm_readFeedEntry`: both are read-only operations on data the caller could obtain elsewhere.
+- **`lastUpdated` and `lastReference`** are populated only by `swarm_updateFeed`-style usage. For feeds maintained as journals via `swarm_writeFeedEntry`, both fields stay `null` (those operations do not update the manifest reference).
+- **`bzzUrl`** is a stable convenience built from `manifestReference`. For `swarm_updateFeed`-style feeds it resolves to the latest pointed-at content; for journal-style feeds (where the SOC payload is raw bytes rather than a content reference) the manifest URL has limited utility — applications should use `swarm_readFeedEntry` to read journal contents.
 
 ---
 
@@ -505,8 +548,8 @@ The key insight: the origin is derived from the **user-visible URL** (the addres
 1. **Connection:** Granted via `swarm_requestAccess`. Persisted per-origin.
 2. **Publish:** Each `swarm_publishData`/`swarm_publishFiles` call MAY require per-operation user approval, unless the user has opted into auto-approve for this origin.
 3. **Feed writes:** Feed write operations (`swarm_createFeed`, `swarm_updateFeed`, `swarm_writeFeedEntry`) require an additional feed-specific permission grant, separate from the connection permission.
-4. **Feed reads:** `swarm_readFeedEntry` requires only connection permission — no feed grant is needed. Swarm feeds are public data; any connected origin can read any feed if it knows the owner address and topic.
-5. **Disconnection:** The user can revoke access at any time. The provider MUST emit a `disconnect` event and reject subsequent requests with error code `4100`.
+4. **Feed reads and introspection:** `swarm_readFeedEntry` and `swarm_listFeeds` require NO permission grant. Swarm feeds are public data, and per-origin feed metadata is deterministic given `(origin, name)` — neither operation reveals anything the caller couldn't obtain elsewhere or compute itself. Both methods MUST work without a prior `swarm_requestAccess`.
+5. **Disconnection:** The user can revoke access at any time. The provider MUST emit a `disconnect` event and reject subsequent permission-gated requests with error code `4100`. Permission-free read methods (`swarm_getCapabilities`, `swarm_readFeedEntry`, `swarm_listFeeds`) MUST continue to function after disconnection — `swarm_listFeeds` in particular continues returning the previously-created feed records, which by design persist across revocation so a subsequent re-grant restores identity continuity.
 
 #### Auto-Approve (OPTIONAL)
 
@@ -611,7 +654,6 @@ Implementations that create temporary files or directories during upload process
 
 The following capabilities are anticipated for future versions of this specification and are explicitly out of scope for version 1.0:
 
-- **`swarm_listFeeds`** — Enumerate existing feeds for the calling origin. This would allow dApps to discover feeds without maintaining their own registry of feed names.
 - **`capabilitiesChanged` event** — Proactive notification when the provider's capabilities change (e.g., node goes offline, stamps exhausted). Currently dApps must poll `swarm_getCapabilities` to detect state changes.
 - **`preferredIdentityMode` parameter for `swarm_createFeed`** — Allow dApps to express a preference for `app-scoped` or `bee-wallet` identity mode, rather than relying solely on user/implementation choice.
 - **`encoding` parameter for `swarm_readFeedEntry`** — Allow callers to request a specific response encoding (e.g., `"utf8"`) to avoid manual base64 decoding for text payloads.
@@ -820,18 +862,46 @@ try {
 }
 ```
 
-### Feed Read Without Feed Grant
+### Feed Read Without Any Permission
 
 ```javascript
-// readFeedEntry requires only connection, not feed grant
-// (assuming connected but no feed permission granted)
+// readFeedEntry requires NO permission — no requestAccess, no feed grant.
+// An origin that has never called requestAccess can still read public feeds.
 const entry = await window.swarm.readFeedEntry({
   topic: 'a1b2c3...64-char-hex-topic...',
   owner: '0xSomeAddress',
   index: 0,
 });
-// Should succeed — feed grant not required for reads
 assert(typeof entry.data === 'string');
+assert(entry.encoding === 'base64');
+```
+
+### List Feeds — Origin-Scoped Introspection
+
+```javascript
+// Returns feeds previously created under the calling origin
+await window.swarm.createFeed({ name: 'user-feed' });
+await window.swarm.createFeed({ name: 'comments' });
+
+const feeds = await window.swarm.listFeeds();
+assert(Array.isArray(feeds));
+assert(feeds.length >= 2);
+
+const userFeed = feeds.find(f => f.name === 'user-feed');
+assert(userFeed.bzzUrl.startsWith('bzz://'));
+assert(/^[0-9a-f]{64}$/.test(userFeed.topic));
+assert(/^0x[0-9a-fA-F]{40}$/.test(userFeed.owner));
+assert(typeof userFeed.createdAt === 'number');
+```
+
+### List Feeds — Empty for Un-Granted Origin
+
+```javascript
+// listFeeds requires NO permission. An origin with no granted access
+// and no created feeds simply gets an empty array — never an error.
+const feeds = await window.swarm.listFeeds();
+assert(Array.isArray(feeds));
+assert(feeds.length === 0);
 ```
 
 ### Re-Connection Without Re-Prompt
@@ -866,9 +936,8 @@ A reference implementation exists in [Freedom Browser](https://github.com/solard
 - **Feeds:** [`src/main/swarm/feed-service.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/src/main/swarm/feed-service.js) — feed creation and updates
 - **Permissions:** [`src/main/swarm/swarm-permissions.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/src/main/swarm/swarm-permissions.js) — origin-scoped permission store
 - **Origin normalization:** [`src/shared/origin-utils.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/src/shared/origin-utils.js) — dweb-aware origin extraction
-- **Test page:** [`docs/swarm-provider-test/index.html`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/docs/swarm-provider-test/index.html) — interactive test harness
 
-A reference dApp consuming this API exists in [Swarmit](https://github.com/flotob/swarmit), a decentralized message board that uses `swarm_requestAccess`, `swarm_publishData`, `swarm_createFeed`, and `swarm_updateFeed` for its full publishing pipeline.
+A reference dApp consuming this API exists in [Swarmit](https://github.com/flotob/swarmit), a decentralized message board that uses `swarm_requestAccess`, `swarm_publishData`, `swarm_createFeed`, `swarm_writeFeedEntry`, `swarm_readFeedEntry`, and `swarm_listFeeds` for its full publishing and profile-discovery pipeline.
 
 ## Copyright
 
