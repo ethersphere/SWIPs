@@ -11,11 +11,11 @@ created: 2026-04-03
 
 ## Simple Summary
 
-A standard JavaScript API (`window.swarm`) that enables web pages to request access to a user's Swarm node for publishing data, uploading files, and managing mutable feeds — with user consent and origin-scoped permissions.
+A standard JavaScript API (`window.swarm`) that enables web pages to request access to a user's Swarm node for publishing data, uploading files, managing mutable feeds, and reading/writing indexed feed entries — with user consent and origin-scoped permissions.
 
 ## Abstract
 
-This SWIP defines a browser-injected JavaScript provider object (`window.swarm`) that allows web applications to interact with a user's local Swarm (Bee) node. The API follows the request/response pattern established by [EIP-1193](https://eips.ethereum.org/EIPS/eip-1193) for Ethereum providers, adapted for Swarm's publishing and feed primitives. It specifies seven RPC methods covering connection, capability discovery, data/file publishing, upload tracking, and mutable feed management. The provider includes a permission model with explicit user consent, origin isolation, and upload size limits.
+This SWIP defines a browser-injected JavaScript provider object (`window.swarm`) that allows web applications to interact with a user's local Swarm (Bee) node. The API follows the request/response pattern established by [EIP-1193](https://eips.ethereum.org/EIPS/eip-1193) for Ethereum providers, adapted for Swarm's publishing and feed primitives. It specifies nine RPC methods covering connection, capability discovery, data/file publishing, upload tracking, mutable feed management, and indexed feed entry read/write. The provider includes a permission model with explicit user consent, origin isolation, and upload size limits.
 
 ## Motivation
 
@@ -80,6 +80,8 @@ window.swarm.publishFiles({ files })              // swarm_publishFiles
 window.swarm.getUploadStatus({ tagUid })          // swarm_getUploadStatus
 window.swarm.createFeed({ name })                 // swarm_createFeed
 window.swarm.updateFeed({ feedId, reference })    // swarm_updateFeed
+window.swarm.writeFeedEntry({ name, data })       // swarm_writeFeedEntry
+window.swarm.readFeedEntry({ name, owner })       // swarm_readFeedEntry
 ```
 
 Each convenience method MUST be equivalent to calling `window.swarm.request()` with the corresponding method name and parameters.
@@ -125,6 +127,20 @@ Errors MUST follow the [JSON-RPC 2.0 error format](https://www.jsonrpc.org/speci
 | -32603 | Internal Error | An unexpected error occurred in the provider. |
 
 Error codes 4001, 4100, 4200, and 4900 are aligned with the [EIP-1193](https://eips.ethereum.org/EIPS/eip-1193) and [EIP-1474](https://eips.ethereum.org/EIPS/eip-1474) error code ranges.
+
+#### Structured Error Reasons
+
+For `-32602` (Invalid Params) errors, implementations SHOULD include a `data.reason` field to enable programmatic error handling:
+
+| Reason | Applicable Methods | Meaning |
+|---|---|---|
+| `feed_empty` | `swarm_readFeedEntry` | Feed exists but has no entries (latest-entry read). |
+| `entry_not_found` | `swarm_readFeedEntry` | No entry at the requested index. |
+| `feed_not_found` | `swarm_readFeedEntry`, `swarm_writeFeedEntry` | Feed not found in local store or does not exist. |
+| `index_already_exists` | `swarm_writeFeedEntry` | An entry already exists at the explicit index (overwrite protection). |
+| `payload_too_large` | `swarm_publishData`, `swarm_writeFeedEntry` | Payload exceeds the maximum allowed size. |
+| `invalid_topic` | `swarm_readFeedEntry` | Topic is not a valid 64-character hex string. |
+| `invalid_owner` | `swarm_readFeedEntry` | Owner is missing (when required) or not a valid address. |
 
 ---
 
@@ -357,13 +373,110 @@ Update a feed to point at a new content reference.
 {
   feedId: string,    // The feed name
   reference: string, // The new content reference
-  bzzUrl: string     // "bzz://<manifestReference>" (stable feed URL)
+  bzzUrl: string,    // "bzz://<manifestReference>" (stable feed URL)
+  index: number      // The sequence index that was written
 }
 ```
 
 **Errors:** `4100` if not connected or feed access not granted, `4900` if node unavailable, `-32602` if params invalid or feed doesn't exist.
 
-**Failure semantics:** Swarm feeds use sequence-based indexing. If the underlying feed write succeeds on the node but the response is lost (e.g., due to a network timeout), retrying `swarm_updateFeed` with the same reference SHOULD be safe — implementations SHOULD detect that the feed already points to the requested reference and return success without writing a duplicate sequence entry.
+**Behavior:**
+- Writes are serialized per-topic (same mutex as `swarm_writeFeedEntry`). The returned `index` reflects the actual sequence index written.
+
+---
+
+#### `swarm_writeFeedEntry`
+
+Write an arbitrary payload directly to a feed index as a Single Owner Chunk (SOC).
+
+This enables the **journal pattern** — an append-only log where each entry is an independently-addressed chunk at an incrementing index. Unlike `swarm_updateFeed` (which stores a 32-byte content reference), `swarm_writeFeedEntry` stores the payload directly in the SOC. For payloads larger than the 4 KB SOC limit, the underlying implementation uploads the data separately and wraps the root chunk into the SOC transparently.
+
+**Params:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | `string` | Yes | Feed name (same namespace as `swarm_createFeed`). The feed must already exist. |
+| `data` | `string \| Uint8Array \| ArrayBuffer` | Yes | The payload to write. Strings are encoded as UTF-8. |
+| `index` | `number` | No | Explicit index to write at. If omitted, auto-increments to the next available index. |
+
+**Result:**
+
+```javascript
+{
+  index: number   // The feed index that was written
+}
+```
+
+**Errors:** `4100` if not connected or feed access not granted, `4900` if node unavailable, `-32602` if params invalid, feed doesn't exist, index is occupied (`index_already_exists`), or payload exceeds SOC size limit (`payload_too_large`).
+
+**Behavior:**
+
+- The feed MUST already exist (created via `swarm_createFeed`).
+- If `index` is omitted, the provider MUST resolve the next available index and write at that index. The resolved index is returned.
+- If `index` is provided, the provider MUST check whether an entry already exists at that index. If it does, the write MUST be rejected with error data `{ reason: "index_already_exists" }`. This overwrite protection is the core safety guarantee of the journal pattern.
+- The overwrite check and the write MUST be atomic — implementations MUST NOT allow concurrent writes to race between the check and the write to the same index. A per-topic serialization mechanism (e.g., a mutex) is RECOMMENDED.
+- Sparse indices are valid. Writing to index 1000 without indices 0–999 existing is allowed. Applications that want sequential journal semantics SHOULD omit `index` and rely on auto-increment.
+
+**Write serialization:** Implementations MUST serialize writes to the same feed topic. Two concurrent `swarm_writeFeedEntry` calls to the same feed MUST NOT produce index collisions. Writes to different feeds MAY execute in parallel.
+
+---
+
+#### `swarm_readFeedEntry`
+
+Read a feed entry at a specific index, or read the latest entry. This is a read-only operation that does NOT require feed-level permission — only a basic connection (`swarm_requestAccess`).
+
+**Params:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `topic` | `string` | Conditional | 64-character hex topic. Required if `name` is not provided. |
+| `name` | `string` | Conditional | Feed name (same namespace as `swarm_createFeed`). Required if `topic` is not provided. |
+| `owner` | `string` | Conditional | Ethereum address of the feed owner (signer). See owner resolution rules below. |
+| `index` | `number` | No | Specific index to read. If omitted, reads the latest entry. |
+
+Exactly one of `topic` or `name` MUST be provided:
+- **`topic`**: Raw 64-character hex topic. The provider constructs the topic directly from these bytes (no hashing). Use this to read feeds created by other origins or other users. `owner` is required.
+- **`name`**: Feed name string. The provider derives the topic by hashing: `keccak256(normalizedOrigin + "/" + name)`. Use this to read your own feeds.
+
+**Owner resolution:**
+- When using `topic`: `owner` is required.
+- When using `name` without `owner`: The provider looks up the owner from its local feed store (populated when `swarm_createFeed` was called). No vault unlock or signing is needed — this is a metadata lookup.
+- When using `name` with `owner`: The provided owner is used. This allows reading another user's feed that shares the same app-scoped topic derivation.
+
+**Result:**
+
+```javascript
+{
+  data: string,           // Base64-encoded payload
+  encoding: "base64",     // Explicit encoding identifier
+  index: number,          // The index that was read
+  nextIndex: number|null  // Next writable index (only present when reading the latest entry)
+}
+```
+
+**Why base64:** The payload traverses process boundaries (main process → renderer → page context) via IPC and `postMessage`. Binary payloads do not survive this chain intact. Base64 is the safe universal encoding. The caller decodes:
+
+```javascript
+const bytes = Uint8Array.from(atob(result.data), c => c.charCodeAt(0))
+const text = new TextDecoder().decode(bytes)
+```
+
+**Errors:** `4100` if not connected, `4900` if node unreachable, `-32602` if params invalid.
+
+Structured error reasons in `data.reason`:
+
+| Reason | Meaning |
+|---|---|
+| `feed_empty` | The feed exists but has no entries written yet (returned for latest-entry reads). |
+| `entry_not_found` | No entry exists at the requested index. |
+| `feed_not_found` | Used `name` without `owner`, but the feed has not been created yet under this origin. |
+
+**Behavior:**
+
+- This method does NOT require feed-level permission — only connection permission (`swarm_requestAccess`). Feeds are public data on Swarm; the connection gate ensures the origin has been approved to use the user's Bee node.
+- Pre-flight checks MUST be limited to verifying the Bee node's HTTP API is reachable. Mode checks (ultra-light), readiness checks, and stamp checks MUST NOT be applied — reads work regardless of node mode and do not consume stamps.
+- Implementations MUST distinguish "not found" errors (HTTP 404/500 from the Bee API) from transient errors (network timeouts, internal failures). Transient errors MUST propagate as `-32603` (Internal Error), NOT be misclassified as `feed_empty` or `entry_not_found`.
+- When reading the latest entry (`index` omitted), `nextIndex` indicates the next index available for writing. When reading a specific index, `nextIndex` is `null`.
 
 ---
 
@@ -391,8 +504,9 @@ The key insight: the origin is derived from the **user-visible URL** (the addres
 
 1. **Connection:** Granted via `swarm_requestAccess`. Persisted per-origin.
 2. **Publish:** Each `swarm_publishData`/`swarm_publishFiles` call MAY require per-operation user approval, unless the user has opted into auto-approve for this origin.
-3. **Feeds:** Feed operations (`swarm_createFeed`, `swarm_updateFeed`) require an additional feed-specific permission grant, separate from the connection permission.
-4. **Disconnection:** The user can revoke access at any time. The provider MUST emit a `disconnect` event and reject subsequent requests with error code `4100`.
+3. **Feed writes:** Feed write operations (`swarm_createFeed`, `swarm_updateFeed`, `swarm_writeFeedEntry`) require an additional feed-specific permission grant, separate from the connection permission.
+4. **Feed reads:** `swarm_readFeedEntry` requires only connection permission — no feed grant is needed. Swarm feeds are public data; any connected origin can read any feed if it knows the owner address and topic.
+5. **Disconnection:** The user can revoke access at any time. The provider MUST emit a `disconnect` event and reject subsequent requests with error code `4100`.
 
 #### Auto-Approve (OPTIONAL)
 
@@ -439,6 +553,22 @@ Without app-scoped identities, any dApp with feed permission could create feeds 
 
 Feeds involve key material (signing) and have long-term implications (the feed URL is permanent, updates are irrevocable). This warrants a separate, more deliberate permission grant beyond "allow this site to upload data."
 
+### Why indexed feed entries alongside `updateFeed`?
+
+`swarm_updateFeed` treats a feed as a mutable pointer — it stores a 32-byte Swarm reference at the next sequence index. This is ideal for "latest version" use cases (e.g., a website, a profile).
+
+Many applications also need an **append-only log**: user activity feeds, message history, notification streams. Without indexed entry access, applications must implement a fragile "read current blob → append → re-upload entire blob → update feed" pattern. If the read fails (404, network blip), the entire history is silently overwritten.
+
+`swarm_writeFeedEntry` and `swarm_readFeedEntry` expose the native Swarm feed index, enabling O(1) appends (write one SOC, no reads) and O(N) parallel reconstruction (fetch individual entries by index). The overwrite protection on explicit indices ensures the core safety guarantee: no silent history corruption.
+
+### Why do feed reads not require feed permission?
+
+Swarm feeds are public data — anyone who knows the owner address and topic can read any feed entry on the network. The connection permission gate (`swarm_requestAccess`) ensures the origin has been approved to route requests through the user's Bee node. Adding a per-feed read ACL would be security theater: the same data is accessible via any other Bee node or gateway. Keeping reads lightweight (connection-only, no vault unlock, no stamps check) enables use cases like profile pages and cross-user activity views without unnecessary permission prompts.
+
+### Why base64 for read responses?
+
+Feed entry payloads are arbitrary bytes. The response travels from the Bee node through the main process, across IPC to the renderer, and via `postMessage` to the page context. Binary data (`Uint8Array`) does not survive this serialization chain intact across all environments. Base64 is the safe universal encoding. The `encoding: "base64"` field makes the contract explicit so callers know exactly how to decode.
+
 ## Backwards Compatibility
 
 This SWIP introduces a new API surface. There are no backwards compatibility concerns as no prior standard for `window.swarm` exists. Implementations that predate this specification SHOULD migrate to conform to these interfaces.
@@ -484,6 +614,7 @@ The following capabilities are anticipated for future versions of this specifica
 - **`swarm_listFeeds`** — Enumerate existing feeds for the calling origin. This would allow dApps to discover feeds without maintaining their own registry of feed names.
 - **`capabilitiesChanged` event** — Proactive notification when the provider's capabilities change (e.g., node goes offline, stamps exhausted). Currently dApps must poll `swarm_getCapabilities` to detect state changes.
 - **`preferredIdentityMode` parameter for `swarm_createFeed`** — Allow dApps to express a preference for `app-scoped` or `bee-wallet` identity mode, rather than relying solely on user/implementation choice.
+- **`encoding` parameter for `swarm_readFeedEntry`** — Allow callers to request a specific response encoding (e.g., `"utf8"`) to avoid manual base64 decoding for text payloads.
 
 Additionally, the `specVersion` field in `swarm_getCapabilities` is currently a SHOULD. A future revision may promote it to MUST once multiple implementations exist and version negotiation becomes necessary.
 
@@ -557,6 +688,7 @@ const updated = await window.swarm.updateFeed({
   reference: content.reference,
 });
 assert(updated.bzzUrl === feed.bzzUrl); // Same stable URL
+assert(typeof updated.index === 'number'); // Sequence index returned
 ```
 
 ### Error Handling
@@ -601,6 +733,105 @@ const feed2 = await window.swarm.createFeed({ name: 'my-blog' });
 assert(feed1.manifestReference === feed2.manifestReference);
 assert(feed1.owner === feed2.owner);
 assert(feed1.topic === feed2.topic);
+```
+
+### Feed Journal (Write and Read Entries)
+
+```javascript
+// Create feed first
+const feed = await window.swarm.createFeed({ name: 'activity' });
+
+// Write entries (auto-increment)
+const w0 = await window.swarm.writeFeedEntry({
+  name: 'activity',
+  data: JSON.stringify({ action: 'post', id: 1 }),
+});
+assert(w0.index === 0);
+
+const w1 = await window.swarm.writeFeedEntry({
+  name: 'activity',
+  data: JSON.stringify({ action: 'post', id: 2 }),
+});
+assert(w1.index === 1);
+
+// Read latest entry
+const latest = await window.swarm.readFeedEntry({ name: 'activity' });
+assert(latest.encoding === 'base64');
+assert(latest.index === 1);
+assert(latest.nextIndex === 2);
+
+// Decode the payload
+const bytes = Uint8Array.from(atob(latest.data), c => c.charCodeAt(0));
+const entry = JSON.parse(new TextDecoder().decode(bytes));
+assert(entry.action === 'post');
+assert(entry.id === 2);
+
+// Read specific index
+const first = await window.swarm.readFeedEntry({ name: 'activity', index: 0 });
+assert(first.index === 0);
+
+// Read all entries in parallel
+const all = await Promise.all(
+  Array.from({ length: latest.nextIndex }, (_, i) =>
+    window.swarm.readFeedEntry({ name: 'activity', index: i })
+  )
+);
+assert(all.length === 2);
+```
+
+### Feed Journal — Overwrite Protection
+
+```javascript
+// Writing at an occupied index is rejected
+await window.swarm.writeFeedEntry({ name: 'activity', data: 'first', index: 0 });
+try {
+  await window.swarm.writeFeedEntry({ name: 'activity', data: 'duplicate', index: 0 });
+  assert.fail('Should have thrown');
+} catch (err) {
+  assert(err.code === -32602);
+  assert(err.data.reason === 'index_already_exists');
+}
+```
+
+### Feed Journal — Cross-User Read
+
+```javascript
+// Read another user's feed using raw topic + owner from their published objects
+const otherUserEntry = await window.swarm.readFeedEntry({
+  topic: 'a1b2c3...64-char-hex-topic...',
+  owner: '0xOtherUserSignerAddress',
+  index: 0,
+});
+assert(otherUserEntry.encoding === 'base64');
+assert(typeof otherUserEntry.index === 'number');
+```
+
+### Feed Journal — Empty Feed
+
+```javascript
+// Reading latest from empty feed returns structured error
+await window.swarm.createFeed({ name: 'empty-feed' });
+try {
+  await window.swarm.readFeedEntry({ name: 'empty-feed' });
+  assert.fail('Should have thrown');
+} catch (err) {
+  assert(err.code === -32602);
+  assert(err.data.reason === 'feed_empty');
+}
+```
+
+### Feed Read Without Feed Grant
+
+```javascript
+// readFeedEntry requires only connection, not feed grant
+// (assuming connected but no feed permission granted)
+const entry = await window.swarm.readFeedEntry({
+  topic: 'a1b2c3...64-char-hex-topic...',
+  owner: '0xSomeAddress',
+  index: 0,
+});
+// Should succeed — feed grant not required for reads
+assert(typeof entry.data === 'string');
 ```
 
 ### Re-Connection Without Re-Prompt
