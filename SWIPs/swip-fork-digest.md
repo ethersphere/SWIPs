@@ -1,5 +1,5 @@
 ---
-swip: <to be assigned>
+swip: SWIP-45
 title: Fork Digest and BzzAddress Encoding
 author: mfw78 (@mfw78)
 status: Draft
