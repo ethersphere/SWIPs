@@ -185,9 +185,10 @@ Returns the current capabilities of the provider for this origin. Does NOT requi
   canPublish: boolean,     // true if connected AND node is ready
   reason: string | null,   // null if canPublish is true, otherwise a reason code
   limits: {
-    maxDataBytes: number,  // Maximum payload size for swarm_publishData
+    maxDataBytes: number,  // Maximum payload size for swarm_publishData and swarm_writeFeedEntry
     maxFilesBytes: number, // Maximum total size for swarm_publishFiles
-    maxFileCount: number   // Maximum number of files per swarm_publishFiles call
+    maxFileCount: number,  // Maximum number of files per swarm_publishFiles call
+    maxPathBytes: number   // Maximum length of a file path in swarm_publishFiles, measured in UTF-8 bytes
   }
 }
 ```
@@ -258,7 +259,7 @@ Upload a collection of files as a Swarm manifest (directory).
 | `contentType` | `string` | No | MIME type. Implementation MAY infer from path if omitted. |
 
 **Path validation rules:**
-- Must be a non-empty string, maximum 256 characters.
+- Must be a non-empty string. Maximum length is `maxPathBytes` UTF-8 bytes, advertised via `swarm_getCapabilities`. Length MUST be measured in UTF-8 bytes, not Unicode characters or UTF-16 code units — a single emoji is 4 bytes, not 1.
 - No backslashes, no leading slash, no empty segments, no `.` or `..` segments.
 - No control characters (code points < 32).
 - Paths must be unique within the `files` array.
@@ -390,7 +391,9 @@ Update a feed to point at a new content reference.
 
 Write an arbitrary payload directly to a feed index as a Single Owner Chunk (SOC).
 
-This enables the **journal pattern** — an append-only log where each entry is an independently-addressed chunk at an incrementing index. Unlike `swarm_updateFeed` (which stores a 32-byte content reference), `swarm_writeFeedEntry` stores the payload directly in the SOC. For payloads larger than the 4 KB SOC limit, the underlying implementation uploads the data separately and wraps the root chunk into the SOC transparently.
+This enables the **journal pattern** — an append-only log where each entry is an independently-addressed chunk at an incrementing index. Unlike `swarm_updateFeed` (which stores a 32-byte content reference), `swarm_writeFeedEntry` stores the payload in the feed itself.
+
+The 4 KB SOC body limit is internal to the storage envelope and is NOT a dApp-visible payload cap. Payloads up to the SOC limit are stored directly in the chunk; larger payloads MUST be wrapped transparently — the implementation uploads the bytes (e.g., as a BMT tree via `POST /bytes`) and writes only the root chunk reference into the SOC body. DApps see one consistent payload cap, `maxDataBytes`, across `swarm_publishData` and `swarm_writeFeedEntry`.
 
 **Params:**
 
@@ -408,13 +411,14 @@ This enables the **journal pattern** — an append-only log where each entry is 
 }
 ```
 
-**Errors:** `4100` if not connected or feed access not granted, `4900` if node unavailable, `-32602` if params invalid, feed doesn't exist, index is occupied (`index_already_exists`), or payload exceeds SOC size limit (`payload_too_large`).
+**Errors:** `4100` if not connected or feed access not granted, `4900` if node unavailable, `-32602` if params invalid, feed doesn't exist, index is occupied (`index_already_exists`), or payload exceeds `maxDataBytes` (`payload_too_large`).
 
 **Behavior:**
 
 - The feed MUST already exist (created via `swarm_createFeed`).
 - If `index` is omitted, the provider MUST resolve the next available index and write at that index. The resolved index is returned.
-- If `index` is provided, the provider MUST check whether an entry already exists at that index. If it does, the write MUST be rejected with error data `{ reason: "index_already_exists" }`. This overwrite protection is the core safety guarantee of the journal pattern.
+- If `index` is provided, the provider MUST check whether an entry already exists at that exact index. If it does, the write MUST be rejected with error data `{ reason: "index_already_exists" }`. This overwrite protection is the core safety guarantee of the journal pattern.
+- The existence check MUST use **exact-match** semantics — see [Implementation Note: Exact-Match Feed Reads](#implementation-note-exact-match-feed-reads). Implementations MUST NOT use Bee's `GET /feeds/{owner}/{topic}?index=N` endpoint for this probe: that endpoint has at-or-before semantics and would falsely reject any sparse-index write whenever any earlier index exists.
 - The overwrite check and the write MUST be atomic — implementations MUST NOT allow concurrent writes to race between the check and the write to the same index. A per-topic serialization mechanism (e.g., a mutex) is RECOMMENDED.
 - Sparse indices are valid. Writing to index 1000 without indices 0–999 existing is allowed. Applications that want sequential journal semantics SHOULD omit `index` and rely on auto-increment.
 
@@ -478,6 +482,7 @@ Structured error reasons in `data.reason`:
 - Pre-flight checks MUST be limited to verifying the Bee node's HTTP API is reachable. Mode checks (ultra-light), readiness checks, and stamp checks MUST NOT be applied — reads work regardless of node mode and do not consume stamps.
 - Implementations MUST distinguish "not found" errors (HTTP 404/500 from the Bee API) from transient errors (network timeouts, internal failures). Transient errors MUST propagate as `-32603` (Internal Error), NOT be misclassified as `feed_empty` or `entry_not_found`.
 - When reading the latest entry (`index` omitted), `nextIndex` indicates the next index available for writing. When reading a specific index, `nextIndex` is `null`.
+- When `index` is provided, implementations MUST use **exact-match** semantics — see [Implementation Note: Exact-Match Feed Reads](#implementation-note-exact-match-feed-reads). The returned `result.index` MUST equal the requested `index`. Implementations MUST NOT return data from a different index that happens to be the highest at-or-before the requested index.
 
 ---
 
@@ -523,6 +528,52 @@ Returns an empty array `[]` for origins with no feeds — including origins that
 
 ---
 
+### Implementation Note: Exact-Match Feed Reads
+
+This section is **informative**. It documents a Bee API behavior that affects the correctness of `swarm_writeFeedEntry`'s overwrite protection and `swarm_readFeedEntry`'s explicit-index path.
+
+#### The problem
+
+Bee's `GET /feeds/{owner}/{topic}?index=N` endpoint does NOT return the entry at exact index N. Its semantics are **at-or-before**: the endpoint performs an epoch search and returns the latest Single Owner Chunk (SOC) at index ≤ N. So:
+
+- A read of index 6 on a feed where only index 3 has been written returns index 3's chunk (with no out-of-band signal that index 6 itself is empty).
+- A pre-write existence probe at index 6 returns whatever's at index 5 / 4 / ... / 0 if any of them exist, falsely flagging index 6 as occupied.
+
+For the journal pattern, this breaks both halves of the contract: explicit-index reads can return the wrong entry, and overwrite protection falsely rejects sparse writes.
+
+#### The fix
+
+Implementations SHOULD derive the SOC address directly and fetch via `GET /chunks/{socAddress}`, which is exact-match.
+
+```
+identifier  = keccak256( topic_32 || index_8BE )
+socAddress  = keccak256( identifier_32 || ownerAddress_20 )
+```
+
+Where:
+- `topic_32` — the feed's 32-byte topic (the same topic used elsewhere in the feed API).
+- `index_8BE` — the feed index encoded as **8 bytes big-endian**.
+- `ownerAddress_20` — the 20-byte Ethereum address of the feed signer.
+
+A 404 from `GET /chunks/{socAddress}` means no entry exists at the exact requested index — translated to `entry_not_found` for reads and "index available" for pre-write probes. 5xx and connection errors MUST propagate as transient (`-32603` Internal Error), NOT be misclassified as not-found.
+
+#### When to use which endpoint
+
+The latest-entry read path is unaffected — at-or-before is exactly the desired behavior, and `GET /feeds/{owner}/{topic}` returns the latest entry plus the `swarm-feed-index` and `swarm-feed-index-next` response headers (`%016x`) that drive auto-increment.
+
+| Operation | Endpoint | Semantics |
+|---|---|---|
+| `swarm_readFeedEntry` (no `index`) — latest entry + `nextIndex` | `GET /feeds/{owner}/{topic}` | At-or-before |
+| `swarm_writeFeedEntry` auto-increment — find next writable index | `GET /feeds/{owner}/{topic}` | At-or-before |
+| `swarm_readFeedEntry` with explicit `index` | `GET /chunks/{socAddress}` | Exact-match |
+| `swarm_writeFeedEntry` overwrite probe | `GET /chunks/{socAddress}` | Exact-match |
+
+#### Endianness trap
+
+Bee uses **big-endian** for the 8-byte feed index in identifier derivation, but **little-endian** for the 8-byte `span` (payload length) prefix in the SOC body. These are different fields with different conventions in the same operation. Implementations going through `bee-js` get both right via its built-in helpers; implementations writing directly against this spec MUST handle the two conventions separately.
+
+---
+
 ### Permission Model
 
 #### Origin Normalization
@@ -562,15 +613,18 @@ Implementations MAY offer users the option to auto-approve publish and/or feed o
 
 ### Limits
 
-Implementations MUST enforce upload size and file count limits. The limits MUST be discoverable via `swarm_getCapabilities`. Recommended defaults:
+Implementations MUST enforce upload size, file count, and path length limits. The limits MUST be discoverable via `swarm_getCapabilities`. Recommended defaults:
 
-| Limit | Recommended Default |
-|---|---|
-| `maxDataBytes` | 10 MB (10,485,760 bytes) |
-| `maxFilesBytes` | 50 MB (52,428,800 bytes) |
-| `maxFileCount` | 100 files |
+| Limit | Recommended Default | Notes |
+|---|---|---|
+| `maxDataBytes` | 10 MB (10,485,760 bytes) | Applies to both `swarm_publishData` and `swarm_writeFeedEntry` payloads. |
+| `maxFilesBytes` | 50 MB (52,428,800 bytes) | Total size across all entries in `swarm_publishFiles`. |
+| `maxFileCount` | 100 files | Per `swarm_publishFiles` call. |
+| `maxPathBytes` | 100 (UTF-8 bytes) | Per `files[].path` in `swarm_publishFiles`. Implementations MUST advertise at least 100. |
 
 Implementations MAY use different limits but MUST report them accurately in `swarm_getCapabilities`.
+
+The `maxPathBytes` floor of 100 reflects current implementation reality: reference implementations build uploads as USTAR tar archives (`Content-Type: application/x-tar` with `Swarm-Collection: true`), and USTAR's `name` header field is exactly 100 bytes. Without PAX extensions — which are out of scope for v1 — paths longer than 100 UTF-8 bytes cannot be encoded. Future implementations supporting PAX or alternative upload formats MAY advertise a larger `maxPathBytes`.
 
 ---
 
@@ -835,6 +889,26 @@ try {
 }
 ```
 
+### Feed Journal — Sparse-Index Writes (Exact-Match Requirement)
+
+```javascript
+// Sparse writes are valid: writing index 5 with no entries 1-4 must succeed.
+// Implementations using at-or-before semantics for the overwrite probe would
+// falsely reject this write because index 0 exists.
+await window.swarm.createFeed({ name: 'sparse' });
+await window.swarm.writeFeedEntry({ name: 'sparse', data: 'first', index: 0 });
+const w5 = await window.swarm.writeFeedEntry({ name: 'sparse', data: 'fifth', index: 5 });
+assert(w5.index === 5);
+
+// Reading explicit index 5 must return index 5's data, not index 0's.
+// Implementations using at-or-before semantics for explicit-index reads would
+// silently return index 0's payload.
+const r5 = await window.swarm.readFeedEntry({ name: 'sparse', index: 5 });
+assert(r5.index === 5);
+const bytes = Uint8Array.from(atob(r5.data), c => c.charCodeAt(0));
+assert(new TextDecoder().decode(bytes) === 'fifth');
+```
+
 ### Feed Journal — Cross-User Read
 
 ```javascript
@@ -922,6 +996,8 @@ const caps = await window.swarm.getCapabilities();
 assert(caps.canPublish === false);
 assert(caps.reason === 'not-connected');
 assert(typeof caps.limits.maxDataBytes === 'number');
+assert(typeof caps.limits.maxPathBytes === 'number');
+assert(caps.limits.maxPathBytes >= 100);
 // specVersion is optional (SHOULD) in 1.0
 if (caps.specVersion) assert(typeof caps.specVersion === 'string');
 ```
