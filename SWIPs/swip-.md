@@ -149,46 +149,149 @@ The broker–subscriber stream is a metered channel: the subscriber pays the bro
 
 ### Milestone 3 — Decentralised broker discovery
 
-Make the broker underlay address parameter optional. Instead of the client hardcoding a broker, it discovers connection data from the topic's responsible neighbourhood using a two-step MIC-GSOC handshake (see MIC/MOC [SWIP-42](https://github.com/ethersphere/SWIPs/pull/80)).
+Make the broker underlay address parameter optional. Instead of the client hardcoding a broker, it discovers connection data from a specific broker node using a MOC-based dead-drop handshake (see MOC [SWIP-42](https://github.com/ethersphere/SWIPs/pull/80)). Unlike neighbourhood-broadcast approaches, the request targets a single broker: the subscriber mines a SOC owner key so the resulting chunk address is closest to the broker's overlay address. During push-sync the chunk is delivered directly to the closest node (analogous to [bee#5081](https://github.com/ethersphere/bee/pull/5081)), ensuring the broker receives it without neighbourhood-wide replication. The subscriber encrypts the payload to the broker's public key, and the broker responds by overwriting the same chunk address.
+
+#### On-chain broker registry
+
+The subscriber must know the target broker's overlay address and public key before initiating discovery. A smart contract — either extending the balanced neighbourhood registry ([SWIP-39](https://github.com/ethersphere/SWIPs/pull/74)) with pubkey field or deployed as a standalone PubSub registry — maps topics to broker nodes. Each registry entry contains:
+
+| Field | Description |
+|---|---|
+| `overlay` | 32-byte Swarm overlay address |
+| `pubkey` | 65-byte secp256k1 public key (Swarm key) |
+
+Brokers register on-chain when they opt into `--pubsub-broker-mode`. The subscriber queries the registry to obtain `(overlay_B, PK_B)` for a chosen broker.
+
+The broker's secp256k1 public key must be the same key whose private counterpart the node uses for Swarm chunk-level operations (its Swarm key), so that ECIES decryption in the detection step works without additional key management.
+
+#### Protocol constants
 
 ```
-Subscriber        Chosen broker peer (P)      Topic neighbourhood (E_a)
-    │           (from current connections)                │
-    │                     │                               │
-    │ PubSub subscribe to │                               │
-    │ Sub Resp GSOC ─────►│  mined: PO(SubRes_a, P) = 16  │
-    │                     │                               │
-    │── Sub Request MIC ──┼──────────────────────────────►│  PO(Req_a, E_a) >= d+1
-    │   payload: E_a,     │                               │  (routed by pull/push sync)
-    │   chequebook addr,  │                               │
-    │   Sub Resp SOC params (ID + ephemeral key)          │
-    │                     │                               │
-    │                     │◄─ Sub Response GSOC(s) ───────│  brokers sign with ephemeral key
-    │                     │   payload: overlay, underlay, │  (routed to P by pull/push sync)
-    │                     │           incentive params,   │
-    │                     │           HIVE connection list│
-    │◄──── GSOC event ────│                               │
-    │                     │                               │
-    │── libp2p connect ───┼──────────────────────────────►│ subscriber picks a pubsub network
+SOC_ID = keccak256("PUBSUB-REQUEST")        // 32-byte fixed SOC identifier
 ```
 
-The Sub Request signing key is derived from a well-known string, requiring no out-of-band coordination:
+All discovery requests across the network share this single SOC ID. Isolation between concurrent sessions is achieved by the uniqueness of the mined owner key, not by the ID.
+
+#### Workflow
 
 ```
-SubReqKey = keccak256("SUB_REQUEST")
+Subscriber (S)                                       Broker (B)
+    │                                                     │
+    │  1. Registry lookup                                 │
+    │     (overlay_B, PK_B) ◄── on-chain registry         │
+    │                                                     │
+    │  2. Mine secp256k1 key pair (k, K = k·G):           │
+    │     a      = ethAddr(K)                             │
+    │     SOC_a  = keccak256(SOC_ID ‖ a)                  │
+    │     PO(SOC_a, overlay_B) ≥ depth + 1                │
+    │                                                     │
+    │  3. Build request payload P:                        │
+    │     { topic, k, chequebook_addr, ... }              │
+    │     C_req = ECIES_Encrypt(PK_B, P)                  │
+    │                                                     │
+    │── 4. Upload MOC(id=SOC_ID, key=k, data=C_req) ────►│
+    │      (pull/push sync routes to B's neighbourhood)   │
+    │                                                     │
+    │                      5. Detect incoming SOC:         │
+    │                         id == SOC_ID ?               │
+    │                         chunk in my neighbourhood ?  │
+    │                         ECIES_Decrypt(sk_B, C_req)   │
+    │                         → success: chunk is for me   │
+    │                         → failure: ignore            │
+    │                                                     │
+    │                      6. Extract k from payload       │
+    │                         Build response R:            │
+    │                         { overlay, underlay,         │
+    │                           incentive_params,          │
+    │                           hive_conn_list }           │
+    │                         sym_key = keccak256(k)       │
+    │                         C_res = AES-256-GCM(sym_key, │
+    │                                   nonce, R)          │
+    │                         Sign new SOC with k          │
+    │                         → same SOC_a (overwrites)    │
+    │                                                     │
+    │                     ─── 7. Store response SOC       │
+    │                         locally (same chunk addr)    │
+    │                                                     │
+    │◄── 8. Fetch SOC_a ─────────────────────────────────│
+    │       Decrypt: AES-256-GCM(keccak256(k), nonce,     │
+    │                             C_res) → R              │
+    │       Extract broker connection info                 │
+    │                                                     │
+    │── 9. libp2p connect(underlay_B) ───────────────────►│
 ```
 
-The Sub Request is a MIC chunk (SOC signed by `SubReqKey`). Its ID is mined so the chunk address falls in the topic neighbourhood; pull/push sync routes it there naturally by proximity. The Sub Request identity must be mined until `PO(Req_a, E_a) >= storage_depth + 1` (or `= 16` if the current storage depth is unavailable).
+#### Mining the request key
 
-The Sub Response is a GSOC rather than a MIC deliberately: a MIC subscription listens by Ethereum address, so a well-known signing key would cause all concurrent discovery sessions on P to receive each other's responses. A GSOC subscription listens on a specific SOC address `soc.CreateAddress(randomID, ephemeralAddr)` — unique per subscriber — so responses are always isolated.
+The subscriber iterates secp256k1 private keys deterministically starting from a seed derived from its own public key until the resulting SOC address is closest to the target broker's overlay:
 
-The subscriber pre-mines a Sub Response SOC identifier and generates an ephemeral key, both included in the Sub Request payload. Broker nodes in the topic neighbourhood sign the Sub Response as a GSOC using the provided ephemeral key. The subscriber listens for GSOC events on the mined Sub Response address to collect broker replies.
+```
+seed ← keccak256(PK_subscriber)           // deterministic starting point
+i    ← 0
+repeat:
+    k   ← keccak256(seed ‖ i)             // 32-byte candidate private key
+    K   ← secp256k1_pubkey(k)
+    a   ← keccak256(K) [12:]              // 20-byte Ethereum address
+    sa  ← keccak256(SOC_ID ‖ a)           // 32-byte SOC chunk address
+    i   ← i + 1
+until PO(sa, overlay_B) ≥ storage_depth + 1
+```
 
-The Sub Response SOC address must be mined very close to P's overlay (`PO = 16`). This is required because the current GSOC implementation at the moment stores only one payload per address: if multiple brokers respond to the same address, the last writer wins and earlier responses are lost before pull syncing them. Full multi-response support would require GSOC to retain multiple payloads per address, which is left as a future improvement.
+Each iteration requires one secp256k1 scalar multiplication plus two Keccak-256 hashes. The expected number of iterations is `2^d` for a target depth `d`. At depth 12 this is ~4 096 iterations — well under a second on commodity hardware.
 
-Both sides require postage stamps for their uploads: the subscriber needs a mutable stamp for the Sub Request MIC, and each responding broker needs a mutable stamp for its Sub Response GSOC. Alternatively, once [SWIP-36](https://github.com/ethersphere/SWIPs/pull/70) (free uploads) is adopted, both stamp requirements can be lifted.
+#### Request encryption — ECIES on secp256k1
 
-New API endpoint: `GET /pubsub/discover/{topic}?mode=<id>` — returns connection data from the topic's neighbourhood.
+The request payload is encrypted with the Elliptic Curve Integrated Encryption Scheme (ECIES) — the same scheme and library used in Ethereum's devp2p/RLPx handshake (`go-ethereum/crypto/ecies`):
+
+1. Generate ephemeral key pair `(e, E = e·G)`.
+2. Shared secret `S = ECDH(e, PK_B)`.
+3. Key derivation: `(enc_key ‖ mac_key) = HKDF-SHA256(S)`.
+4. `ciphertext = AES-128-CTR(enc_key, plaintext)`.
+5. `tag = HMAC-SHA256(mac_key, ciphertext)`.
+6. Output: `E ‖ ciphertext ‖ tag`.
+
+Only the holder of `sk_B` can derive the shared secret and decrypt. The ephemeral key `e` is discarded after encryption, providing forward secrecy per discovery session. Neighbourhood peers that store or forward the chunk cannot read its contents.
+
+#### Response encryption — AES-256-GCM (symmetric)
+
+The response is encrypted symmetrically using the mined private key `k` as key material. Both parties possess `k`: the subscriber mined it; the broker extracted it from the ECIES payload.
+
+```
+sym_key = keccak256(k)                          // 32 bytes → AES-256 key
+nonce   = keccak256(keccak256(k)) [:12]         // 12 bytes, deterministic
+C_res   = AES-256-GCM_Encrypt(sym_key, nonce, response_payload)
+```
+
+AES-256-GCM provides authenticated encryption: on decryption the subscriber verifies both confidentiality and integrity. Because `k` is unique per discovery session (freshly mined), the `(sym_key, nonce)` pair is never reused, satisfying GCM's uniqueness requirement.
+
+No party other than the subscriber and the target broker can derive `sym_key`, since `k` was transmitted inside the ECIES envelope.
+
+#### Broker detection logic
+
+A node running in broker mode applies the following filter to every incoming SOC chunk synced to its neighbourhood:
+
+1. **ID check** — SOC ID equals `keccak256("PUBSUB-REQUEST")`?
+2. **Neighbourhood check** — chunk address within this node's storage responsibility?
+3. **Decryption attempt** — `ECIES_Decrypt(sk_self, payload)`. Failure means the chunk is addressed to a different broker; discard silently.
+4. **Payload validation** — extract `(topic, k, ...)`. Verify that `keccak256(SOC_ID ‖ ethAddr(k·G))` matches the chunk address.
+5. **Response** — construct, encrypt, and store the modified response MOC signed with `k`.
+
+Step 3 is the key isolation mechanism: even though all broker nodes in the neighbourhood may see the same constant SOC ID, only the broker whose public key was used for ECIES encryption can successfully decrypt and act on the request.
+
+#### Postage stamps
+
+The subscriber needs a postage stamp for the MOC request upload. The broker needs a postage stamp for the MOC response upload. Once [SWIP-36](https://github.com/ethersphere/SWIPs/pull/70) (free uploads) is adopted, both stamp requirements can be lifted.
+
+#### Known limitations
+
+1. **Single-node targeting** — The request reaches exactly one broker. If that broker is offline or unresponsive, the subscriber must time out and retry with another registry entry or initiating multiple parallel requests toward different brokers.
+2. **On-chain dependency** — The subscriber must read the broker registry contract to learn `(overlay, pubkey)`. Light clients already require blockchain access for Swarm (postage stamp verification), so the marginal cost is low. The registry can be cached or mirrored off-chain.
+3. **Concurrent requester collision** — If two subscribers targeting the same broker mine the same owner key (i.e. arrive at the same SOC address), the second request overwrites the first. Because key derivation is seeded from the subscriber's own public key, this can only happen if two nodes share the same Swarm key — an invalid network state. In practice the probability is negligible
+4. **ECIES decryption cost** — The SOC ID `keccak256("PUBSUB-REQUEST")` is a global constant shared by all discovery requests. Every broker node must attempt ECIES decryption (one ECDH scalar multiplication) on every incoming SOC with this ID that falls within its neighbourhood, even if the chunk is addressed to a different broker. The cost scales with the number of concurrent discovery requests across all brokers in a neighbourhood. Under normal load this is negligible, but the asymmetry is exploitable (see point 6).
+5. **Replay attacks** — A neighbourhood peer that observes a discovery request chunk can re-upload the identical bytes, causing the broker to re-process the request and overwrite its previous response. The attacker cannot read the request (ECIES-encrypted) or the response (AES-256-GCM-encrypted with `k`), so the damage is limited to wasted broker computation and potential disruption if the legitimate subscriber has not yet fetched the response. Implementations should consider deduplicating detection by chunk address to suppress repeated processing.
+6. **DoS via discovery flooding** — An attacker can cheaply mine many keys targeting a specific broker's neighbourhood and flood it with discovery request chunks. Each chunk forces an ECIES decryption attempt on the broker. The attacker's cost is key mining (~2^d iterations at depth d) plus a postage stamp per chunk; the broker's cost is one ECDH operation per chunk. Postage stamp economics provide a baseline rate limit, but brokers may additionally rate-limit detection processing or require a proof-of-work token inside the ECIES payload.
+
+New API endpoint: `GET /pubsub/discover/{topic}?mode=<id>` — returns broker connection data for the given topic.
 
 ### Milestone 4 — Load balancing and multi-level forwarding
 
