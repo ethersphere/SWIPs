@@ -11,11 +11,11 @@ created: 2026-04-03
 
 ## Simple Summary
 
-A standard JavaScript API (`window.swarm`) that enables web pages to request access to a user's Swarm node for publishing data, uploading files, managing mutable feeds, reading/writing indexed feed entries, and introspecting their own feed records — with user consent and origin-scoped permissions.
+A standard JavaScript API (`window.swarm`) that enables web pages to request access to a user's Swarm node for publishing data, uploading files, managing mutable feeds, reading/writing indexed feed entries, introspecting their own feed records, and working with low-level chunk primitives — with user consent and origin-scoped permissions.
 
 ## Abstract
 
-This SWIP defines a browser-injected JavaScript provider object (`window.swarm`) that allows web applications to interact with a user's local Swarm (Bee) node. The API follows the request/response pattern established by [EIP-1193](https://eips.ethereum.org/EIPS/eip-1193) for Ethereum providers, adapted for Swarm's publishing and feed primitives. It specifies ten RPC methods covering connection, capability discovery, data/file publishing, upload tracking, mutable feed management, indexed feed entry read/write, and origin-scoped feed introspection. The provider includes a permission model with explicit user consent, origin isolation, and upload size limits. Read-only methods that operate on public Swarm data — including feed entry reads and the calling origin's own feed introspection — do not require a connection grant.
+This SWIP defines a browser-injected JavaScript provider object (`window.swarm`) that allows web applications to interact with a user's local Swarm (Bee) node. The API follows the request/response pattern established by [EIP-1193](https://eips.ethereum.org/EIPS/eip-1193) for Ethereum providers, adapted for Swarm's publishing, feed, and chunk primitives. It specifies fifteen RPC methods covering connection, capability discovery, data/file publishing, upload tracking, mutable feed management, indexed feed entry read/write, origin-scoped feed introspection, low-level chunk primitives (content-addressed and single-owner), and signing-identity disclosure. The provider includes a permission model with explicit user consent, origin isolation, and upload size limits. Read-only methods that operate on public Swarm data — including feed entry reads, chunk reads, and the calling origin's own feed introspection — do not require a connection grant but MUST be rate-limited per origin.
 
 ## Motivation
 
@@ -30,8 +30,8 @@ Without a standard, each Swarm-enabled browser or extension will invent its own 
 
 ### Design Goals
 
-- **User consent first.** No operation executes without explicit permission.
-- **Minimal surface.** Only publishing and feeds are exposed — not administrative, debug, or staking endpoints.
+- **User consent first.** No write, signing, or other operation that consumes user resources executes without consent or explicit resource controls. Read-only operations on public Swarm data are ungated but rate-limited per origin.
+- **Minimal surface.** Only the data plane — not administrative, debug, or staking endpoints.
 - **Origin isolation.** Each web origin gets isolated permissions and feed identities.
 - **Implementation freedom.** The spec defines the interface, not how the host manages nodes, keys, or storage internally.
 
@@ -73,16 +73,21 @@ The method MUST return a `Promise` that resolves with the method's result, or re
 Implementations MUST expose convenience wrappers for each standard method:
 
 ```javascript
-window.swarm.requestAccess()                     // swarm_requestAccess
-window.swarm.getCapabilities()                    // swarm_getCapabilities
-window.swarm.publishData({ data, contentType })   // swarm_publishData
-window.swarm.publishFiles({ files })              // swarm_publishFiles
-window.swarm.getUploadStatus({ tagUid })          // swarm_getUploadStatus
-window.swarm.createFeed({ name })                 // swarm_createFeed
-window.swarm.updateFeed({ feedId, reference })    // swarm_updateFeed
-window.swarm.writeFeedEntry({ name, data })       // swarm_writeFeedEntry
-window.swarm.readFeedEntry({ name, owner })       // swarm_readFeedEntry
-window.swarm.listFeeds()                          // swarm_listFeeds
+window.swarm.requestAccess()                              // swarm_requestAccess
+window.swarm.getCapabilities()                             // swarm_getCapabilities
+window.swarm.publishData({ data, contentType })            // swarm_publishData
+window.swarm.publishFiles({ files })                       // swarm_publishFiles
+window.swarm.getUploadStatus({ tagUid })                   // swarm_getUploadStatus
+window.swarm.createFeed({ name })                          // swarm_createFeed
+window.swarm.updateFeed({ feedId, reference })             // swarm_updateFeed
+window.swarm.writeFeedEntry({ name, data })                // swarm_writeFeedEntry
+window.swarm.readFeedEntry({ name, owner })                // swarm_readFeedEntry
+window.swarm.listFeeds()                                   // swarm_listFeeds
+window.swarm.publishChunk({ data })                        // swarm_publishChunk
+window.swarm.readChunk({ reference })                      // swarm_readChunk
+window.swarm.writeSingleOwnerChunk({ identifier, data })   // swarm_writeSingleOwnerChunk
+window.swarm.readSingleOwnerChunk({ owner, identifier })   // swarm_readSingleOwnerChunk
+window.swarm.getSigningIdentity()                          // swarm_getSigningIdentity
 ```
 
 Each convenience method MUST be equivalent to calling `window.swarm.request()` with the corresponding method name and parameters.
@@ -121,7 +126,7 @@ Errors MUST follow the [JSON-RPC 2.0 error format](https://www.jsonrpc.org/speci
 | Code | Name | Description |
 |---|---|---|
 | 4001 | User Rejected | The user denied the request. |
-| 4100 | Unauthorized | The origin has not been granted access. Call `swarm_requestAccess` first. |
+| 4100 | Unauthorized | The origin is not authorized for the requested operation, or required consent cannot be obtained in this context. Covers: origin has not called `swarm_requestAccess`; feed-permission prompt cannot be surfaced; tag ownership mismatch in `swarm_getUploadStatus`; access was previously revoked. |
 | 4200 | Unsupported Method | The requested method is not recognized. |
 | 4900 | Node Unavailable | The Swarm node is not running, not ready, or lacks usable postage stamps. |
 | -32602 | Invalid Params | Missing or invalid method parameters. |
@@ -139,9 +144,16 @@ For `-32602` (Invalid Params) errors, implementations SHOULD include a `data.rea
 | `entry_not_found` | `swarm_readFeedEntry` | No entry at the requested index. |
 | `feed_not_found` | `swarm_readFeedEntry`, `swarm_writeFeedEntry` | Feed not found in local store or does not exist. |
 | `index_already_exists` | `swarm_writeFeedEntry` | An entry already exists at the explicit index (overwrite protection). |
-| `payload_too_large` | `swarm_publishData`, `swarm_writeFeedEntry` | Payload exceeds the maximum allowed size. |
+| `payload_too_large` | `swarm_publishData`, `swarm_writeFeedEntry`, `swarm_publishChunk`, `swarm_writeSingleOwnerChunk` | Payload exceeds the maximum allowed size. |
 | `invalid_topic` | `swarm_readFeedEntry` | Topic is not a valid 64-character hex string. |
-| `invalid_owner` | `swarm_readFeedEntry` | Owner is missing (when required) or not a valid address. |
+| `invalid_owner` | `swarm_readFeedEntry`, `swarm_readSingleOwnerChunk` | Owner is missing (when required) or not a valid address. |
+| `invalid_reference` | `swarm_readChunk`, `swarm_readSingleOwnerChunk` | Chunk reference is not a valid 64-character hex address. |
+| `invalid_identifier` | `swarm_writeSingleOwnerChunk`, `swarm_readSingleOwnerChunk` | SOC identifier is not a valid 64-character hex string. |
+| `invalid_span` | `swarm_publishChunk`, `swarm_writeSingleOwnerChunk` | Explicit `span` is negative, non-integer, exceeds the 8-byte unsigned range, or is a `number` outside `Number.MAX_SAFE_INTEGER` (use `bigint` for values above 2⁵³ − 1). |
+| `chunk_not_found` | `swarm_readChunk`, `swarm_readSingleOwnerChunk` | No chunk exists at the requested address. |
+| `chunk_type_mismatch` | `swarm_readChunk`, `swarm_readSingleOwnerChunk` | Returned bytes do not validate as the requested chunk type. |
+| `unsupported_option` | All methods accepting `options` | An option field was supplied that the implementation does not recognize. |
+| `rate_limited` | `swarm_readFeedEntry`, `swarm_readChunk`, `swarm_readSingleOwnerChunk`, `swarm_listFeeds` | The calling origin has exceeded the implementation's per-origin rate or bandwidth budget for permission-free reads. |
 
 ---
 
@@ -185,10 +197,11 @@ Returns the current capabilities of the provider for this origin. Does NOT requi
   canPublish: boolean,     // true if connected AND node is ready
   reason: string | null,   // null if canPublish is true, otherwise a reason code
   limits: {
-    maxDataBytes: number,  // Maximum payload size for swarm_publishData and swarm_writeFeedEntry
-    maxFilesBytes: number, // Maximum total size for swarm_publishFiles
-    maxFileCount: number,  // Maximum number of files per swarm_publishFiles call
-    maxPathBytes: number   // Maximum length of a file path in swarm_publishFiles, measured in UTF-8 bytes
+    maxDataBytes: number,         // Maximum payload size for swarm_publishData and swarm_writeFeedEntry
+    maxFilesBytes: number,        // Maximum total size for swarm_publishFiles
+    maxFileCount: number,         // Maximum number of files per swarm_publishFiles call
+    maxPathBytes: number,         // Maximum length of a file path in swarm_publishFiles, measured in UTF-8 bytes
+    maxChunkPayloadBytes: number  // Maximum payload size for swarm_publishChunk and swarm_writeSingleOwnerChunk (4096 by protocol)
   }
 }
 ```
@@ -230,7 +243,7 @@ Upload a single blob of data to Swarm.
 
 > **Note on `bzz://` URLs:** The `bzz://` URI scheme is a Swarm convention for content-addressed references. It is not an IANA-registered scheme. Implementations resolve `bzz://` URLs through a local Bee gateway or native protocol handler.
 
-**Errors:** `4100` if not connected, `4900` if node unavailable, `-32602` if params invalid or payload exceeds `maxDataBytes`.
+**Errors:** `4001` if the user rejects a per-publish prompt. `4100` if not connected. `4900` if node unavailable. `-32602` if params invalid or payload exceeds `maxDataBytes`.
 
 **Behavior:**
 - Implementations SHOULD prompt the user for per-publish consent unless the user has opted into auto-approve for this origin.
@@ -274,7 +287,7 @@ Upload a collection of files as a Swarm manifest (directory).
 }
 ```
 
-**Errors:** `4100` if not connected, `4900` if node unavailable, `-32602` if params invalid, files exceed `maxFileCount`, or total size exceeds `maxFilesBytes`.
+**Errors:** `4001` if the user rejects a per-publish prompt. `4100` if not connected. `4900` if node unavailable. `-32602` if params invalid, files exceed `maxFileCount`, or total size exceeds `maxFilesBytes`.
 
 ---
 
@@ -336,7 +349,7 @@ Feeds allow web applications to maintain updatable content at a fixed address. T
 }
 ```
 
-**Errors:** `4100` if not connected or feed access not granted, `4900` if node unavailable, `-32602` if name invalid.
+**Errors:** `4001` if the user rejects the feed-permission prompt. `4100` if the origin lacks basic connection or the implementation cannot surface a permission prompt. `4900` if node unavailable. `-32602` if name invalid.
 
 **Behavior:**
 - Creating a feed that already exists MUST be idempotent — return the existing feed's metadata.
@@ -380,7 +393,7 @@ Update a feed to point at a new content reference.
 }
 ```
 
-**Errors:** `4100` if not connected or feed access not granted, `4900` if node unavailable, `-32602` if params invalid or feed doesn't exist.
+**Errors:** `4001` if the user rejects a feed-permission prompt this call triggered. `4100` if the origin lacks basic connection or the implementation cannot surface a permission prompt. `4900` if node unavailable. `-32602` if params invalid or feed doesn't exist.
 
 **Behavior:**
 - Writes are serialized per-topic (same mutex as `swarm_writeFeedEntry`). The returned `index` reflects the actual sequence index written.
@@ -411,7 +424,7 @@ The 4 KB SOC body limit is internal to the storage envelope and is NOT a dApp-vi
 }
 ```
 
-**Errors:** `4100` if not connected or feed access not granted, `4900` if node unavailable, `-32602` if params invalid, feed doesn't exist, index is occupied (`index_already_exists`), or payload exceeds `maxDataBytes` (`payload_too_large`).
+**Errors:** `4001` if the user rejects a feed-permission prompt this call triggered. `4100` if the origin lacks basic connection or the implementation cannot surface a permission prompt. `4900` if node unavailable. `-32602` if params invalid, feed doesn't exist, index is occupied (`index_already_exists`), or payload exceeds `maxDataBytes` (`payload_too_large`).
 
 **Behavior:**
 
@@ -466,7 +479,7 @@ const bytes = Uint8Array.from(atob(result.data), c => c.charCodeAt(0))
 const text = new TextDecoder().decode(bytes)
 ```
 
-**Errors:** `4900` if node unreachable, `-32602` if params invalid. Notably does NOT return `4100` — no permission is required to call this method.
+**Errors:** `4900` if node unreachable, `-32602` if params invalid or the calling origin has exceeded its per-origin read budget (`rate_limited`). Notably does NOT return `4100` — no permission is required to call this method.
 
 Structured error reasons in `data.reason`:
 
@@ -475,6 +488,7 @@ Structured error reasons in `data.reason`:
 | `feed_empty` | The feed exists but has no entries written yet (returned for latest-entry reads). |
 | `entry_not_found` | No entry exists at the requested index. |
 | `feed_not_found` | Used `name` without `owner`, but the feed has not been created yet under this origin. |
+| `rate_limited` | The calling origin has exceeded the implementation's per-origin rate or bandwidth budget for permission-free reads. See [Resource Exhaustion](#resource-exhaustion). |
 
 **Behavior:**
 
@@ -514,7 +528,7 @@ This is an introspection method scoped to the calling origin. It does NOT requir
 
 Returns an empty array `[]` for origins with no feeds — including origins that have never granted permission, origins that have granted but not created feeds, and origins whose permission has been revoked.
 
-**Errors:** None expected on the happy path. `-32603` (Internal Error) only on unexpected internal failures (e.g., feed-store read errors).
+**Errors:** None expected on the happy path. `-32602` with `data.reason = "rate_limited"` if the calling origin has exceeded its per-origin read budget (see [Resource Exhaustion](#resource-exhaustion)). `-32603` (Internal Error) only on unexpected internal failures (e.g., feed-store read errors).
 
 **Behavior:**
 
@@ -525,6 +539,187 @@ Returns an empty array `[]` for origins with no feeds — including origins that
   - Symmetric with `swarm_readFeedEntry`: both are read-only operations on data the caller could obtain elsewhere.
 - **`lastUpdated` and `lastReference`** are populated only by `swarm_updateFeed`-style usage. For feeds maintained as journals via `swarm_writeFeedEntry`, both fields stay `null` (those operations do not update the manifest reference).
 - **`bzzUrl`** is a stable convenience built from `manifestReference`. For `swarm_updateFeed`-style feeds it resolves to the latest pointed-at content; for journal-style feeds (where the SOC payload is raw bytes rather than a content reference) the manifest URL has limited utility — applications should use `swarm_readFeedEntry` to read journal contents.
+
+---
+
+### Low-Level Chunk Methods
+
+The methods specified above are *high-level*: they express publishing and feed intent, and the provider translates that intent into Swarm's underlying chunk operations. This section defines the *low-level* tier — direct read and write access to individual Swarm chunks.
+
+Every Swarm data structure is ultimately a graph of chunks: **content-addressed chunks (CACs)** for immutable data, and **Single Owner Chunks (SOCs)** — signed chunks at a caller-chosen address — used as the building block for mutable structures such as feeds. Exposing the chunk layer lets dApps and libraries implement higher-level constructs this specification does not define directly — custom manifests, epoch feeds, access-controlled data, and structures not yet supported natively by Bee — without a revision of this specification for each one.
+
+The chunk tier is **additive**. It does not replace the high-level methods, which carry consent semantics, safety guarantees (e.g. the journal overwrite protection of `swarm_writeFeedEntry`), and an efficient bulk-data path. Applications SHOULD prefer the high-level methods where they fit, and reach for the chunk tier only for primitives the high-level methods do not provide.
+
+**Chunk type is explicit.** Swarm carries no in-band chunk-type tag, and a chunk's 32-byte address does not reveal whether it is a CAC or a SOC; Bee currently distinguishes them heuristically (see [SWIP-67](https://github.com/ethersphere/SWIPs/pull/67) and [bee#5445](https://github.com/ethersphere/bee/pull/5445)). This specification sidesteps that ambiguity by making the chunk type explicit in the **method name** — `swarm_publishChunk`/`swarm_readChunk` operate on CACs, `swarm_writeSingleOwnerChunk`/`swarm_readSingleOwnerChunk` operate on SOCs. The provider never has to guess, and the API does not depend on the resolution of the upstream heuristic.
+
+**Chunk size.** A Swarm chunk payload is at most 4096 bytes. This is a protocol constant, advertised as `maxChunkPayloadBytes` in `swarm_getCapabilities` for completeness, but it is not implementation-configurable.
+
+**Not for bulk data.** Each chunk method call crosses a process boundary and incurs IPC overhead. Uploading large content as thousands of individual `swarm_publishChunk` calls is far slower than `swarm_publishData`, which splits content into a BMT tree in a single node operation. Applications SHOULD use `swarm_publishData`/`swarm_publishFiles` for bulk content and reserve the chunk methods for single chunks and custom structures that cannot be expressed at the high-level tier.
+
+All chunk uploads MUST be pinned on the local node, as with `swarm_publishData`. The implementation selects an appropriate postage batch automatically.
+
+**Type validation on read.** Implementations MUST validate the returned bytes against the requested chunk type using Swarm's standard chunk verification rules — BMT hash recomputation for CACs, SOC signature recovery and `keccak256(identifier_32 || owner_20)` address derivation for SOCs. A mismatch MUST be reported as `chunk_type_mismatch`. See [Implementation Note: Exact-Match Feed Reads](#implementation-note-exact-match-feed-reads) for SOC address derivation and the span-endianness rules; refer to Swarm's chunk-format specification for the canonical byte layout (with [bee-js](https://github.com/ethersphere/bee-js) as a reference implementation).
+
+**Options object.** Several chunk methods accept an optional `options` object. The v1 surface is deliberately narrow — see [Future Extensions](#future-extensions) for the deferred fields and the rationale. Implementations MUST reject any option key they do not recognize with `-32602` and `data.reason = "unsupported_option"`, so that future option additions degrade safely.
+
+---
+
+#### `swarm_publishChunk`
+
+Upload a single content-addressed chunk (CAC).
+
+**Params:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `data` | `string \| Uint8Array \| ArrayBuffer` | Yes | Chunk payload. Strings are encoded as UTF-8. MUST be ≤ `maxChunkPayloadBytes` (4096). |
+| `span` | `number \| bigint` | No | The value committed in the chunk's 8-byte span field. Defaults to the byte length of `data` (always representable as a `number`). Set explicitly only when constructing intermediate nodes of a custom BMT tree. MUST be a non-negative integer fitting in 8 unsigned bytes (`0 ≤ span ≤ 2⁶⁴ − 1`). Pass a `bigint` when the value exceeds `Number.MAX_SAFE_INTEGER` (2⁵³ − 1); a `number` outside the safe-integer range MUST be rejected with `invalid_span`. |
+| `options` | `object` | No | Reserved for future use. No fields are standardized in v1; unknown fields MUST be rejected with `unsupported_option`. |
+
+**Result:**
+
+```javascript
+{
+  reference: string   // 64-character hex chunk address
+}
+```
+
+**Errors:** `4001` if the user rejects a per-publish prompt. `4100` if not connected. `4900` if node unavailable. `-32602` if params invalid (`payload_too_large`, `invalid_span`, `unsupported_option`).
+
+**Behavior:**
+- The chunk address is the BMT hash of `span_8LE || data`. See [Implementation Note: Exact-Match Feed Reads](#implementation-note-exact-match-feed-reads) for the **little-endian** span convention.
+- Subject to the **publish permission tier** — the same per-operation consent / auto-approve as `swarm_publishData`.
+- CACs are immutable; uploading a chunk that already exists is idempotent and returns an identical reference.
+- Chunk payloads are opaque bytes. Per-chunk encryption is the caller's responsibility — the provider stores the bytes as given. (Swarm's encryption primitive lives at the BMT-tree layer, not at single `/chunks` endpoints; see [Future Extensions](#future-extensions).)
+
+---
+
+#### `swarm_readChunk`
+
+Retrieve a single content-addressed chunk by its address. This is a read-only operation on public Swarm data and does NOT require any permission grant — symmetric with `swarm_readFeedEntry`. Any web page MAY call it. Subject to the per-origin rate limits described in [Security Considerations](#resource-exhaustion).
+
+**Params:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `reference` | `string` | Yes | 64-character hex chunk address. |
+| `options` | `object` | No | Reserved for future use. Unknown fields MUST be rejected with `unsupported_option`. |
+
+**Result:**
+
+```javascript
+{
+  data: string,        // Base64-encoded chunk payload (span field stripped)
+  encoding: "base64",
+  span: number | bigint   // Decoded span value; `number` when ≤ Number.MAX_SAFE_INTEGER, `bigint` otherwise
+}
+```
+
+**Errors:** `4900` if node unreachable, `-32602` for invalid params (`invalid_reference`, `unsupported_option`). `data.reason` is `chunk_not_found` if no chunk exists at the address, `chunk_type_mismatch` if the returned bytes do not validate as a CAC at the requested address, or `rate_limited` if the per-origin budget is exceeded.
+
+**Behavior:**
+- Works regardless of node mode; reads consume no stamps. Pre-flight checks MUST be limited to verifying the Bee HTTP API is reachable (same rule as `swarm_readFeedEntry`).
+- Implementations MUST recompute the BMT hash of the returned bytes (over `span_8LE || data`) and reject any chunk whose hash does not equal the requested `reference` (`chunk_type_mismatch`). A returned SOC at the same address — which is structurally possible — MUST be rejected here; the caller intended a CAC and should use `swarm_readSingleOwnerChunk` for SOCs.
+- Implementations MUST distinguish "not found" (HTTP 404) from transient errors (5xx, timeouts). Transient errors MUST propagate as `-32603`, NOT be misclassified as `chunk_not_found`.
+
+---
+
+#### `swarm_writeSingleOwnerChunk`
+
+Write a Single Owner Chunk at a caller-chosen `identifier`, signed by the origin's signing identity. SOCs are the primitive behind every mutable Swarm structure (feeds, epoch feeds, custom mutable references).
+
+**Params:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `identifier` | `string` | Yes | 64-character hex (32-byte) SOC identifier, chosen by the caller. |
+| `data` | `string \| Uint8Array \| ArrayBuffer` | Yes | Payload. Strings encoded as UTF-8. MUST be ≤ `maxChunkPayloadBytes` (4096). |
+| `span` | `number \| bigint` | No | As in `swarm_publishChunk` (same range, same `bigint`-for-out-of-safe-integer-range rule). |
+| `options` | `object` | No | Reserved for future use. Unknown fields MUST be rejected with `unsupported_option`. |
+
+**Result:**
+
+```javascript
+{
+  reference: string,    // 64-character hex SOC address
+  owner: string,        // Checksummed Ethereum address of the signing key
+  identifier: string    // The identifier (echoed)
+}
+```
+
+**Errors:** `4001` if the user rejects a feed-permission prompt this call triggered. `4100` if the origin lacks basic connection or the implementation cannot surface a permission prompt. `4900` if node unavailable. `-32602` if params invalid (`invalid_identifier`, `invalid_span`, `payload_too_large`, `unsupported_option`).
+
+**Behavior:**
+- The provider signs the SOC using the **origin's signing identity** — the same identity established at feed-permission grant time and exposed via `swarm_getSigningIdentity`. There is no caller-supplied `identityMode` parameter in v1 (see [Future Extensions](#future-extensions)). Key material MUST NOT be exposed to the page context (consistent with the feed key-material rules in [Security Considerations](#feed-key-material)).
+- The SOC address is `keccak256(identifier_32 || owner_20)` — see [Implementation Note: Exact-Match Feed Reads](#implementation-note-exact-match-feed-reads).
+- Subject to the **feed permission tier** — SOC writes involve signing and require the feed-access grant, the same grant as `swarm_createFeed`.
+- Because the owner is an origin-scoped key, a dApp can only create SOCs under its own identity. It cannot forge SOCs owned by another origin or by an arbitrary address.
+- **No overwrite guarantee.** The same `(owner, identifier)` pair SHOULD be treated as immutable; the behavior of re-writing a SOC at an existing `(owner, identifier)` is undefined and discouraged. Applications that need mutability MUST use distinct identifiers (e.g. the feed pattern `keccak256(topic || index)`), and applications that need overwrite-rejection MUST use `swarm_writeFeedEntry`.
+
+---
+
+#### `swarm_readSingleOwnerChunk`
+
+Retrieve a Single Owner Chunk. Read-only operation on public Swarm data; requires NO permission grant. Subject to the per-origin rate limits described in [Security Considerations](#resource-exhaustion).
+
+**Params:**
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `address` | `string` | Conditional | 64-character hex SOC address. |
+| `owner` | `string` | Conditional | Ethereum address of the SOC owner. Required if `address` is not provided. |
+| `identifier` | `string` | Conditional | 64-character hex identifier. Required if `address` is not provided. |
+| `options` | `object` | No | Reserved for future use. Unknown fields MUST be rejected with `unsupported_option`. |
+
+Exactly one of `address`, or the pair (`owner` + `identifier`), MUST be provided. When the pair is given, the provider derives the address as `keccak256(identifier_32 || owner_20)`.
+
+**Result:**
+
+```javascript
+{
+  data: string,            // Base64-encoded payload (span field stripped)
+  encoding: "base64",
+  span: number | bigint,   // Decoded span value; `number` when ≤ Number.MAX_SAFE_INTEGER, `bigint` otherwise
+  reference: string,       // 64-character hex SOC address (echoed/derived)
+  owner: string,       // Recovered owner address
+  identifier: string,
+  signature: string    // 130-character hex (65-byte) SOC signature, for caller-side verification
+}
+```
+
+**Errors:** `4900` if node unreachable, `-32602` if params invalid (`invalid_owner`, `invalid_identifier`, `invalid_reference`, `unsupported_option`). `data.reason` is `chunk_not_found` if no SOC exists at the address, `chunk_type_mismatch` if the returned bytes do not validate as a SOC for the requested address, or `rate_limited` if the per-origin budget is exceeded.
+
+**Behavior:**
+- Exact-match by address — no heuristics, no at-or-before search.
+- Implementations MUST parse the returned SOC, recover the signer from the signature, derive `keccak256(identifier_32 || owner_20)`, and reject any chunk whose derived address does not equal the requested address (`chunk_type_mismatch`). A returned CAC at the same address MUST be rejected here.
+- Node-mode independent; consumes no stamps; pre-flight limited to HTTP reachability. Transient vs. not-found distinction as in `swarm_readChunk`.
+
+---
+
+#### `swarm_getSigningIdentity`
+
+Return the origin's signing identity — the key the provider uses to sign feed updates and SOCs on this origin's behalf. Useful for pre-computing SOC addresses (e.g. for epoch-feed construction) before any write, and as the canonical entry point for acquiring the feed-permission grant without committing to a specific write.
+
+This method operates under the **feed permission tier**: the returned address *is* the dApp's persistent on-chain identity, and exposing it without consent would let arbitrary pages enumerate per-origin identities.
+
+**Params:** None.
+
+**Result:**
+
+```javascript
+{
+  owner: string,        // Checksummed Ethereum address of the signing key
+  identityMode: string  // "app-scoped" or "bee-wallet" (whichever was established at feed-permission grant)
+}
+```
+
+**Errors:** `4001` if the user rejects the feed-permission prompt. `4100` if the origin has not been granted basic connection (`swarm_requestAccess`) or the implementation cannot surface a permission prompt in the current context (e.g. a nested browsing context where consent UI is unavailable).
+
+**Behavior:**
+- If the calling origin has not yet been granted the feed-permission tier, the implementation MUST prompt the user for feed/signing access (the same prompt as `swarm_createFeed`'s first call) and return the identity on approval. This makes `swarm_getSigningIdentity` a viable bootstrap path for dApps that need to pre-compute SOC addresses before any write.
+- If feed-permission has already been granted, the method MUST return immediately without prompting.
+- The returned `owner` MUST be identical to the `owner` returned by `swarm_createFeed`, `swarm_writeSingleOwnerChunk`, and the entries of `swarm_listFeeds` for this origin.
+- The identity is stable for the lifetime of the origin's feed-permission grant. Identity mode selection happens once, at feed-permission grant time; there is no caller-driven mode selection in v1 (see [Future Extensions](#future-extensions)).
 
 ---
 
@@ -597,14 +792,14 @@ The key insight: the origin is derived from the **user-visible URL** (the addres
 #### Permission Lifecycle
 
 1. **Connection:** Granted via `swarm_requestAccess`. Persisted per-origin.
-2. **Publish:** Each `swarm_publishData`/`swarm_publishFiles` call MAY require per-operation user approval, unless the user has opted into auto-approve for this origin.
-3. **Feed writes:** Feed write operations (`swarm_createFeed`, `swarm_updateFeed`, `swarm_writeFeedEntry`) require an additional feed-specific permission grant, separate from the connection permission.
-4. **Feed reads and introspection:** `swarm_readFeedEntry` and `swarm_listFeeds` require NO permission grant. Swarm feeds are public data, and per-origin feed metadata is deterministic given `(origin, name)` — neither operation reveals anything the caller couldn't obtain elsewhere or compute itself. Both methods MUST work without a prior `swarm_requestAccess`.
-5. **Disconnection:** The user can revoke access at any time. The provider MUST emit a `disconnect` event and reject subsequent permission-gated requests with error code `4100`. Permission-free read methods (`swarm_getCapabilities`, `swarm_readFeedEntry`, `swarm_listFeeds`) MUST continue to function after disconnection — `swarm_listFeeds` in particular continues returning the previously-created feed records, which by design persist across revocation so a subsequent re-grant restores identity continuity.
+2. **Publish:** Each `swarm_publishData`/`swarm_publishFiles`/`swarm_publishChunk` call MAY require per-operation user approval, unless the user has opted into auto-approve for this origin. CAC chunk uploads fall under the same publish tier as `swarm_publishData`. If a per-publish prompt is shown and the user rejects it, the method MUST reject with `4001` (User Rejected); `4100` (Unauthorized) remains reserved for the cases where the origin lacks basic connection or the implementation cannot surface a permission prompt in the current context.
+3. **Feed writes and signing:** Operations that involve signing with the origin's identity — `swarm_createFeed`, `swarm_updateFeed`, `swarm_writeFeedEntry`, `swarm_writeSingleOwnerChunk`, and the identity-disclosure method `swarm_getSigningIdentity` — require an additional feed-specific permission grant, separate from the connection permission. Raw SOC writes are gated here (not under the publish tier) because they involve signing and share key material with feeds. Any feed-tier method MAY trigger a user prompt to acquire this grant on first call. If the user rejects, the method MUST reject with `4001` (User Rejected); `4100` (Unauthorized) is reserved for the cases where the origin lacks basic connection or the implementation cannot surface a permission prompt in the current context.
+4. **Reads and introspection:** `swarm_readFeedEntry`, `swarm_readChunk`, `swarm_readSingleOwnerChunk`, and `swarm_listFeeds` require NO permission grant. The data is either public on Swarm or deterministic given the caller's origin — none of it reveals anything the caller couldn't obtain elsewhere or compute itself. All four methods MUST work without a prior `swarm_requestAccess`, and MUST be rate-limited per origin (see [Security Considerations](#resource-exhaustion)).
+5. **Disconnection:** The user can revoke access at any time. The provider MUST emit a `disconnect` event and reject subsequent permission-gated requests with error code `4100`. Permission-free methods (`swarm_getCapabilities`, `swarm_readFeedEntry`, `swarm_readChunk`, `swarm_readSingleOwnerChunk`, `swarm_listFeeds`) MUST continue to function after disconnection — `swarm_listFeeds` in particular continues returning the previously-created feed records, which by design persist across revocation so a subsequent re-grant restores identity continuity.
 
 #### Auto-Approve (OPTIONAL)
 
-Implementations MAY offer users the option to auto-approve publish and/or feed operations for trusted origins. When auto-approve is active:
+Implementations MAY offer users the option to auto-approve publish (including CAC chunk uploads) and/or feed operations (including SOC writes) for trusted origins. When auto-approve is active:
 - The implementation MUST still enforce all validation, size limits, and pre-flight checks.
 - The implementation SHOULD provide a visual indicator that auto-approve is active.
 - The user MUST be able to revoke auto-approve at any time.
@@ -621,6 +816,7 @@ Implementations MUST enforce upload size, file count, and path length limits. Th
 | `maxFilesBytes` | 50 MB (52,428,800 bytes) | Total size across all entries in `swarm_publishFiles`. |
 | `maxFileCount` | 100 files | Per `swarm_publishFiles` call. |
 | `maxPathBytes` | 100 (UTF-8 bytes) | Per `files[].path` in `swarm_publishFiles`. Implementations MUST advertise at least 100. |
+| `maxChunkPayloadBytes` | 4096 (bytes) | Per `swarm_publishChunk` and `swarm_writeSingleOwnerChunk` payload. Fixed by the Swarm chunk protocol; implementations MUST advertise exactly 4096. |
 
 Implementations MAY use different limits but MUST report them accurately in `swarm_getCapabilities`.
 
@@ -658,9 +854,29 @@ Many applications also need an **append-only log**: user activity feeds, message
 
 `swarm_writeFeedEntry` and `swarm_readFeedEntry` expose the native Swarm feed index, enabling O(1) appends (write one SOC, no reads) and O(N) parallel reconstruction (fetch individual entries by index). The overwrite protection on explicit indices ensures the core safety guarantee: no silent history corruption.
 
-### Why do feed reads not require feed permission?
+### Why do feed and chunk reads require no permission grant?
 
-Swarm feeds are public data — anyone who knows the owner address and topic can read any feed entry on the network. The connection permission gate (`swarm_requestAccess`) ensures the origin has been approved to route requests through the user's Bee node. Adding a per-feed read ACL would be security theater: the same data is accessible via any other Bee node or gateway. Keeping reads lightweight (connection-only, no vault unlock, no stamps check) enables use cases like profile pages and cross-user activity views without unnecessary permission prompts.
+Swarm feeds, CACs, and SOCs are public data — anyone who knows the address (or owner + identifier, or owner + topic + index) can read any chunk on the network from any Bee gateway. Adding a per-origin ACL on top would be security theater: gating doesn't restrict access to the data, only routes around the user's node, which any page can do on its own.
+
+What gating *would* restrict is the user's bandwidth, local cache, and connection. Those are the real resources at risk, and they are protected by the **mandatory per-origin rate and bandwidth limits** specified in [Resource Exhaustion](#resource-exhaustion) — including tighter budgets for origins that have never called `swarm_requestAccess`. This puts the control where the actual risk lives, instead of behind a permission prompt that would block legitimate use cases (profile pages, cross-user activity views, link previews) for no security gain.
+
+The same logic extends to `swarm_listFeeds`: feed coordinates are deterministic given `(origin, name)`, so listing them reveals nothing the calling origin could not compute itself.
+
+### Why expose chunk operations?
+
+Every Swarm data structure — feeds, manifests, ACT, GSOC, future constructions not yet supported by Bee such as epoch feeds — is built from chunks. Without a chunk tier, every new high-level primitive Swarm gains would require a new method in this specification and a new revision to ship it.
+
+Exposing CAC and SOC read/write at the provider boundary moves that experimentation into the library layer: a library author can build a new manifest format, a new feed scheme, or a new access-control overlay on top of `swarm_publishChunk`/`swarm_readChunk`/`swarm_writeSingleOwnerChunk`/`swarm_readSingleOwnerChunk`, without touching this specification. This mirrors EIP-1193's role on Ethereum, where `eth_sendRawTransaction` and friends are the low-level transport and ergonomic abstractions (ethers, viem) live as libraries.
+
+The chunk tier is constrained the same way the high-level methods are: origin-scoped permissions, host-managed postage, fixed payload size limit, per-origin rate budgets on permission-free reads, and signing-key custody inside the trusted context. It adds expressiveness without weakening the security posture — a 4 KB opaque blob upload is strictly less powerful than a 10 MB `swarm_publishData` call the same origin can already make.
+
+### Why type-explicit method names?
+
+Swarm chunks carry no in-band type tag, and a chunk's address does not encode whether the chunk is a CAC or a SOC. Bee disambiguates heuristically, which has produced real edge cases (see [SWIP-67](https://github.com/ethersphere/SWIPs/pull/67), [bee#5445](https://github.com/ethersphere/bee/pull/5445)).
+
+Rather than wait on a Bee-level resolution or introduce our own heuristics, the API encodes the type in the method name: `swarm_publishChunk`/`swarm_readChunk` for CACs, `swarm_writeSingleOwnerChunk`/`swarm_readSingleOwnerChunk` for SOCs. The caller declares intent, the provider applies the correct upload endpoint and verification rules, and the spec does not depend on the upstream ambiguity ever being resolved.
+
+This also unblocks a clean validation contract: on every read, the provider recomputes the type-specific address from the returned bytes and rejects mismatches as `chunk_type_mismatch`. The caller can rely on "if `swarm_readChunk(addr)` returned bytes, those bytes are the CAC at `addr`" — a guarantee the underlying Bee endpoint does not give.
 
 ### Why base64 for read responses?
 
@@ -686,7 +902,17 @@ A connected origin could repeatedly publish data up to the size limit, consuming
 - **Stamp monitoring:** Warning the user when stamp capacity is running low due to dApp activity.
 - **Per-origin accounting:** Tracking cumulative usage per origin so users can identify heavy consumers.
 
-This specification does not mandate a specific rate-limiting scheme, as appropriate limits depend on the node's capacity and the user's preferences.
+This specification does not mandate a specific rate-limiting scheme for permissioned operations, as appropriate limits depend on the node's capacity and the user's preferences.
+
+#### Permission-Free Reads
+
+The read methods that require no permission grant — `swarm_readFeedEntry`, `swarm_readChunk`, `swarm_readSingleOwnerChunk`, and `swarm_listFeeds` — can be invoked by any page that loads the provider, including pages the user has never granted access to. `swarm_readChunk` in particular widens this to arbitrary chunk addresses, effectively turning the user's node into a public retrieval path on behalf of any page.
+
+The capability itself is benign — the same data is available from any public Swarm gateway — but the user's bandwidth, local cache, and network connection are not. Without throttling, a hostile page could drain the user's bandwidth by issuing high-volume chunk reads, or probe the local cache via timing.
+
+Implementations MUST enforce **per-origin rate and bandwidth limits** on permission-free read methods. Origins exceeding the configured budget MUST receive `-32602` with `data.reason = "rate_limited"` (an analytics-friendly reason code, not an error condition the dApp should retry without backoff). Implementations MAY apply tighter limits to origins that have never called `swarm_requestAccess` than to previously-connected origins.
+
+This specification does not mandate specific numeric thresholds, as appropriate limits depend on the node's bandwidth and the user's preferences. Implementations SHOULD make the limits user-visible and adjustable.
 
 ### Iframe and Nested Context Behavior
 
@@ -709,8 +935,15 @@ Implementations that create temporary files or directories during upload process
 The following capabilities are anticipated for future versions of this specification and are explicitly out of scope for version 1.0:
 
 - **`capabilitiesChanged` event** — Proactive notification when the provider's capabilities change (e.g., node goes offline, stamps exhausted). Currently dApps must poll `swarm_getCapabilities` to detect state changes.
-- **`preferredIdentityMode` parameter for `swarm_createFeed`** — Allow dApps to express a preference for `app-scoped` or `bee-wallet` identity mode, rather than relying solely on user/implementation choice.
-- **`encoding` parameter for `swarm_readFeedEntry`** — Allow callers to request a specific response encoding (e.g., `"utf8"`) to avoid manual base64 decoding for text payloads.
+- **`preferredIdentityMode` parameter** — Allow dApps to express a preference for `app-scoped` or `bee-wallet` identity mode, rather than relying solely on user/implementation choice. When added, this parameter SHOULD land on `swarm_createFeed`, `swarm_writeSingleOwnerChunk`, and `swarm_getSigningIdentity` consistently.
+- **`encoding` parameter for `swarm_readFeedEntry`, `swarm_readChunk`, `swarm_readSingleOwnerChunk`** — Allow callers to request a specific response encoding (e.g., `"utf8"`) to avoid manual base64 decoding for text payloads.
+- **Expanded chunk `options`** — The chunk methods' `options` object is intentionally empty in v1, with `unsupported_option` providing forward-compat enforcement. Candidate fields for future revisions, each requiring a precise mapping to Bee's endpoint contract before standardization:
+  - `trackProgress: true` on writes — provider issues a fresh origin-scoped `tagUid` (returned in the result) usable with `swarm_getUploadStatus`. The page MUST NOT supply a `tag` value directly, to preserve the origin ownership invariant `swarm_getUploadStatus` enforces.
+  - `cache: boolean` on reads — pass-through to Bee's cache header.
+  - **ACT (Access Control Trie)** on reads — Bee's `/chunks` endpoint accepts ACT headers; once ACT semantics are specified at this layer (key custody, grantee management, history references), it is a natural fit for the chunk tier.
+  - **Per-chunk encryption** — Bee's encryption primitive currently lives at the `/bytes` BMT-tree layer, not at single `/chunks`. Adding it at the chunk tier requires either a Bee-level addition or a client-side convention; both are out of scope for v1.
+  - **Redundancy (erasure coding)** — Same situation as encryption: a BMT-tree-layer feature in Bee, not a single-chunk one.
+  - **`deferred` upload** — Bee's `swarm-deferred-upload` header is endpoint-general but not guaranteed at `/chunks`; pending verification.
 
 Additionally, the `specVersion` field in `swarm_getCapabilities` is currently a SHOULD. A future revision may promote it to MUST once multiple implementations exist and version negotiation becomes necessary.
 
@@ -810,7 +1043,9 @@ try {
 ### Post-Disconnect Behavior
 
 ```javascript
-// After user revokes access, all methods reject with 4100
+// After user revokes access, permission-gated methods reject with 4100.
+// Permission-free methods (getCapabilities, readFeedEntry, readChunk,
+// readSingleOwnerChunk, listFeeds) MUST continue to function.
 // (simulate disconnect via browser UI, then:)
 try {
   await window.swarm.publishData({ data: 'test', contentType: 'text/plain' });
@@ -818,6 +1053,14 @@ try {
 } catch (err) {
   assert(err.code === 4100); // Unauthorized
 }
+
+// Permission-free introspection still works:
+const feeds = await window.swarm.listFeeds();
+assert(Array.isArray(feeds)); // Returns previously-created feed records
+
+const caps = await window.swarm.getCapabilities();
+assert(caps.canPublish === false);
+assert(caps.reason === 'not-connected');
 ```
 
 ### Feed Idempotency
@@ -1004,7 +1247,7 @@ if (caps.specVersion) assert(typeof caps.specVersion === 'string');
 
 ## Implementation
 
-A reference implementation exists in [Freedom Browser](https://github.com/solardev-xyz/freedom-browser) (PR [#19](https://github.com/solardev-xyz/freedom-browser/pull/19)):
+[Freedom Browser](https://github.com/solardev-xyz/freedom-browser) (PR [#19](https://github.com/solardev-xyz/freedom-browser/pull/19)) implements the original high-level surface — `swarm_requestAccess`, `swarm_getCapabilities`, `swarm_publishData`, `swarm_publishFiles`, `swarm_getUploadStatus`, `swarm_createFeed`, `swarm_updateFeed`, `swarm_writeFeedEntry`, `swarm_readFeedEntry`, `swarm_listFeeds`:
 
 - **Provider injection:** [`src/main/webview-preload.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/src/main/webview-preload.js) — `window.swarm` object injected into webview page context
 - **Main-process enforcement:** [`src/main/swarm/swarm-provider-ipc.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/src/main/swarm/swarm-provider-ipc.js) — method dispatch, validation, origin enforcement
@@ -1013,7 +1256,9 @@ A reference implementation exists in [Freedom Browser](https://github.com/solard
 - **Permissions:** [`src/main/swarm/swarm-permissions.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/src/main/swarm/swarm-permissions.js) — origin-scoped permission store
 - **Origin normalization:** [`src/shared/origin-utils.js`](https://github.com/solardev-xyz/freedom-browser/blob/feature/swarm-publishing-updated/src/shared/origin-utils.js) — dweb-aware origin extraction
 
-A reference dApp consuming this API exists in [Swarmit](https://github.com/flotob/swarmit), a decentralized message board that uses `swarm_requestAccess`, `swarm_publishData`, `swarm_createFeed`, `swarm_writeFeedEntry`, `swarm_readFeedEntry`, and `swarm_listFeeds` for its full publishing and profile-discovery pipeline.
+[Swarmit](https://github.com/flotob/swarmit) — a decentralized message board — exercises the core publish/feed flows from a consuming dApp, using `swarm_requestAccess`, `swarm_publishData`, `swarm_createFeed`, `swarm_writeFeedEntry`, `swarm_readFeedEntry`, and `swarm_listFeeds`.
+
+The low-level chunk tier (`swarm_publishChunk`, `swarm_readChunk`, `swarm_writeSingleOwnerChunk`, `swarm_readSingleOwnerChunk`), `swarm_getSigningIdentity`, the chunk-type validation contract, and the MUST-level per-origin rate limiting on permission-free reads are newly proposed in this draft from review feedback and are not yet implemented on either side. Reference implementations will follow in a subsequent Freedom Browser PR.
 
 ## Copyright
 
