@@ -141,9 +141,9 @@ Deliverables: pubsub protocol in Bee, WebSocket + topic-list API endpoints, pubs
 
 ### Milestone 2 — Bandwidth incentives
 
-The broker–subscriber stream is a metered channel: the subscriber pays the broker/forwarder per byte via chequebook cheques (incorporating Swarm's bandwidth incentive model).
+The broker–subscriber stream is a metered channel: the subscriber pays the broker/forwarder per chunk via chequebook cheques (incorporating Swarm's bandwidth incentive model).
 
-- Subscription connection query returns incentive params (price in PLUR/byte, cheque threshold).
+- Subscription connection query returns incentive params (price in PLUR/chunk, cheque threshold).
 - Bee gains a pubsub cashout option for accumulated cheques.
 - Light clients require a funded chequebook and a blockchain connection.
 
