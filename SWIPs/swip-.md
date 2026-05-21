@@ -280,7 +280,7 @@ Step 3 is the key isolation mechanism: even though all broker nodes in the neigh
 
 #### Postage stamps
 
-The subscriber needs a postage stamp for the MOC request upload. The broker needs a postage stamp for the MOC response upload. Once [SWIP-36](https://github.com/ethersphere/SWIPs/pull/70) (free uploads) is adopted, both stamp requirements can be lifted.
+The subscriber needs a postage stamp for the MOC request upload. Once [SWIP-36](https://github.com/ethersphere/SWIPs/pull/70) (free uploads) is adopted, the stamp requirement can be lifted.
 
 #### Known limitations
 
