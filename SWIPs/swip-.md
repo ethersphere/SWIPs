@@ -154,7 +154,7 @@ Make the broker underlay address parameter optional. Instead of the client hardc
 #### Protocol constants
 
 ```
-DISCOVERY_ID   = keccak256("PUBSUB-REQUEST")              // well-known private key
+DISCOVERY_ID   = keccak256("PUBSUB-REQUEST") // MOC ID for discovery
 ```
 
 Broker nodes continuously watch for incoming SOCs whose ID matches `DISCOVERY_ID`. This is a single, network-wide subscription filter.
@@ -167,75 +167,70 @@ sequenceDiagram
     participant N as Topic Neighbourhood
     participant B as Broker
 
-    Note over S: Mine MOC OWNER keypair (sk_S, pk_S), so SOC addr<br/>a1=SOC_ADDR(id=DISCOVERY_ID, owner=ETH(pk_S))<br/> ∈ topic neighbourhood (depth ≥ 16)
-    Note over S: Mine response MIC ID id_S:<br/> so SOC addr<br/>a1=SOC_ADDR(id_S, owner=eth_S)<br/> ∈ topic neighbourhood (depth ≥ 16)
+    Note over S: Mine MOC OWNER keypair (sk_S, pk_S), so that SOC addr<br/>a_1=SOC_ADDR(id=DISCOVERY_ID, owner=ETH(pk_S))<br/> ∈ topic neighbourhood (depth ≥ 16)
     S->>N: Upload MOC(id=DISCOVERY_ID, owner=ETH(pk_S), payload=id_S)
     N->>B: (sync delivers to closest broker)
-    Note over B: 4. Detect: id == DISCOVERY_ID?<br/>Store chunk, extract id_S, associate id_S to pk_S
-    B-->>S: 5. Storage receipt (extract pk_B from signature)
-    Note over B: Subscribe to MIC messages with owner=eth_S (timeout 30s)
+    Note over B: Detect: id == DISCOVERY_ID<br/>extract id_S, associate pk_S with request
+    B-->>S: storage receipt (extract pk_B from signature, and overlay_B from the receipt payload)
+    Note over B: subscribe to MIC with with owner=ETH(pk_S) (timeout 30s)
 
-    Note over S: Mine response MIC ID id_B:<br/> so SOC addr<br/>a_2=SOC_ADDR(id_B,eth_B)<br/>closest to broker overlay
-    Note over S: Subscribe to SOC a_2 
-    S->>B: Upload MOC(id=id_S, owner=eth_S, payload=ECIES(pk_B, topic | id_B }))
+    Note over S: mine response MIC ID id_B<br/>so that SOC_ADDR(id_B, ETH(pk_B))<br/>is closest to overlay_B (depth ≥ 16)
+    S->>N: Upload MIC(id=id_S, owner=ETH(pk_S), payload=AES-GCM(req_key, {topic, id_B, ...}))
     N->>B: (sync delivers to closest broker)
-    Note over B: Receive MIC with subscription to eth_S owner
-    Note over B: Decrypt MIC payload<br/>extract topic and id_B  
-    Note over B: Check MIC addr a_2=SOC_ADDR(id_B,eth_B)<br/> ∈ topic neighbourhood (depth ≥ 16)
-    
-    
-    Build response R=hive connection info<br/>Encrypt R<br/>Create SOC(id=id_B, owner=eth_B)
-    
-    Note over B: Store response SOC R locally
-    S->>B: Fetch SOC R by requesting (Kademlia lookup) a_2
-    B-->>S: Retrieve Response chunk R
-    Note over S: Decrypt response, extract<br/>broker connection info
+    Note over B: MIC owner=ETH(pk_S) matches subscription<br/>decrypt payload → extract topic, id_B<br/>Check MIC addr a_2=SOC_ADDR(id_B,eth_B)<br/> ∈ topic neighbourhood (depth ≥ 16)
+    Note over B: build response R={overlay, underlay, ...}<br/>encrypt with res_key<br/>store SOC(id=id_B, owner=ETH(pk_B)) locally
+    S->>N: fetch SOC_ADDR(id_B, ETH(pk_B)) via Kademlia
+    N-->>B: lookup routed to broker (closest node)
+    B-->>S: response SOC R
+    Note over S: decrypt R with res_key<br/>extract broker connection info
     S->>B: libp2p connect(underlay_B)
 ```
 
-#### Phase 1 — Broker announcement (MIC)
+#### Phase 1 — Discovery request (MOC)
 
 1. The subscriber generates a random 32-byte `id_S`.
-2. The subscriber mines a SOC ID such that `soc.CreateAddress(mined_id, DISCOVERY_OWNER)` falls within the topic's neighbourhood (PO ≥ 16 relative to topic address).
-3. The subscriber uploads a MIC signed with `DISCOVERY_ID`, with `mined_id` as SOC ID and `id_S` as payload. Push-sync routes the chunk to the topic neighbourhood.
-4. A broker node in the topic neighbourhood detects the incoming SOC (owner == `DISCOVERY_OWNER`), stores it, and returns a **storage receipt**. The receipt contains the broker's public key `pk_B`.
-5. The broker subscribes (via the pubsub protocol internally) to incoming MOC messages with `id = id_S`. This subscription times out after 30 seconds if no MOC arrives.
+2. The subscriber mines a keypair `(sk_S, pk_S)` such that `soc.CreateAddress(DISCOVERY_ID, ETH(pk_S))` falls within the topic's neighbourhood (PO ≥ 16 relative to topic address).
+3. The subscriber uploads a MOC with `id = DISCOVERY_ID`, `owner = ETH(pk_S)`, and `id_S` as payload. Push-sync routes the chunk to the topic neighbourhood.
+4. A broker node in the topic neighbourhood detects the incoming SOC (`id == DISCOVERY_ID`), stores it, extracts `id_S`, and associates `pk_S` with the request.
+5. The broker returns a **storage receipt**. The subscriber extracts `pk_B` and the broker's overlay address from the receipt signature.
+6. The broker subscribes to incoming MIC messages with `owner = ETH(pk_S)`. This subscription times out after 30 seconds if no MIC arrives.
 
-#### Phase 2 — Encrypted handshake (MOC)
+#### Phase 2 — Encrypted handshake (MIC)
 
-6. The subscriber extracts `pk_B` and the broker's overlay address from the storage receipt. It then mines a response key pair `(resp_key, resp_pubkey)` and a `resp_id` such that `soc.CreateAddress(resp_id, ethAddr(resp_pubkey))` is closest to the broker's overlay.
-7. The subscriber uploads a MOC with `id = id_S`. The payload is ECIES-encrypted with `pk_B`:
+7. The subscriber mines a SOC ID `id_B` such that `soc.CreateAddress(id_B, ETH(pk_B))` is closest to the broker's overlay (PO ≥ 16).
+8. The subscriber uploads a MIC with `id = id_S`, `owner = ETH(pk_S)`. The payload is encrypted with the ECDH-derived key:
    ```
-   ECIES_Encrypt(pk_B, { topic, resp_key, resp_id, chequebook_addr, ... })
+   shared  = ECDH(sk_S, pk_B)
+   req_key = keccak256(shared ‖ 0x00)
+   nonce   = keccak256(req_key) [:12]
+   payload = AES-256-GCM(req_key, nonce, { topic, id_B, chequebook_addr, ... })
    ```
-8. The broker (already subscribed to `id_S`) receives the MOC, decrypts the payload, and extracts `resp_key` and `resp_id`.
-9. The broker builds response `R = { overlay, underlay, incentive_params, hive_conn_list }`, encrypts it symmetrically:
-   ```
-   sym_key = keccak256(resp_key)
-   nonce   = keccak256(keccak256(resp_key)) [:12]
-   C_res   = AES-256-GCM(sym_key, nonce, R)
-   ```
-10. The broker creates a new SOC signed with `resp_key` at address `soc.CreateAddress(resp_id, ethAddr(resp_pubkey))` and stores it locally.
-11. The subscriber fetches the response SOC address via Kademlia lookup (the request is routed to the broker as the closest responsible node), decrypts with `sym_key`, and connects to the broker via libp2p.
+9. The broker (subscribed to MIC with `owner = ETH(pk_S)`) receives the MIC, decrypts the payload, and extracts `topic` and `id_B`.
+10. The broker verifies that `soc.CreateAddress(id_B, ETH(pk_B))` falls within the topic neighbourhood (PO ≥ 16).
+11. The broker builds response `R = { overlay, underlay, incentive_params, hive_conn_list }`, encrypts it symmetrically:
+    ```
+    shared  = ECDH(sk_B, pk_S)
+    res_key = keccak256(shared ‖ 0x01)
+    nonce   = keccak256(res_key) [:12]
+    C_res   = AES-256-GCM(res_key, nonce, R)
+    ```
+12. The broker creates a SOC signed with `sk_B` at address `soc.CreateAddress(id_B, ETH(pk_B))` and stores it locally.
+13. The subscriber fetches the response SOC via Kademlia lookup (routed to the broker as the closest responsible node), decrypts with `res_key` derived from the same ECDH shared secret, and connects to the broker via libp2p.
 
-#### Request encryption — ECIES on secp256k1
+#### Encryption — ECDH + AES-256-GCM
 
-The MOC request payload is encrypted with the Elliptic Curve Integrated Encryption Scheme (ECIES) — the same scheme and library used in Ethereum's devp2p/RLPx handshake (`go-ethereum/crypto/ecies`):
+Both the MIC payload (Phase 2) and the response SOC payload use AES-256-GCM keyed by an ECDH shared secret. Both parties can compute the shared secret independently: `ECDH(sk_S, pk_B) = ECDH(sk_B, pk_S)` — the subscriber knows `sk_S` (mined in Phase 1) and `pk_B` (from the storage receipt); the broker knows `sk_B` and `pk_S` (from the Phase 1 MOC).
 
-1. Generate ephemeral key pair `(e, E = e·G)`.
-2. Shared secret `S = ECDH(e, pk_B)`.
-3. Key derivation: `(enc_key ‖ mac_key) = HKDF-SHA256(S)`.
-4. `ciphertext = AES-128-CTR(enc_key, plaintext)`.
-5. `tag = HMAC-SHA256(mac_key, ciphertext)`.
-6. Output: `E ‖ ciphertext ‖ tag`.
+Request and response derive separate keys to avoid nonce reuse:
 
-Only the holder of `sk_B` can derive the shared secret and decrypt. The ephemeral key `e` is discarded after encryption, providing forward secrecy per discovery session.
+```
+shared  = ECDH(sk_S, pk_B)          // = ECDH(sk_B, pk_S)
+req_key = keccak256(shared ‖ 0x00)  // MIC payload encryption
+res_key = keccak256(shared ‖ 0x01)  // response SOC encryption
+nonce_* = keccak256(key) [:12]      // deterministic per key
+```
 
-#### Response encryption — AES-256-GCM (symmetric)
-
-The response is encrypted symmetrically using the subscriber-mined `resp_key`. Both parties possess it: the subscriber mined it; the broker extracted it from the ECIES payload.
-
-AES-256-GCM provides authenticated encryption. Because `resp_key` is unique per discovery session (freshly mined), the `(sym_key, nonce)` pair is never reused, satisfying GCM's uniqueness requirement.
+AES-256-GCM provides authenticated encryption. Because `sk_S` is unique per discovery session (freshly mined), the derived keys and nonces are never reused, satisfying GCM's uniqueness requirement. Forward secrecy is provided by the ephemeral nature of `sk_S`.
 
 #### Postage stamps
 
@@ -243,20 +238,20 @@ The subscriber needs a postage stamp for the MIC and MOC uploads. The broker doe
 
 #### Rationale
 
-The two-phase MIC/MOC handshake avoids several problems that a simpler single-round or registry-based discovery would face:
+The two-phase MOC/MIC handshake avoids several problems that a simpler single-round or registry-based discovery would face:
 
 - **No on-chain registry** — the broker's public key and overlay are discovered in-band via the storage receipt, removing any blockchain dependency for discovery.
 - **No concurrent requester collision** — the response is a separate SOC at a unique mined address per session; multiple subscribers never interfere with each other.
 - **No caching problem** — the response SOC is a new chunk stored locally by the broker, not an overwrite of the request chunk, so stale cached copies are not an issue.
-- **No single-node targeting** — any broker in the topic neighbourhood can respond to the MIC; if one is offline, another picks it up.
-- **No blind ECIES decryption** — the broker only decrypts MOC payloads for `id_S`s it actively subscribed to, rather than attempting decryption on every incoming SOC with a global constant ID.
+- **No single-node targeting** — any broker in the topic neighbourhood can respond to the MOC; if one is offline, another picks it up.
+- **No blind ECIES decryption** — the broker only decrypts MIC payloads for `owner`s it actively subscribed to, rather than attempting decryption on every incoming SOC with a global constant ID.
 
 #### Security considerations
 
-1. **MIC flooding (DoS on Phase 1)** — An attacker can flood MIC chunks to a topic neighbourhood. Each MIC only causes the broker to create a lightweight subscription hook (id_S → 30s timeout), so the cost to the broker is minimal (memory for pending subscriptions). Bandwidth incentives provide a baseline rate limit: the attacker pays per chunk forwarded. Brokers can cap the number of concurrent pending subscriptions.
-2. **MOC flooding (DoS on Phase 2)** — Sending a MOC requires knowing a valid `id_S` that a broker is subscribed to. An attacker observing the MIC payload learns `id_S`, but the MOC still requires ECIES encryption with the broker's public key — a garbage MOC will fail decryption and be discarded. The attacker cannot produce a valid encrypted payload without `pk_B` (obtained only via storage receipt to the original requester). Additionally, the subscriber must mine a key for the MOC (computational cost).
-3. **Response SOC mining cost** — The subscriber must mine `(resp_id, resp_key)` such that the response SOC address is close to the broker overlay.
-4. **Timing window** — The broker's subscription to `id_S` has a 30s timeout. The subscriber must complete Phase 2 (mine response key + upload MOC) within this window. Mining at depth 16 is fast, so this is not a practical concern.
+1. **MOC flooding (DoS on Phase 1)** — An attacker can flood MOC chunks with `id = DISCOVERY_ID` to a topic neighbourhood. Each MOC only causes the broker to create a lightweight subscription hook (30s timeout), so the cost to the broker is minimal (memory for pending subscriptions). The attacker must also mine a keypair per chunk targeting the topic neighbourhood. Bandwidth incentives provide a baseline rate limit: the attacker pays per chunk forwarded. Brokers can cap the number of concurrent pending subscriptions.
+2. **MIC flooding (DoS on Phase 2)** — Sending a MIC requires knowing a valid `ETH(pk_S)` owner that a broker is subscribed to. An attacker observing the Phase 1 MOC learns `ETH(pk_S)`, but the MIC payload must be ECIES-encrypted with the broker's public key — a garbage MIC will fail decryption and be discarded. The attacker cannot produce a valid encrypted payload without `pk_B` (obtained only via storage receipt to the original requester).
+3. **Response SOC mining cost** — The subscriber must mine `id_B` such that `soc.CreateAddress(id_B, ETH(pk_B))` is close to the broker overlay.
+4. **Timing window** — The broker's subscription to MIC with `owner = ETH(pk_S)` has a 30s timeout. The subscriber must complete Phase 2 (mine `id_B` + upload MIC) within this window. Mining at depth 16 is fast, so this is not a practical concern.
 
 New API endpoint: `GET /pubsub/discover/{topic}?mode=<id>` — returns broker connection data for the given topic.
 
