@@ -24,9 +24,9 @@ whenever any pullsync activity is in progress, regardless of which bins are
 being synced. This proposal observes that the reserve digest covers only
 chunks at or above the storage depth $d$, so syncing in bins below $d$ has
 no effect on the digest. The amendment introduces a depth-aware eligibility
-predicate that permits game participation during sub-depth sync, and a sync
-suspension mechanism that pauses pullsync during the sampling window to
-guarantee a consistent reserve snapshot.
+predicate that permits game participation during sub-depth sync. No sync
+suspension is required: sub-depth sync does not modify the reserve, so it
+may continue uninterrupted during sampling.
 
 ## Motivation
 
@@ -154,36 +154,18 @@ has a stable reserve digest, because sub-depth sync does not modify $R_N(d)$
 (Property 2). The node can therefore produce the same digest as its honest
 neighbours and participate in the game without risk of divergence.
 
-### Sync suspension during sampling
+### Concurrent writes during sampling
 
-Even with the amended eligibility rule, the pullsync protocol and the sampling
-computation share the reserve index. To guarantee a consistent snapshot, sync
-operations SHOULD be suspended for the duration of the sampling window.
+Sub-depth pullsync writes only to bins $< d$ and therefore cannot affect the
+reserve digest (Property 2). No suspension of sub-depth sync is needed during
+sampling — it may continue uninterrupted.
 
-> **Key ordering.** The protocol suspends *syncing* during sampling, rather than
-> blocking *sampling* during syncing. This ensures that eligible nodes always
-> participate in every round.
-
-**Definition 9 (Sampling Window).** The sampling window $[t_s, t_e]$ is the time
-interval during which the node computes its reserve sample for the current
-redistribution round.
-
-**Algorithm 3 (Sync Suspension Protocol).** On entry to the sampling window:
-
-1. Signal all active pullsync goroutines to pause at their next safe point
-   (after completing any in-flight chunk delivery).
-2. Wait until all goroutines have acknowledged suspension.
-3. Compute the reserve sample $H(R_N(d))$.
-4. Signal goroutines to resume normal operation.
-
-Goroutines operating in bins $p < d$ MAY optionally continue unsuspended, since
-they do not affect the reserve digest (Property 2). However, suspending all bins
-provides the simplest implementation with no correctness trade-off.
-
-**Property 4 (Suspension Correctness).** If all pullsync goroutines operating in
-bins $p \geq d$ are suspended before the sample computation begins, and the reserve
-index supports snapshot-consistent iteration, then the reserve digest is
-deterministic with respect to the reserve state at the moment of suspension.
+Pushsync can deliver chunks to any bin, including bins $\geq d$. This is a
+pre-existing concern: a fully synced node can also receive pushsync chunks
+during sampling. The current implementation already tolerates this race; this
+SWIP does not change the write path or introduce new concurrency. If
+snapshot-consistent reserve iteration is desired in future, it should be
+addressed at the persistence layer independently of this proposal.
 
 ### Summary of changes
 
@@ -191,27 +173,24 @@ deterministic with respect to the reserve state at the moment of suspension.
 |---|---|---|
 | Eligibility check | Node must be fully synced (no active sync in any bin) | Node must be reserve-synced (no active sync in bins $\geq d$) |
 | Sync state tracking | Global aggregate `SyncRate()` | Per-bin $\mathit{syncing}(p)$ predicate |
-| Sampling window | Sampling blocked if syncing active | Syncing suspended during sampling |
+| Sub-depth sync during sampling | Blocked (sampling waits for all sync to finish) | Allowed to continue (does not affect reserve) |
 | Depth change gating | Blocked until global `SyncRate() = 0` | Unchanged (conservative; may be relaxed in future) |
 
 ## Rationale
 
-**Suspend sync, not block sampling.** The key design decision is to invert the
-current relationship between syncing and sampling. Rather than preventing a syncing
-node from sampling, the amended protocol prevents sampling from being disrupted by
-sync. This ensures that every eligible node participates in every round, maximising
-the honest participation rate and the security of the Schelling game.
+**No sync suspension.** An earlier draft of this proposal included a sync suspension
+mechanism that paused pullsync goroutines during sampling. This was removed after
+review: since the eligibility predicate already guarantees no pullsync activity in
+bins $\geq d$, there is nothing to suspend in the reserve. Sub-depth sync continues
+harmlessly. Toggling sync on and off introduces architectural complexity without
+correctness benefit, and does not address concurrent pushsync writes, which are an
+orthogonal concern best handled at the persistence layer.
 
 **Per-bin predicate, not per-peer.** The eligibility check aggregates sync status
 across all peers at the bin level. A per-peer check would be insufficient: a node
 might be syncing bin $d$ from peer $A$ and bin $d{-}1$ from peer $B$. The
 aggregated per-bin predicate correctly identifies that bin $d$ is active and the
 node is therefore not eligible.
-
-**Full suspension vs selective.** Algorithm 3 permits but does not require selective
-suspension (only bins $\geq d$). Full suspension is recommended for simplicity. The
-sampling window is short (seconds), and the cost of briefly pausing sub-depth sync
-is negligible compared to the complexity of selective goroutine management.
 
 ## Backwards Compatibility
 
@@ -227,15 +206,16 @@ No coordinated upgrade is required. Nodes can adopt this change independently.
 ## Test Cases
 
 1. **Bin-level sync tracking.** Construct a puller with mock peers syncing in
-   various bins. Assert the predicate returns the correct value for different
-   depth thresholds.
-2. **Sync suspension.** Start sync goroutines, call `SuspendSync()`, verify no
-   new chunk deliveries occur, call `ResumeSync()`, verify sync resumes.
-3. **Sub-depth sync eligibility.** Set up a node with depth $d$, start syncing
+   various bins. Assert the per-bin predicate returns the correct value for
+   different depth thresholds.
+2. **Sub-depth sync eligibility.** Set up a node with depth $d$, start syncing
    only in bin $d{-}1$, verify that the node participates in the redistribution
    round.
-4. **Suspension during sampling.** Start a redistribution round, verify that sync
-   is suspended during `handleSample` and resumed after.
+3. **Reserve-depth sync ineligibility.** Set up a node with depth $d$, start
+   syncing in bin $d$, verify that the node is excluded from the round.
+4. **Concurrent sub-depth sync during sampling.** Start a redistribution round
+   while sub-depth sync is active, verify that sync continues uninterrupted
+   and the sample is computed correctly.
 
 ## Implementation
 
@@ -265,9 +245,8 @@ func handleSample(round uint64) {
         return
     }
 
-    puller.SuspendSync()
-    defer puller.ResumeSync()
-
+    // sub-depth sync continues uninterrupted — it cannot
+    // affect the reserve digest (bins < d are disjoint)
     sample := store.ReserveSample(anchor, depth)
     commit(sample)
 }
@@ -293,17 +272,10 @@ sequenceDiagram
     Agent->>Puller: IsSyncingOnlyBelowDepth(d)?
     Puller-->>Agent: true (only bin d-1 active)
 
-    rect rgb(255, 245, 245)
-        Note over Agent,Reserve: Sampling window (sync suspended)
-        Agent->>Puller: SuspendSync()
-        Puller-->>Agent: ack (goroutines paused)
+    Note over Puller: Sub-depth sync continues uninterrupted
 
-        Agent->>Reserve: ReserveSample(anchor, d)
-        Reserve-->>Agent: sample (bins >= d only)
-    end
-
-    Agent->>Puller: ResumeSync()
-    Note over Puller: Resumes syncing bin d-1
+    Agent->>Reserve: ReserveSample(anchor, d)
+    Reserve-->>Agent: sample (bins >= d only)
 
     Agent->>Chain: Commit(sampleHash)
     Chain->>Agent: Reveal phase
