@@ -480,6 +480,17 @@ Protocol (service-level) frame types are allocated from the **top of the type by
 4. **Rendezvous flooding** — same profile as Milestone 3 Phase-1 flooding, scoped to one relay's `DCUTR_ID(target)`; the gateway and relay cap concurrent pending join handshakes, and each MOC still requires the newcomer to mine an owner key into the responsible neighbourhood.
 5. **Oscillation / thrash** — bounded by the hysteresis band `Θ`, the stability window `T_stable`, and the per-node `T_cooldown`; make-before-break guarantees no message loss even if a rearrangement is later reverted.
 
+#### Why not just use libp2p gossipsub?
+
+libp2p already ships **gossipsub**, a battle-tested mesh multicast. Swarm builds its own because gossipsub's two core mechanisms — flooding to a random mesh, and IHAVE/IWANT **pull** to recover misses — are exactly what an incentivised network rejects: **no node wants to pay for a message it didn't ask for.** That single economic fact dissolves gossipsub's whole machinery:
+
+- **No pull, no surplus gossip, no redundant paths.** Every incoming message is metered (Milestone 2), so a node accepts traffic only for the `(channelMode, topicAddress)` it subscribed to. There is nothing to deduplicate and nothing to chase via IWANT — the redundancy gossipsub spends bandwidth on simply never arises.
+- **One domain per session.** The `(channelMode, topicAddress)` duplet *is* the network: the channel mode defines *what* is exchanged and *how*, the topic address defines *who* may author. Every message lives inside that domain and no two topics ever mix on one session.
+- **Authentication is structural, not bolted on.** Messages are SOC-signed against the `topicAddress`, so only the consensus that holds the topic key can author. Relayers forward authenticated frames **without being trusted members of that consensus** — an intermediate node can withhold, never forge.
+- **Withholding is recoverable, not fatal.** A censoring root is not a stuck single point: subscribers re-point to another node serving the topic neighbourhood, or the dApp mines a fresh `topicAddress` by its own consensus and relocates the whole session. That is a liveness fault, not an integrity one.
+
+**Milestone 4 keeps the property — even as a mesh.** Multi-level forwarding adds capacity and shortens latency, but it does *not* reintroduce flooding: every edge still pays its upstream per incoming message, and every node still receives *only* its topic's stream. 
+
 ## Rationale
 
 - **Broker topology** keeps the subscriber implementation simple and connection count low; brokers can be specialised nodes.
