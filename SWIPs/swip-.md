@@ -272,8 +272,8 @@ graph TD
     RC --> S5["Sub"]
     RD --> S6["Sub"]
     RD --> S7["Sub"]
-    classDef fast fill:#cde4ff,stroke:#3b6ea5;
-    classDef slow fill:#ffe0cc,stroke:#b5651d;
+    classDef fast fill:#cde4ff,stroke:#3b6ea5,color:#000;
+    classDef slow fill:#ffe0cc,stroke:#b5651d,color:#000;
     class RA,RB,RC fast;
     class S1,S2,S3,S4,S5,S6,S7 slow;
 ```
