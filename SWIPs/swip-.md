@@ -62,13 +62,12 @@ Publisher  ──► (p2p stream, read+write) ──►┘
 
 #### Wire format
 
-All broker→subscriber frames share a common 1-byte type prefix. `0x01` is permanently reserved at the service level (ping, valid across all modes); the broker sends a ping every 30 s to keep the long-lived stream alive. 
-Mode-specific types start at `0x02`. 
+All broker→subscriber frames share a common 1-byte type prefix. Service-level (protocol) types are reserved from the **top of the byte downward** (`0xFF`, `0xFE`, …) and are valid across all modes; `0xFF` is ping — the broker sends one every 30 s to keep the long-lived stream alive. Mode-specific types grow **upward** from `0x00`.
 
 ```
 Broker → any subscriber:
-[ 0x01 ]   ping  (service level, all modes — no further fields)
-[ 0x02+ ]  mode-specific frame
+[ 0xFF ]   ping  (service level, all modes — no further fields)
+[ 0x00+ ]  mode-specific frame
 ```
 
 Publisher→Broker framing is mode-specific and carries **no message type prefix** — the broker knows the stream is a publisher stream from the `pubsub-readwrite` header set at connect time.
@@ -82,8 +81,8 @@ Publisher → Broker:
 [ sig: 65 B ][ span: 8 B LE ][ payload: up to 4 KB ]
 
 Broker → Subscriber:
-[ 0x02 ][ SOC ID: 32 B ][ owner: 20 B ][ sig: 65 B ][ span: 8 B ][ payload ]  handshake (first msg)
-[ 0x03 ][ sig: 65 B ][ span: 8 B ][ payload ]                                  data (subsequent)
+[ 0x00 ][ SOC ID: 32 B ][ owner: 20 B ][ sig: 65 B ][ span: 8 B ][ payload ]  handshake (first msg)
+[ 0x01 ][ sig: 65 B ][ span: 8 B ][ payload ]                                  data (subsequent)
 ```
 
 The handshake frame carries SOC identity once on first broadcast; subsequent messages are data-only. The subscriber verifies `soc.CreateAddress(id, owner) == topicAddress` on handshake receipt.
@@ -257,25 +256,236 @@ New API endpoint: `GET /pubsub/discover/{topic}?mode=<id>` — returns broker co
 
 ### Milestone 4 — Load balancing and multi-level forwarding
 
-Balance subscriber load across multiple brokers. Introduce HIVE-like forwarder discovery and a multi-level forwarding tree so traffic is distributed across willing relay nodes rather than concentrated on a single broker.
+A single broker is bandwidth-bound: every subscriber it serves consumes one outgoing stream's worth of its uplink. Milestone 4 distributes that load across a **multi-level forwarding tree** of willing relay nodes, and continuously **reshapes the tree so the fastest, most stable nodes sit closest to the root** — minimising end-to-end delivery latency across the whole topic.
+
+```mermaid
+graph TD
+    Root["Root<br/>(broker / topic-neighbourhood node)"]
+    Root --> RA["Relay A"]
+    Root --> RB["Relay B"]
+    Root --> RC["Relay C"]
+    RA --> S1["Sub"]
+    RA --> S2["Sub"]
+    RA --> RD["Relay D"]
+    RB --> S3["Sub"]
+    RB --> S4["Sub"]
+    RC --> S5["Sub"]
+    RD --> S6["Sub"]
+    RD --> S7["Sub"]
+    classDef fast fill:#cde4ff,stroke:#3b6ea5;
+    classDef slow fill:#ffe0cc,stroke:#b5651d;
+    class RA,RB,RC fast;
+    class S1,S2,S3,S4,S5,S6,S7 slow;
+```
+
+High-bandwidth, stable nodes (blue) are kept close to the root; low-bandwidth or churny nodes (orange) are pushed toward the leaves, where a failure costs only their own stream.
+
+The data plane is unchanged from Milestone 1/2: each tree edge is a `pubsub/1.0.0` stream carrying the same broker→subscriber frames, and each edge is independently metered by the bandwidth incentives. A node receives the broadcast on its **uplink** (from its parent) and fans it out on its **downlinks** (to its children). The root remains the sole origin: it receives the publisher stream, validates per mode, and starts the cascade.
+
+A second, low-rate **control plane** (a reserved frame type on the same stream, see _Control frames_ below) carries the tree-maintenance messages — capacity beacons, referrals, delegation orders, rearrangement swaps, and DCUtR signalling.
+
+#### Design goals
+
+| Goal | Mechanism |
+|---|---|
+| No single node holds global membership | Aggregated **capacity beacons** — each node summarises only its subtree to its parent; no node stores the full member list of the tree. |
+| Fastest/most stable nodes near the root | Per-node **score** drives **promotion swaps** with hysteresis + cooldown. |
+| Relays earn for relaying | Per-hop Milestone-2 metering: a relay nets `(k−1)·p` for `k` children — positive if `k ≥ 2`. |
+| Light clients can be relays / be reached | **DCUtR rendezvous** via a full-node gateway, addressed with a Milestone-3-style MOC handshake. |
+| Newcomers (NAT'd) can join any node | **DCUtR** hole-punching with the target's parent (or root) as the signalling relay. |
+
+#### Roles (extends Milestone 1)
+
+| Role | Uplink | Downlinks | Notes |
+|---|---|---|---|
+| **Root** | 0 | many | The Milestone-3 broker; origin of the cascade. |
+| **Relay** | 1 (to parent) | ≥ 2 | Any node — full **or light** — that opted in (`--pubsub-relay-willing`) and was delegated a batch. |
+| **Leaf** | 1 (to parent) | 0 | Plain subscriber/publisher. |
+
+A relay is just a subscriber that also serves children; promotion/demotion between Leaf and Relay is dynamic and driven by the policy below.
+
+#### Node score and metrics
+
+Every node computes a **score** that determines how high in the tree it deserves to sit. Higher score → closer to the root.
 
 ```
-              Root (broker / neighbourhood node)
-             /        |         \
-        Relay A    Relay B    Relay C
-        /    \        |
-    Sub 1   Sub 2   Sub 3   ...
+Score = w₁ · (1 / rtt_parent)   // low latency to source path
+      + w₂ · uptime             // session age — proxy for stability
 ```
 
-- Forwarders earn relay fees; they are incentivised to forward to more than one downstream client.
-- Light-client-to-light-client connections (both behind NAT) use DCUtR with the broker as the relay, enabling direct p2p streams without a persistent intermediary.
+- `rtt_parent` is measured for free from the **`0xFF` ping** frames already defined in Milestone 1 (ping every 30 s); the child echoes, the parent records RTT.
+- `uptime` is credited only for the span the **parent has witnessed** since attachment, not a self-asserted history — so a newcomer can't claim to be a veteran. Longer uptime is prioritized so unstable nodes drift to the leaves where their failure blast radius is one stream, not a whole subtree.
+
+Both terms are **measured by the parent**, not self-reported, so the score can't be gamed. Spare capacity is tracked separately as `self_free_slots` (below): it gates *whether* a node can take a new child, not *how high* it sits, and is validated against observed delivery — children may **re-parent** if real service is worse than advertised.
+
+#### Capacity beacons (control plane)
+
+Each node periodically (e.g. every 15 s, piggy-backed on the keepalive) sends its parent a **beacon** summarising itself **and the best free slot in its entire subtree**:
+
+```
+Beacon (child → parent) {
+  self_score      uint16
+  self_free_slots uint8        // 0 if saturated
+  best_descendant {            // single best free slot anywhere below this node
+    overlay         32 B       // target node; rendezvous id = keccak256(overlay ‖ "PUBSUB_DCUTR")
+    gateway_overlay 32 B | ∅   // set if target is a sync-less light client (see "Reaching a relay")
+    underlay        ? | ∅      // set if target is directly dialable
+    depth           uint8
+    score           uint16
+  } | ∅
+}
+```
+
+A parent merges its children's `best_descendant` reports with its own free capacity and propagates the single best (lowest-depth, highest-score) upward. The result: **the root always knows the one (or few) best places a newcomer can attach, without storing the membership of the tree**. State per node is `children.length`.
+
+#### Joining a multi-level tree — what the root answers
+
+Milestone 3 discovery (`GET /pubsub/discover/{topic}`) is unchanged on the wire; the Milestone-3 response `R` (which already carries the responder's `overlay`, `underlay` and `incentive_params`) gains a single `referrals` field — the best free slot(s), aggregated from the capacity beacons. If the responder itself has a free direct slot, it lists **itself** as a referral:
+
+```
+referrals: [
+  {
+    overlay,          // target node; the join rendezvous id is keccak256(overlay ‖ "PUBSUB_DCUTR")
+    gateway_overlay?, // set if target is a sync-less light client: whose neighbourhood the join
+                      // MOC must target, and who stores/serves the response chunk on its behalf
+    underlay?,        // set if the target is directly dialable
+    depth, score
+  }
+]
+```
+
+Resolution order for a newcomer:
+
+1. **Responder has a slot** → it lists itself in `referrals`; the newcomer connects to it directly (Milestone 1 path). Cheapest hop, lowest latency — preferred while it has headroom.
+2. **Responder full** → `referrals` carries the aggregated best free slot(s) from the beacons. The newcomer connects to the referral target (next section). This is a **single redirect**, not a walk — the beacon aggregation already found the slot.
+3. **Referral stale** (target full/offline by the time the newcomer arrives) → the target answers with its *own* `referrals` (its local best-descendant), and the newcomer descends one more level. This **recursive-referral fallback** bounds worst-case to O(depth) round trips, but the common case is one redirect.
+
+> **Approaches considered.** (a) _Recursive walk from the root_ — correct but O(depth) round trips every join; we keep it only as the staleness fallback. (b) _Root-side full registry of all subsumed nodes_ — rejected: `n` state on the root with churn, and the root has no incentive to maintain it. (c) _Beacon-aggregated referral_ (**chosen**) — `depth` gossip, `children.length` root state, single-redirect common case, and the root maintains only a summary it already needs for its own load decisions.
+
+#### Reaching a relay — the DCUtR rendezvous
+
+The referral target may be (a) a directly dialable node, (b) a NAT'd full node, or (c) a sync-less **light client** that cannot be found through the plain Milestone-3 neighbourhood handshake. All three reuse one **deterministic rendezvous id** derived from the target's overlay:
+
+```
+DCUTR_ID(target) = keccak256( overlay_target ‖ "PUBSUB_DCUTR" )
+```
+
+The target (or its gateway) watches for an incoming **MOC with `id == DCUTR_ID(target)`** — exactly as a broker watches for `DISCOVERY_ID` in Milestone 3; only the watched id and the responsible neighbourhood differ. The newcomer always mines a **fresh per-session keypair `(sk_N, pk_N)`** so that the chunk address falls in the neighbourhood that will pick it up. The rendezvous only *routes the request*; the resulting `pubsub/1.0.0` stream is a direct connection to the **single target node**, never to a neighbourhood.
+
+- **Directly dialable** → the newcomer dials `underlay` and opens the stream with the topic headers (Milestone 1). No rendezvous needed.
+- **NAT'd full node** → the node participates in sync, so it is its own rendezvous host. The newcomer mines `(sk_N, pk_N)` so `soc.CreateAddress(DCUTR_ID(target), ETH(pk_N))` lands in the **target's** neighbourhood and uploads `MOC(id=DCUTR_ID(target), owner=ETH(pk_N))`. The target picks it up, stores an encrypted response SOC locally (Milestone-3 style) carrying its DCUtR coordination params; the newcomer fetches it via Kademlia and the two run **DCUtR hole punching** (libp2p circuit-relay v2 → coordinated hole punch → direct upgrade), with the referring ancestor acting as the circuit relay. The relayed path is dropped once the direct stream is up.
+- **Sync-less light client** → the light client has no neighbourhood of its own, so it registers the watch on a full-node **gateway** it already connects to (the channel it maintains to that node): *"notify me of any SOC with `id == DCUTR_ID(me)`."* The newcomer mines `(sk_N, pk_N)` so `soc.CreateAddress(DCUTR_ID(target), ETH(pk_N))` lands in the **gateway's** neighbourhood and uploads the MOC there. The gateway (the closest node) stores it, matches the id, and forwards the request to the light client over their channel. The light client builds the encrypted response and hands it back to the gateway; **the response chunk is stored on the gateway, not on the unreachable light client**, so the newcomer fetches it by ordinary Kademlia lookup. The two then establish the data stream via DCUtR, with the gateway acting as the circuit relay for the hole punch.
+
+This makes a light client a first-class relay — discoverable, able to answer join requests, and forwarding the topic stream to its children — all without ever participating in pull/push sync.
+
+```mermaid
+sequenceDiagram
+    participant New as Newcomer
+    participant Root as Root broker
+    participant GW as Gateway (light client's full node)
+    participant LC as Light-client relay (target)
+
+    New->>Root: discover(topic)   (Milestone 3 handshake)
+    Note over Root: saturated → referral { overlay_LC, gateway_overlay=GW }
+    Note over New: DCUTR_ID = keccak256(overlay_LC ‖ "PUBSUB_DCUTR")<br/>mine pk_N so SOC_ADDR(DCUTR_ID, ETH(pk_N)) ∈ neighbourhood(GW)
+    New->>GW: upload MOC(id=DCUTR_ID, owner=ETH(pk_N))
+    GW->>LC: forward request over the registered channel
+    LC->>GW: encrypted response (DCUtR params)
+    Note over GW: stores the response SOC locally (LC is unreachable)
+    New->>GW: Kademlia fetch response SOC
+    GW-->>New: response
+    New->>LC: DCUtR hole punch (GW = circuit relay) → direct pubsub stream
+```
+
+#### Relay sign-up and delegation (the ≥2 rule)
+
+A node opts in with `--pubsub-relay-willing` and advertises `self_free_slots > 0` in its beacon. When a parent is **over capacity** — `current_children > max_fanout`, or measured uplink saturated, or downstream RTTs degrading — it **deepens its subtree** by delegating a *batch* of children to a relay-willing candidate:
+
+1. Parent selects a relay-willing candidate `R` (from its beacon view, or a control-plane query to its children/root).
+2. Parent picks a batch of **≥ 2** of its current children with similar scores (so the new sub-tree is balanced).
+3. Parent sends each batched child a `REPARENT{ to: R, gateway? }` control frame; sends `R` an `EXPECT{ children: [...] }`.
+4. The children connect to `R` (via the DCUtR rendezvous above) and only then drop the old edge — **make-before-break**, so no broadcast gap.
+5. `R` is now a relay with ≥ 2 children; the parent's direct child count drops by `(batch − 1)`.
+
+**Why batches of ≥ 2 — economics.** Each edge is metered (Milestone 2): a node pays its parent per chunk and charges each child per chunk. A relay with `k` children nets `k·p − 1·p = (k−1)·p` per chunk.
+
+| `k` | Relay margin | Verdict |
+|---|---|---|
+| 1 | `0` | Pure pass-through: adds a hop and latency for **zero** profit — never delegate a single child. |
+| ≥ 2 | `(k−1)·p > 0` | Relay profits; the extra hop buys the parent bandwidth relief. |
+
+So the ≥2 rule is not a heuristic — it is the break-even point of the relay's payment channel.
+
+**Why the parent (and root) delegate at all.** Delegating moves revenue downstream (the parent now earns from one relay edge instead of `k` direct edges). The parent does it because, when saturated, *not* delegating degrades every stream it serves and triggers rearrangement that would cost it those children anyway.
+
+**Payment: flat downstream, depth-scaled upstream.** The two directions are metered separately, mirroring the main Swarm network:
+
+- *Subscription (downstream broadcast)* — each node pays its **direct parent** the standard Milestone-2 per-chunk price for the stream it receives, **independent of depth**: a subscriber pays its broker exactly what any other subscriber pays, wherever it sits in the tree.
+- *Publishing (upstream)* — a publish message must travel up to the root before it can be broadcast, so the publisher attaches **excess bandwidth credit proportional to its depth `d`** — enough for each of the `d` forwarding ancestors to recover its relaying cost plus margin. This is the same per-hop accounting that push-sync (upload) and retrieval (fetch) already use on the main network: the publisher pays for the path its chunk traverses.
+
+The combined effect reinforces the rearrangement equilibrium: a node higher in the tree publishes more cheaply (fewer up-hops) **and** earns steadier, more saturated subscription revenue — so the fastest, most stable nodes are pulled toward the top by economics as well as by the score metric.
+
+#### Tree rearrangement — when it is worth it
+
+Rearrangement keeps the high-score nodes high. The only primitive is a **local promotion swap** between a child `C` and its parent `M`:
+
+```mermaid
+graph TD
+    subgraph Before
+        M1["M"] --> C1["C"]
+        M1 --> X1["X"]
+        C1 --> a1["a"]
+        C1 --> b1["b"]
+    end
+    subgraph After
+        C2["C"] --> M2["M"]
+        C2 --> X2["X"]
+        M2 --> a2["a"]
+        M2 --> b2["b"]
+    end
+    Before -.->|swap| After
+```
+
+`C` takes `M`'s position and adopts `M`'s other children (`X`); `M` becomes a child of `C` and keeps its own subtree (`a`, `b`). Only three nodes (`M`, `C`, and `M`'s parent) re-wire — the rest of the tree is untouched.
+
+A swap is triggered if **all** hold (to guarantee it improves delivery and does not oscillate):
+
+1. **Score gap**: `Score(C) − Score(M) > Θ` — `C` is meaningfully faster/more stable than its parent. `Θ` is the hysteresis band; small gaps are ignored.
+2. **Latency win**: the estimated change in subtree delivery latency is negative — putting the higher-throughput, lower-RTT node above the larger sub-population strictly reduces aggregate (and worst-case) latency.
+3. **Stability window**: `C` has been connected longer than `T_stable` — don't promote a node that may vanish.
+4. **Cooldown**: neither node swapped within `T_cooldown` — prevents flapping under noisy measurements.
+
+Swaps use the same **make-before-break** reconnection as delegation, so no broadcast is lost. Net effect over time: high-bandwidth, low-latency, long-lived nodes rise toward the root; slow or churny nodes settle near the leaves, where a failure costs only their own stream. Because high positions are also the most profitable, the performance-optimal topology is also the economic equilibrium — the rearrangement metric is simply the referee that allocates the lucrative high slots to the nodes that serve them best.
+
+#### Control frames
+
+Protocol (service-level) frame types are allocated from the **top of the type byte downward** (`0xFF`, `0xFE`, …), while mode (channel) frame types grow **upward** from `0x00`. A receiver can therefore tell a protocol frame from a channel payload purely by where it sits in the byte range, and new protocol frames can be added without ever colliding with a mode's. These frames are valid across all modes and are never forwarded to the WebSocket client.
+
+| Type | Direction | Purpose |
+|---|---|---|
+| `0xFF` | broker→child | ping (keepalive, all modes) |
+| `0xFE` | child→parent | capacity beacon |
+| `0xFD` | parent→child | `REPARENT{ to, gateway? }` |
+| `0xFC` | parent→relay | `EXPECT{ children }` |
+| `0xFB` | ↕ via circuit relay | DCUtR signalling |
+| `0xFA` | ↕ | swap negotiation (propose / ack) |
+
+> Mode frames grow upward from `0x00`.
+
+#### Security & robustness considerations
+
+1. **Beacon poisoning** — a node could advertise a fake high-score free slot to attract (and then drop) traffic, or to insert itself high. Beacons are advisory only: a node's score is **measured by its parent** (RTT from pings, witnessed uptime), not taken from the beacon, and an advertised free slot is validated against observed delivery before a referral/swap is acted on. A node that fails to deliver is demoted (and re-parented by its own children); repeated bad beacons → the parent stops trusting that child's `best_descendant` reports.
+2. **Reparent / swap forgery** — `REPARENT`, `EXPECT`, and swap frames are only honoured from a node's current parent over the existing authenticated stream; an off-path attacker cannot inject them. Children verify the new parent serves valid mode frames (e.g. correct SOC signatures in GSOC-Ephemeral) before dropping the old edge (make-before-break makes a failed reparent a no-op).
+3. **Relay withholding / equivocation** — a relay that drops or alters frames is detected by its children (missing pings, failed per-message validation in authenticated modes) and abandoned via re-discovery; the broadcast remains end-to-end authenticated, so an intermediate relay cannot forge content, only withhold it (a liveness, not integrity, faultrral stale** (target full/offline by the time the newcomer arrives) → the target answers with its *own* `referrals` (its local best-descend).
+4. **Rendezvous flooding** — same profile as Milestone 3 Phase-1 flooding, scoped to one relay's `DCUTR_ID(target)`; the gateway and relay cap concurrent pending join handshakes, and each MOC still requires the newcomer to mine an owner key into the responsible neighbourhood.
+5. **Oscillation / thrash** — bounded by the hysteresis band `Θ`, the stability window `T_stable`, and the per-node `T_cooldown`; make-before-break guarantees no message loss even if a rearrangement is later reverted.
 
 ## Rationale
 
 - **Broker topology** keeps the subscriber implementation simple and connection count low; brokers can be specialised nodes.
 - **GSOC Ephemeral mode** reuses existing SOC signing infrastructure and provides per-message authenticity without additional key exchange. It is the first mode, not the only one.
 - **Shared p2p stream per topic per node** avoids redundant connections when multiple browser tabs open the same topic.
-- **Type-byte framing** with a reserved service-level slot (`0x01` = ping) allows future modes to be added without breaking the keepalive mechanism.
+- **Type-byte framing** splits the byte at two ends — mode (channel) frames grow upward from `0x00`, service-level protocol frames (ping, beacons, reparent, …) are reserved downward from `0xFF` — so new modes and new protocol frames can be added independently without ever colliding.
 
 ## Backwards Compatibility
 
