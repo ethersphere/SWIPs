@@ -382,7 +382,7 @@ mapping(bytes32 => uint256) internal pendingCompletionIndexPlusOne;
 
 ### A.2 Round-bound commitment preimages
 
-The deployed `commit` function already accepts the commit round. STS only changes what the hidden hash commits to. The explicit round inside the hidden preimage prevents a commitment made for one round from being opened in a later round.
+The deployed `commit` function already accepts the commit round. STS only changes what the hidden hash commits to. The explicit round inside each hidden preimage prevents a commitment made for one round from being opened in a later round. The stamp sample hash commitment does not recommit `chunkSampleHash` or `chunkTransformRoot`; those values were already fixed by the stage-one chunk sample hash commitment and are stored after that reveal succeeds.
 
 ```solidity
 function wrapChunkSampleHashCommit(
@@ -408,9 +408,6 @@ function wrapChunkSampleHashCommit(
 function wrapStampSampleHashCommit(
     uint64 commitRound,
     bytes32 overlay,
-    uint8 depth,
-    bytes32 chunkSampleHash,
-    bytes32 chunkTransformRoot,
     bytes32 stampSampleHash,
     bytes32 revealNonce
 ) public pure returns (bytes32) {
@@ -418,9 +415,6 @@ function wrapStampSampleHashCommit(
         abi.encodePacked(
             commitRound,
             overlay,
-            depth,
-            chunkSampleHash,
-            chunkTransformRoot,
             stampSampleHash,
             revealNonce
         )
@@ -553,7 +547,7 @@ function markStageOneCommitmentProven(bytes32 overlay) internal {
 
 ### A.5 Stamp sample hash commit and reveal
 
-The stamp sample size is fixed at 16, so the stamp-sample commitment hides only `stampSampleHash` and the nonce, together with the already revealed stage-one values. The caller does not supply a reveal-array index. The STS extension stores the reveal index when the deployed reveal path accepts the stage-one reveal, and later STS functions recover the active `Reveal` through the caller overlay.
+The stamp sample size is fixed at 16, so the stamp-sample commitment hides only `stampSampleHash` and the nonce, bound to the commit round and overlay. It does not re-commit `chunkSampleHash`, `chunkTransformRoot`, or the claimed depth; those belong to the stage-one chunk sample hash commit and reveal. The stage-two commit is linked to stage one by accepting it only after the caller has a valid stage-one reveal for the same round, and by using the stored stage-one reveal data during stamp sample hash reveal and proof submission. The caller does not supply a reveal-array index. The STS extension stores the reveal index when the deployed reveal path accepts the stage-one reveal, and later STS functions recover the active `Reveal` through the caller overlay.
 
 ```solidity
 function revealIndexForOverlay(bytes32 overlay, uint64 roundNumber)
@@ -598,8 +592,7 @@ function revealStampSampleHash(
     if (commitRound != currentRevealRound) revert NoChunkSampleHashReveal();
 
     bytes32 overlay = Stakes.overlayOfAddress(msg.sender);
-    uint256 revealIndex = revealIndexForOverlay(overlay, commitRound);
-    Reveal storage revealRecord = currentReveals[revealIndex];
+    revealIndexForOverlay(overlay, commitRound);
     StsRevealData storage data = stsRevealOfOverlay[overlay];
     StampSampleCommitment storage stampCommit = stampCommitOfOverlay[overlay];
 
@@ -609,9 +602,6 @@ function revealStampSampleHash(
     bytes32 expected = wrapStampSampleHashCommit(
         commitRound,
         overlay,
-        revealRecord.depth,
-        revealRecord.hash,
-        data.chunkTransformRoot,
         stampSampleHash,
         revealNonce
     );
