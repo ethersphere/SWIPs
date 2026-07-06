@@ -13,7 +13,7 @@ requires: SWIP-049
 
 ## Abstract
 
-Sequential Transformation Scheme 1, or `STS-1`, extends Swarm redistribution from chunk-only sampling to a sequenced chunk-and-stamp proof. It keeps the deployed truth-teller draw shape, but an entry receives selection weight only after its selected stamp witnesses and STS-1 chunk-binding proofs pass.
+Sequential Transformation Scheme 1, or `STS-1`, extends Swarm redistribution from chunk-only sampling to a sequenced chunk-and-stamp proof. It keeps the existing running weighted truth-selection process, but an entry receives selection weight only after its selected stamp witnesses and STS-1 chunk-binding proofs pass.
 
 The selected agreement value is:
 
@@ -23,17 +23,17 @@ The selected agreement value is:
 
 `chunkSampleHash` remains the chunk-side Schelling value. It encourages nodes to follow the same chunk rewrite and sample-construction conventions, but STS-1 does not open random chunk-sample witnesses and does not use chunk-sample density as a weight signal. Stamp density is the reliable density proof introduced by this SWIP.
 
-For round `r`, `firstAnchor(r)` is the deployed round anchor consumed by the round. It selects the neighbourhood and transforms chunk addresses. A valid chunk sample hash reveal updates the deployed seed for `firstAnchor(r + 1)` and derives `stampAnchor(r)`, which orders transformed stamp addresses for the current round. A later valid stamp sample hash reveal creates `proofSeed(r)`, which only selects stamp-sample positions to prove.
+For round `r`, `firstAnchor(r)` is the current round anchor consumed by the round. It selects the neighbourhood and transforms chunk addresses. A valid chunk sample hash reveal updates the round seed for `firstAnchor(r + 1)` and derives `stampAnchor(r)`, which orders transformed stamp addresses for the current round. A later valid stamp sample hash reveal creates `proofSeed(r)`, which only selects stamp-sample positions to prove.
 
 Each selected stamp witness proves two links. First, the transformed stamp value is valid for `stampAnchor(r)`, the batch identifier, and the full stamp index, and the stamp signature proves that the batch owner authorized that stamp for a specific `chunkAddress`. Second, the transformed-chunk same-data proof verifies that a first-anchor transformed chunk address is derived from the same opened BMT data as that `chunkAddress`. The participant then proves that transformed address as a leaf inside its own `chunkTransformRoot`, committed in the first phase. Since `stampAnchor(r)` and `proofSeed(r)` are unknown when `chunkTransformRoot` is fixed, the participant cannot wait to learn the useful stamp range and add only those chunks later.
 
-After the truth teller selects the Schelling point, the selected round payout is divided among all proof-validated entries that reported the same Schelling point, in proportion to proof-adjusted stake density. Every paid node must prove separately because `chunkTransformRoot` is participant-specific and not part of the Schelling point.
+After one Schelling point has been selected as truth, the selected round payout is divided among all proof-validated entries that reported that Schelling point, in proportion to proof-adjusted stake density. Every paid node must prove separately because `chunkTransformRoot` is participant-specific and not part of the Schelling point.
 
-STS-1 preserves the deployed non-reveal freeze invariant across the longer sequence. A stage-one commit is unfinished until it becomes proof-validated. If its own round claims, that claim freezes unfinished entries using the selected truth depth. If its own round never claims, the unfinished entry is carried forward and finalized by the first later successful claim using the same duration rule.
+STS-1 preserves the existing non-reveal freeze invariant across the longer sequence. A stage-one commit is unfinished until it becomes proof-validated. If its own round claims, that claim freezes unfinished entries using the selected truth depth. If its own round never claims, the unfinished entry is carried forward and finalized by the first later successful claim using the same duration rule.
 
 ## Motivation
 
-The deployed mechanism already uses a transformed chunk-address sample as a Schelling value. STS-1 keeps that coordination role, but adds stamp sampling so depth overreporting depends on purchased stamp capacity. A transformed stamp address is computed from `stampAnchor(r)`, the batch identifier, and the full stamp index; a small witness set can verify batch existence, historical index range, signature, bucket alignment, balance, and liveness.
+The current mechanism already uses a transformed chunk-address sample as a Schelling value. STS-1 keeps that coordination role, but adds stamp sampling so depth overreporting depends on purchased stamp capacity. A transformed stamp address is computed from `stampAnchor(r)`, the batch identifier, and the full stamp index; a small witness set can verify batch existence, historical index range, signature, bucket alignment, balance, and liveness.
 
 Stamp metadata alone is not enough. A node could keep valid stamps while missing the corresponding chunks. STS-1 therefore accepts a selected stamp only when the transformed stamp value is valid for the stamp slot, the batch-owner signature is valid for the stamped `chunkAddress`, the transformed-chunk same-data proof verifies that a first-anchor transformed chunk address is derived from the same opened BMT data as that `chunkAddress`, and that transformed address was already included in the first-phase `chunkTransformRoot`. At the time that root is committed, the later stamp ordering and proof positions are unknown, so the node must already have the chunk to preserve the option of using the stamp later.
 
@@ -44,7 +44,7 @@ The proposal addresses these issues:
 3. **Minimum-only density.** A denser valid stamp sample receives a continuous benefit instead of a stepwise all-or-nothing benefit.
 4. **Batch utilization.** Lower within-bucket stamp indexes receive a continuous benefit because ordinary uploads tend to fill lower indexes before higher ones.
 
-The existing participation rule remains load-bearing: after a node commits, it must finish the required reveal path or be frozen by claim. This is the deployed non-reveal rule applied to the longer STS sequence, with carry-over only so that a round without a successful claim does not let unfinished STS commitments disappear.
+The existing participation rule remains: after a node commits, it must finish the required reveal path or be frozen by claim. This is the existing non-reveal rule applied to the longer STS sequence, with carry-over only so that a round without a successful claim does not let unfinished STS commitments disappear.
 
 ## Non-goals
 
@@ -60,47 +60,46 @@ STS-1 relies on SWIP-049 for fixed historical postage scope. Node clients and co
 
 | Term | Meaning |
 |---|---|
-| `firstAnchor(r)` | The deployed round anchor consumed by round `r`; it selects the neighbourhood and transforms chunk addresses. It is produced by the existing seed, `currentRoundAnchor`, `currentSeed`, and skipped-round logic. |
-| `stampAnchor(r)` | STS-1 domain-separated anchor created from the updated deployed seed after the first valid chunk sample hash reveal in round `r`; it transforms stamp addresses for round `r`. |
+| `firstAnchor(r)` | The round anchor consumed by round `r`; it selects the neighbourhood and transforms chunk addresses. |
+| `stampAnchor(r)` | Anchor created by the first valid chunk sample hash reveal in round `r`; it transforms stamp addresses for that round. |
 | `proofSeed(r)` | Randomness created by a valid stamp sample hash reveal; it selects stamp-sample positions to prove. |
-| `selectionSeed(r)` | Randomness used by the deployed-style truth-teller draw after proof submission. |
+| `selectionSeed(r)` | Randomness used by the running weighted truth selection after proof submission. |
 | `chunkSampleHash` | Chunk-side Schelling value. STS-1 does not open random chunk-sample witnesses. |
 | `stampSampleHash` | Root or hash of the ordered transformed stamp-address sample. Selected stamp witnesses are opened against it. |
 | `chunkTransformRoot` | Participant-specific root over the claimed complete list of first-anchor transformed chunk addresses. |
 | `Schelling point` | `(chunkSampleHash, stampSampleHash, claimedDepth)`. |
 | `proof-validated entry` | Entry whose selected stamp witnesses and STS-1 binding proofs passed. |
-| `truthy proof-validated entry` | Proof-validated entry matching the selected Schelling point. |
-| `effectiveStakeDensity` | Deployed base stake density multiplied by the STS-1 stamp-density and utilization coefficients. |
+| `matching proof-validated entry` | Proof-validated entry matching the selected Schelling point. |
+| `effectiveStakeDensity` | Base stake density multiplied by the STS-1 stamp-density and utilization coefficients. |
 | `postageScopeStartBlock(r)` | SWIP-049 historical boundary for batch existence, depth, balance, and index range. |
 
-## Anchor and seed flow
+## Anchor and seed timing
 
-The anchor ownership rule is:
+STS-1 uses three randomness roles in a strict order. Each role is introduced only after the commitment that must not know it.
 
-```text
-round r - 1 reveal/skip path        -> deployed seed yields firstAnchor(r)
-round r                              -> consumes firstAnchor(r)
-round r chunk sample hash reveal     -> updates deployed seed for firstAnchor(r + 1) and derives stampAnchor(r)
-round r stamp sample hash reveal     -> creates proofSeed(r) and selectionSeed(r)
-```
+The first value is the round anchor, named `firstAnchor(r)` in this SWIP. It already exists when round `r` begins and is used for two things: neighbourhood selection, and the transformed chunk addresses committed through `chunkSampleHash` and `chunkTransformRoot`.
 
-STS-1 does not add a second first-anchor storage system. `firstAnchor(r)` is the value returned by the deployed anchor path for round `r`. If round `r - 1` has no valid reveal, the deployed skipped-round path derives the next anchor by hashing the inherited seed once:
-
-```text
-firstAnchor(r) = H(firstAnchor(r - 1))
-```
-
-After `n` consecutive skipped rounds:
+In the ordinary case, the first valid chunk sample hash reveal in round `r - 1` fixes the anchor consumed by round `r`. If one or more previous rounds are skipped, the anchor chain continues by hashing once per skipped round:
 
 ```text
 firstAnchor(r + n) = H^n(firstAnchor(r))
 ```
 
-A skipped round has no `stampAnchor`, no valid stamp sample, no `proofSeed`, and no STS-1 claim. The deterministic hash continuation is the deployed round-anchor continuation; STS-1 only consumes the resulting anchor.
+A skipped previous round is therefore not a late randomness event. It gives the deterministic continuation of the same anchor chain.
 
-`stampAnchor(r)` is derived from the updated deployed seed produced by the first valid chunk sample hash reveal in round `r`. It is unknown during first-stage commitment, so the participant cannot choose `chunkTransformRoot` after seeing the stamp ordering.
+The second value is `stampAnchor(r)`. It is created by the first valid chunk sample hash reveal in round `r`, after first-stage commitments are already fixed. It orders transformed stamp values for the current round:
 
-`proofSeed(r)` is created by the first valid stamp sample hash reveal in round `r`. It is unknown during stamp sample commitment, so a participant cannot precompute which stamp-sample positions will be opened.
+```text
+transformedStampValue = H(stampAnchor(r), batchId, fullStampIndex)
+```
+
+Because `stampAnchor(r)` is unknown during chunk sample hash commit, a participant cannot know which stamp indexes will later be useful when it chooses `chunkTransformRoot`.
+
+The third value is `proofSeed(r)`. It is created by the first valid stamp sample hash reveal in round `r`, after `stampSampleHash` is fixed. It selects the random stamp-sample positions that must be opened during proof submission. This prevents a participant from safely filling a sample with a few repeated provable values while avoiding unsupported positions.
+
+`selectionSeed(r)` is created at the same point as `proofSeed(r)` and is used for the weighted selection step. In order: round `r` consumes `firstAnchor(r)`, its chunk sample hash reveal creates `stampAnchor(r)`, and its stamp sample hash reveal creates `proofSeed(r)` and `selectionSeed(r)`.
+
+If round `r` has no valid chunk sample hash reveal, it has no `stampAnchor(r)`, no valid stamp sample, no proof seed, and no STS-1 claim. Future round anchors still continue through the skipped-round hash rule.
 
 ## Round structure and sampling windows
 
@@ -137,15 +136,15 @@ SWIP-049 fixes the postage scope at `B - 114`, the earliest scheduled block wher
 
 During chunk sample hash commit, the participant submits an obfuscated commitment for a specific commit round. The hidden preimage contains that round number, `claimedDepth`, `chunkSampleHash`, `chunkTransformRoot`, and a nonce. The round binding prevents a commitment prepared for one round from being opened in another.
 
-During chunk sample hash reveal, the participant opens that preimage with the same commit round. The contract checks the commitment and neighbourhood proximity against the deployed current reveal-round anchor. The first valid chunk sample hash reveal updates the deployed seed for `firstAnchor(r + 1)` and derives `stampAnchor(r)`. Without a valid chunk sample hash reveal, the round has no stamp proof path and the next first anchor comes from the deployed skipped-round hash continuation.
+During chunk sample hash reveal, the participant opens that preimage with the same commit round. The contract checks the commitment and neighbourhood proximity against the current reveal-round anchor. The first valid chunk sample hash reveal updates the round seed for `firstAnchor(r + 1)` and derives `stampAnchor(r)`. Without a valid chunk sample hash reveal, the round has no stamp proof path and the next first anchor comes from the existing skipped-round hash continuation.
 
-During stamp sample hash commit, the participant commits to `stampSampleHash` and a nonce, again bound to the same round. The stamp sample size is fixed at 16 and is not participant-supplied data. The commit is accepted only after that participant has a valid chunk sample hash reveal for the same round.
+During stamp sample hash commit, the participant commits to `stampSampleHash` and a nonce, again bound to the same round. The stamp sample size is fixed at 16. The commit is accepted only after that participant has a valid chunk sample hash reveal for the same round.
 
-During stamp sample hash reveal, the participant opens the committed stamp sample hash. The first valid stamp sample hash reveal opens `proofSeed(r)` and `selectionSeed(r)`. There is no seed-only transaction that opens proof randomness while stamp sample hash reveals are still possible.
+During stamp sample hash reveal, the participant opens the committed stamp sample hash. The first valid stamp sample hash reveal opens `proofSeed(r)` and `selectionSeed(r)`.
 
 During proof submission, `proofSeed(r)` selects two random positions from 0 through 14 without replacement, and position 15 is always opened for density. The opened values must satisfy strict ordered-sample checks, so a fake sample built from repeated values risks the seed selecting a repeated or unsupported position.
 
-A participant enters truth selection and payout settlement only after its selected stamp witnesses and binding proofs pass. For freeze purposes, a first-stage committer that never becomes proof-validated is treated like an unfinished deployed commit/reveal participant. The same round's claim freezes it when that round claims. If that round has no successful claim, the unfinished STS entry is finalized by the first later successful claim. The duration uses the selected truth depth of the claiming round, matching the deployed duration formula.
+A participant enters truth selection and payout settlement only after its selected stamp witnesses and binding proofs pass. For freeze purposes, a first-stage committer that never becomes proof-validated is treated like an unfinished commit/reveal participant. The same round's claim freezes it when that round claims. If that round has no successful claim, the unfinished STS entry is finalized by the first later successful claim. The duration uses the selected truth depth of the claiming round, matching the existing duration formula.
 
 ## Witness verification
 
@@ -165,7 +164,7 @@ The final two checks are the participant-specific STS-1 binding. They prevent a 
 
 ## Coefficients and effective stake density
 
-The base weight is the deployed stake-density value:
+The base weight is the current stake-density value:
 
 ```text
 baseStakeDensity = stake * 2^(claimedDepth - overlayHeight)
@@ -252,7 +251,7 @@ This is why both benefits use cube roots.
 
 ## Truth selection, payout, and freezing
 
-Truth selection is a deployed-style running weighted draw over proof-validated entries. The selected entry is the truth teller, and its `(chunkSampleHash, stampSampleHash, claimedDepth)` becomes the selected Schelling point.
+Truth selection is a running weighted draw over proof-validated entries. The draw selects one proof-validated entry; that entry's `(chunkSampleHash, stampSampleHash, claimedDepth)` is the Schelling point selected as truth.
 
 STS-1 changes payout after this point. Instead of drawing one paid beneficiary among the matching entries, the contract divides the selected round pot among all proof-validated entries matching the selected Schelling point:
 
@@ -262,7 +261,7 @@ payoutShare_i = roundPot * effectiveStakeDensity_i / sum(effectiveStakeDensity_j
 
 where `j` ranges over proof-validated entries matching the selected Schelling point.
 
-Proof-validated entries that do not match the selected Schelling point are frozen under the existing disagreement rule. Stage-one commitments that never became proof-validated are handled as the STS form of the deployed non-reveal case. They are frozen by the same round's claim when that claim exists; otherwise they remain pending until the first later successful claim. All such freeze durations use the selected truth depth of the successful claiming round.
+Proof-validated entries that do not match the selected Schelling point are frozen under the existing disagreement rule. Stage-one commitments that never became proof-validated are handled as the STS form of the existing non-reveal case. They are frozen by the same round's claim when that claim exists; otherwise they remain pending until the first later successful claim. All such freeze durations use the selected truth depth of the successful claiming round.
 
 ## Rationale
 
@@ -284,7 +283,7 @@ STS-1 does not solve one-copy-many-overlays and does not prove independent physi
 
 ## Backwards compatibility
 
-STS-1 keeps the deployed truth-teller draw shape and freeze-duration formula. It changes eligibility, proof-adjusted weight, and post-truth payout settlement. The round length remains 152 blocks, with new internal phase boundaries for the STS-1 sequence.
+STS-1 keeps the existing running weighted truth-selection process and freeze-duration formula. It changes eligibility, proof-adjusted weight, and post-truth payout settlement. The round length remains 152 blocks, with new internal phase boundaries for the STS-1 sequence.
 
 The transformed stamp address is:
 
@@ -296,13 +295,13 @@ Node clients must construct `chunkTransformRoot`, construct the transformed stam
 
 ## Appendix A: Solidity implementation proposal
 
-The appendix is limited to STS-specific deltas. The deployed contract already owns round calculation, round-bound commits, active `currentCommits` and `currentReveals`, reveal-round initialization, first-anchor selection, skipped-round seed continuation, and ordinary chunk proof checks. Those pieces are referenced by name where the STS code plugs into them, but they are not redefined here.
+The appendix is limited to STS-specific deltas. The current Redistribution contract already owns round calculation, round-bound commits, active `currentCommits` and `currentReveals`, reveal-round initialization, first-anchor selection, skipped-round seed continuation, and ordinary chunk proof checks. Those pieces are referenced by name where the STS code plugs into them, but they are not redefined here.
 
-The storage shape follows the deployed redistribution pattern: active reveal data is reused for the active round, and STS-only data is guarded by the active reveal round. There is no STS mapping keyed by every historical round and no separate anchor-progression subsystem.
+The storage shape follows the current redistribution pattern: active reveal data is reused for the active round, and STS-only data is guarded by the active reveal round. There is no STS mapping keyed by every historical round and no separate anchor-progression subsystem.
 
 ### A.1 STS-specific records and state
 
-`Reveal.hash` remains the chunk sample hash. The stamp sample hash and STS-only proof state live in an extension keyed by overlay. This avoids duplicating the deployed `Reveal` struct in the proposal while still allowing the selected Schelling point to be `(chunkSampleHash, stampSampleHash, depth)`. The `StampProof` embeds the deployed `ChunkInclusionProof` shape for the stamped chunk; this is not a separate chunk-sample witness, but the existing content-to-transformed-address proof needed by each selected stamp witness.
+`Reveal.hash` remains the chunk sample hash. The stamp sample hash and STS-only proof state live in an extension keyed by overlay. This avoids duplicating the existing `Reveal` struct in the proposal while still allowing the selected Schelling point to be `(chunkSampleHash, stampSampleHash, depth)`. The `StampProof` embeds the `ChunkInclusionProof` shape for the stamped chunk; this is not a separate chunk-sample witness, but the existing content-to-transformed-address proof needed by each selected stamp witness.
 
 ```solidity
 struct StsRevealData {
@@ -352,7 +351,7 @@ struct SelectedSchellingPoint {
 }
 ```
 
-The current round's first anchor remains the deployed `currentRevealRoundAnchor`. The deployed seed path remains responsible for skipped-round continuation and the next round's first anchor. STS adds only the current round's stamp anchor and the later proof/selection seeds.
+The round's first anchor remains `currentRevealRoundAnchor`. The round-seed path remains responsible for skipped-round continuation and the next round's first anchor. STS adds only the current round's stamp anchor and the later proof/selection seeds.
 
 ```solidity
 bytes32 public currentRevealRoundStampAnchor;
@@ -368,7 +367,7 @@ mapping(bytes32 => StampSampleCommitment) internal stampCommitOfOverlay;
 mapping(address => uint256) public pendingRedistributionPayouts;
 ```
 
-The deployed contract already freezes commits that do not complete the reveal path when a claim is processed. STS-1 reuses that invariant for the longer sequence: after stage-one commit, the node is not complete until it has a proof-validated STS entry. The carry-over list exists only for the case that the committer's own round never reaches a successful claim. Completed entries are removed with swap-and-pop, so the list contains only unresolved unfinished participants.
+The current Redistribution contract already freezes commits that do not complete the reveal path when a claim is processed. STS-1 reuses that invariant for the longer sequence: after stage-one commit, the node is not complete until it has a proof-validated STS entry. The carry-over list exists only for the case that the committer's own round never reaches a successful claim. Completed entries are removed with swap-and-pop, so the list contains only unresolved unfinished participants.
 
 ```solidity
 struct PendingCompletion {
@@ -382,7 +381,7 @@ mapping(bytes32 => uint256) internal pendingCompletionIndexPlusOne;
 
 ### A.2 Round-bound commitment preimages
 
-The deployed `commit` function already accepts the commit round. STS only changes what the hidden hash commits to. The explicit round inside each hidden preimage prevents a commitment made for one round from being opened in a later round. The stamp sample hash commitment does not recommit `chunkSampleHash` or `chunkTransformRoot`; those values were already fixed by the stage-one chunk sample hash commitment and are stored after that reveal succeeds.
+The existing `commit` function already accepts the commit round. STS only changes what the hidden hash commits to. The explicit round inside each hidden preimage prevents a commitment made for one round from being opened in a later round. The stamp sample hash commitment does not recommit `chunkSampleHash` or `chunkTransformRoot`; those values were already fixed by the stage-one chunk sample hash commitment and are stored after that reveal succeeds.
 
 ```solidity
 function wrapChunkSampleHashCommit(
@@ -422,9 +421,9 @@ function wrapStampSampleHashCommit(
 }
 ```
 
-### A.3 Hooks on the deployed reveal path
+### A.3 Hooks on the current reveal path
 
-The deployed reveal path already initializes the reveal round, fixes `currentRevealRoundAnchor`, calls `updateRandomness()`, appends the ordinary `Reveal` entry, and stores the reveal index on the matched `Commit`. STS adds two small hooks: one to clear current-round STS seed fields when the deployed reveal round changes, and one to record the participant-specific `chunkTransformRoot` after the ordinary reveal has been accepted. The reveal index is copied internally from the deployed commit record; later STS calls do not receive a caller-supplied reveal index.
+The current reveal path already initializes the reveal round, fixes `currentRevealRoundAnchor`, calls `updateRandomness()`, appends the ordinary `Reveal` entry, and stores the reveal index on the matched `Commit`. STS adds two small hooks: one to clear current-round STS seed fields when the active reveal round changes, and one to record the participant-specific `chunkTransformRoot` after the ordinary reveal has been accepted. The reveal index is copied internally from the matched commit record; later STS calls do not receive a caller-supplied reveal index.
 
 ```solidity
 function resetStsStateForNewRevealRound(uint64 roundNumber) internal {
@@ -445,7 +444,7 @@ function recordChunkSampleHashReveal(
 ) internal {
     if (currentRevealRound != roundNumber) revert MissingAnchor();
     if (commitIndex >= currentCommits.length) revert NoMatchingCommit();
-    if (!currentRevealRoundStampAnchorSet) openStampAnchorAfterDeployedRevealRandomness(roundNumber);
+    if (!currentRevealRoundStampAnchorSet) openStampAnchorAfterRevealRandomness(roundNumber);
 
     Commit storage revealedCommit = currentCommits[commitIndex];
     if (!revealedCommit.revealed) revert NoChunkSampleHashReveal();
@@ -465,7 +464,7 @@ function recordChunkSampleHashReveal(
     });
 }
 
-function openStampAnchorAfterDeployedRevealRandomness(uint64 roundNumber) internal {
+function openStampAnchorAfterRevealRandomness(uint64 roundNumber) internal {
     if (currentRevealRound != roundNumber) revert MissingAnchor();
     if (currentRevealRoundStampAnchorSet) return;
 
@@ -480,7 +479,7 @@ function openStampAnchorAfterDeployedRevealRandomness(uint64 roundNumber) intern
 }
 ```
 
-The first valid stamp sample hash reveal opens only STS-local proof randomness. It must not call `updateRandomness()`, because the deployed seed path has already advanced during the chunk sample hash reveal.
+The first valid stamp sample hash reveal opens only STS-local proof randomness. It must not call `updateRandomness()`, because the round-seed path has already advanced during the chunk sample hash reveal.
 
 ```solidity
 function openProofSeedFromStampSampleHashReveal(uint64 roundNumber) internal {
@@ -511,7 +510,7 @@ function openProofSeedFromStampSampleHashReveal(uint64 roundNumber) internal {
 
 ### A.4 Stage-one completion tracking
 
-The deployed `commit` path should call `rememberStageOneCommitment` after accepting a stage-one commit. A successful STS proof removes the overlay from this list. Claim processing then freezes unresolved entries with the same selected-truth-depth formula used by the deployed non-reveal path. The list is a carry-over for rounds that never claimed; it is not a second anchor or round-state system.
+The `commit` path should call `rememberStageOneCommitment` after accepting a stage-one commit. A successful STS proof removes the overlay from this list. Claim processing then freezes unresolved entries with the same selected-truth-depth formula used by the existing non-reveal path. The list is a carry-over for rounds that never claimed; it is not a second anchor or round-state system.
 
 ```solidity
 function rememberStageOneCommitment(bytes32 overlay, address owner) internal {
@@ -547,7 +546,7 @@ function markStageOneCommitmentProven(bytes32 overlay) internal {
 
 ### A.5 Stamp sample hash commit and reveal
 
-The stamp sample size is fixed at 16, so the stamp-sample commitment hides only `stampSampleHash` and the nonce, bound to the commit round and overlay. It does not re-commit `chunkSampleHash`, `chunkTransformRoot`, or the claimed depth; those belong to the stage-one chunk sample hash commit and reveal. The stage-two commit is linked to stage one by accepting it only after the caller has a valid stage-one reveal for the same round, and by using the stored stage-one reveal data during stamp sample hash reveal and proof submission. The caller does not supply a reveal-array index. The STS extension stores the reveal index when the deployed reveal path accepts the stage-one reveal, and later STS functions recover the active `Reveal` through the caller overlay.
+The stamp sample size is fixed at 16, so the stamp-sample commitment hides only `stampSampleHash` and the nonce, bound to the commit round and overlay. It does not re-commit `chunkSampleHash`, `chunkTransformRoot`, or the claimed depth; those belong to the stage-one chunk sample hash commit and reveal. The stage-two commit is linked to stage one by accepting it only after the caller has a valid stage-one reveal for the same round, and by using the stored stage-one reveal data during stamp sample hash reveal and proof submission. The caller does not supply a reveal-array index. The STS extension stores the reveal index when the current reveal path accepts the stage-one reveal, and later STS functions recover the active `Reveal` through the caller overlay.
 
 ```solidity
 function revealIndexForOverlay(bytes32 overlay, uint64 roundNumber)
@@ -974,7 +973,7 @@ function utilizationCoefficientQ64(uint256 sumIndexRatioQ64) internal pure retur
 
 ### A.10 Truth selection, payout settlement, and freezing
 
-Truth selection keeps the deployed running weighted draw shape, but only proof-submitted entries have STS weight. The selected entry defines the Schelling point. Payout settlement then splits the pot among all proof-submitted entries matching that point, weighted by their effective stake density.
+Truth selection keeps the current running weighted draw shape, but only proof-submitted entries have STS weight. The selected entry defines the Schelling point. Payout settlement then splits the pot among all proof-submitted entries matching that point, weighted by their effective stake density.
 
 ```solidity
 function getCurrentStsTruth(uint64 roundNumber) public view returns (SelectedSchellingPoint memory truth) {
@@ -1022,7 +1021,7 @@ function matchesTruth(
 }
 ```
 
-The deployed claim path keeps phase checks, pot withdrawal, price adjustment, and claim-round finalization. STS replaces the single paid winner with this settlement helper before the claim is finalized.
+The claim path keeps phase checks, pot withdrawal, price adjustment, and claim-round finalization. STS replaces the single paid winner with this settlement helper before the claim is finalized.
 
 ```solidity
 function settlePayoutsAndFreezeDisagreements(
@@ -1075,7 +1074,7 @@ function settlePayoutsAndFreezeDisagreements(
 }
 ```
 
-The completion finalizer runs after successful payout settlement. It applies the same selected-truth-depth duration formula as the deployed non-reveal freeze path to any unresolved STS stage-one participant that has not already been removed by a successful proof.
+The completion finalizer runs after successful payout settlement. It applies the same selected-truth-depth duration formula as the non-reveal freeze path to any unresolved STS stage-one participant that has not already been removed by a successful proof.
 
 ```solidity
 function finalizeIncompleteCommitments(uint8 selectedTruthDepth) internal {
