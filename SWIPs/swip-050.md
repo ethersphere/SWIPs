@@ -23,9 +23,11 @@ The selected agreement value is:
 
 `chunkSampleHash` remains the chunk-side Schelling value. It encourages nodes to follow the same chunk rewrite and sample-construction conventions, but STS-1 does not open random chunk-sample witnesses and does not use chunk-sample density as a weight signal. Stamp density is the reliable density proof introduced by this SWIP.
 
+Together with `chunkSampleHash`, the first phase fixes `chunkTransformRoot`: the participant-specific root over the complete list of first-anchor transformed chunk addresses in that participant's reserve.
+
 For round `r`, `firstAnchor(r)` is the current round anchor consumed by the round. It selects the neighbourhood and transforms chunk addresses. A valid chunk sample hash reveal updates the round seed for `firstAnchor(r + 1)` and derives `stampAnchor(r)`, which orders transformed stamp addresses for the current round. A later valid stamp sample hash reveal creates `proofSeed(r)`, which only selects stamp-sample positions to prove.
 
-Each selected stamp witness proves two links. First, the transformed stamp value is valid for `stampAnchor(r)`, the batch identifier, and the full stamp index, and the stamp signature proves that the batch owner authorized that stamp for a specific `chunkAddress`. Second, the transformed-chunk same-data proof verifies that a first-anchor transformed chunk address is derived from the same opened BMT data as that `chunkAddress`. The participant then proves that transformed address as a leaf inside its own `chunkTransformRoot`, committed in the first phase. Since `stampAnchor(r)` and `proofSeed(r)` are unknown when `chunkTransformRoot` is fixed, the participant cannot wait to learn the useful stamp range and add only those chunks later.
+Each selected stamp witness proves two links. First, the transformed stamp value is valid for `stampAnchor(r)`, the batch identifier, and the full stamp index, and the stamp signature proves that the batch owner authorized that stamp for a specific `chunkAddress`. Second, the transformed-chunk same-data proof verifies that a first-anchor transformed chunk address is derived from the same opened BMT data as that `chunkAddress`. The participant then proves that transformed address as a leaf inside its own `chunkTransformRoot`. Since `stampAnchor(r)` and `proofSeed(r)` are unknown when that root is fixed, the participant cannot wait to learn the useful stamp range and add only those chunks later.
 
 After one Schelling point has been selected as truth, the selected round payout is divided among all proof-validated entries that reported that Schelling point, in proportion to proof-adjusted stake density. Every paid node must prove separately because `chunkTransformRoot` is participant-specific and not part of the Schelling point.
 
@@ -112,7 +114,7 @@ An STS-1 round is 152 blocks. For a round starting at block `B`:
 | `B + 57` to `B + 94` | 38 | stamp sample hash commit |
 | `B + 95` to `B + 113` | 19 | stamp sample hash reveal |
 | `B + 114` to `B + 132` | 19 | proof submission |
-| `B + 133` to `B + 151` | 19 | truth selection, proportional payout settlement, and claim |
+| `B + 133` to `B + 151` | 19 | truth selection and claim |
 
 The actual chunk-sampling time depends on when the previous round created `firstAnchor(r)`. The chunk commit deadline is `B + 38`.
 
@@ -144,7 +146,7 @@ During stamp sample hash reveal, the participant opens the committed stamp sampl
 
 During proof submission, `proofSeed(r)` selects two random positions from 0 through 14 without replacement, and position 15 is always opened for density. The opened values must satisfy strict ordered-sample checks, so a fake sample built from repeated values risks the seed selecting a repeated or unsupported position.
 
-A participant enters truth selection and payout settlement only after its selected stamp witnesses and binding proofs pass. For freeze purposes, a first-stage committer that never becomes proof-validated is treated like an unfinished commit/reveal participant. The same round's claim freezes it when that round claims. If that round has no successful claim, the unfinished STS entry is finalized by the first later successful claim. The duration uses the selected truth depth of the claiming round, matching the existing duration formula.
+A participant enters truth selection only after its selected stamp witnesses and binding proofs pass. For freeze purposes, a first-stage committer that never becomes proof-validated is treated like an unfinished commit/reveal participant. The same round's claim freezes it when that round claims. If that round has no successful claim, the unfinished STS entry is finalized by the first later successful claim. The duration uses the selected truth depth of the claiming round, matching the existing duration formula.
 
 ## Witness verification
 
@@ -283,7 +285,7 @@ STS-1 does not solve one-copy-many-overlays and does not prove independent physi
 
 ## Backwards compatibility
 
-STS-1 keeps the existing running weighted truth-selection process and freeze-duration formula. It changes eligibility, proof-adjusted weight, and post-truth payout settlement. The round length remains 152 blocks, with new internal phase boundaries for the STS-1 sequence.
+STS-1 keeps the existing running weighted truth-selection process and freeze-duration formula. It changes eligibility, proof-adjusted weight, and claim payout distribution. The round length remains 152 blocks, with new internal phase boundaries for the STS-1 sequence.
 
 The transformed stamp address is:
 
@@ -971,9 +973,9 @@ function utilizationCoefficientQ64(uint256 sumIndexRatioQ64) internal pure retur
 }
 ```
 
-### A.10 Truth selection, payout settlement, and freezing
+### A.10 Truth selection, claim payout, and freezing
 
-Truth selection keeps the current running weighted draw shape, but only proof-submitted entries have STS weight. The selected entry defines the Schelling point. Payout settlement then splits the pot among all proof-submitted entries matching that point, weighted by their effective stake density.
+Truth selection keeps the current running weighted draw shape, but only proof-submitted entries have STS weight. The selected entry defines the Schelling point. The claim then splits the pot among all proof-submitted entries matching that point, weighted by their effective stake density.
 
 ```solidity
 function getCurrentStsTruth(uint64 roundNumber) public view returns (SelectedSchellingPoint memory truth) {
@@ -1021,10 +1023,10 @@ function matchesTruth(
 }
 ```
 
-The claim path keeps phase checks, pot withdrawal, price adjustment, and claim-round finalization. STS replaces the single paid winner with this settlement helper before the claim is finalized.
+The claim path keeps phase checks, pot withdrawal, price adjustment, and claim-round finalization. STS replaces the single paid winner with this proportional payout helper before the claim is finalized.
 
 ```solidity
-function settlePayoutsAndFreezeDisagreements(
+function applyClaimPayoutsAndFreezeDisagreements(
     uint64 roundNumber,
     SelectedSchellingPoint memory truth,
     uint256 pot
@@ -1074,7 +1076,7 @@ function settlePayoutsAndFreezeDisagreements(
 }
 ```
 
-The completion finalizer runs after successful payout settlement. It applies the same selected-truth-depth duration formula as the non-reveal freeze path to any unresolved STS stage-one participant that has not already been removed by a successful proof.
+The completion finalizer runs after a successful claim. It applies the same selected-truth-depth duration formula as the non-reveal freeze path to any unresolved STS stage-one participant that has not already been removed by a successful proof.
 
 ```solidity
 function finalizeIncompleteCommitments(uint8 selectedTruthDepth) internal {
