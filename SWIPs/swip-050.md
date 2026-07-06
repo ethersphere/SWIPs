@@ -1,15 +1,15 @@
 ---
-SWIP: TBD
+SWIP: SWIP 050
 title: Sequential Transformation Scheme 1 for Redistribution
-author: TBD
+author: lat-murmeldjur
 status: Draft
 type: Standards Track
 category: Storage Incentives
-created: 2026-06-30
+created: 2026-07-06
 requires: SWIP-049
 ---
 
-# SWIP TBD - Sequential Transformation Scheme 1 for Redistribution
+# SWIP 050 - Sequential Transformation Scheme 1 for Redistribution
 
 ## Abstract
 
@@ -307,6 +307,7 @@ The storage shape follows the deployed redistribution pattern: active reveal dat
 ```solidity
 struct StsRevealData {
     uint64 roundNumber;
+    uint256 revealIndex;
     bytes32 stampHash;
     bytes32 chunkTransformRoot;
     uint256 effectiveStakeDensity;
@@ -429,7 +430,7 @@ function wrapStampSampleHashCommit(
 
 ### A.3 Hooks on the deployed reveal path
 
-The deployed reveal path already initializes the reveal round, fixes `currentRevealRoundAnchor`, calls `updateRandomness()`, and appends the ordinary `Reveal` entry. STS adds two small hooks: one to clear current-round STS seed fields when the deployed reveal round changes, and one to record the participant-specific `chunkTransformRoot` after the ordinary reveal has been accepted.
+The deployed reveal path already initializes the reveal round, fixes `currentRevealRoundAnchor`, calls `updateRandomness()`, appends the ordinary `Reveal` entry, and stores the reveal index on the matched `Commit`. STS adds two small hooks: one to clear current-round STS seed fields when the deployed reveal round changes, and one to record the participant-specific `chunkTransformRoot` after the ordinary reveal has been accepted. The reveal index is copied internally from the deployed commit record; later STS calls do not receive a caller-supplied reveal index.
 
 ```solidity
 function resetStsStateForNewRevealRound(uint64 roundNumber) internal {
@@ -445,14 +446,23 @@ function resetStsStateForNewRevealRound(uint64 roundNumber) internal {
 
 function recordChunkSampleHashReveal(
     uint64 roundNumber,
-    bytes32 overlay,
+    uint256 commitIndex,
     bytes32 chunkTransformRoot
 ) internal {
     if (currentRevealRound != roundNumber) revert MissingAnchor();
+    if (commitIndex >= currentCommits.length) revert NoMatchingCommit();
     if (!currentRevealRoundStampAnchorSet) openStampAnchorAfterDeployedRevealRandomness(roundNumber);
 
-    stsRevealOfOverlay[overlay] = StsRevealData({
+    Commit storage revealedCommit = currentCommits[commitIndex];
+    if (!revealedCommit.revealed) revert NoChunkSampleHashReveal();
+    if (revealedCommit.revealIndex >= currentReveals.length) revert NoChunkSampleHashReveal();
+
+    Reveal storage revealRecord = currentReveals[revealedCommit.revealIndex];
+    if (revealRecord.overlay != revealedCommit.overlay) revert NoChunkSampleHashReveal();
+
+    stsRevealOfOverlay[revealedCommit.overlay] = StsRevealData({
         roundNumber: roundNumber,
+        revealIndex: revealedCommit.revealIndex,
         stampHash: bytes32(0),
         chunkTransformRoot: chunkTransformRoot,
         effectiveStakeDensity: 0,
@@ -543,24 +553,34 @@ function markStageOneCommitmentProven(bytes32 overlay) internal {
 
 ### A.5 Stamp sample hash commit and reveal
 
-The stamp sample size is fixed at 16, so the stamp-sample commitment hides only `stampSampleHash` and the nonce, together with the already revealed stage-one values. The caller supplies the deployed reveal-array index to avoid adding a new overlay-to-reveal lookup.
+The stamp sample size is fixed at 16, so the stamp-sample commitment hides only `stampSampleHash` and the nonce, together with the already revealed stage-one values. The caller does not supply a reveal-array index. The STS extension stores the reveal index when the deployed reveal path accepts the stage-one reveal, and later STS functions recover the active `Reveal` through the caller overlay.
 
 ```solidity
+function revealIndexForOverlay(bytes32 overlay, uint64 roundNumber)
+    internal
+    view
+    returns (uint256 revealIndex)
+{
+    StsRevealData storage data = stsRevealOfOverlay[overlay];
+    if (data.roundNumber != roundNumber) revert NoChunkSampleHashReveal();
+
+    revealIndex = data.revealIndex;
+    if (revealIndex >= currentReveals.length) revert NoChunkSampleHashReveal();
+    if (currentReveals[revealIndex].overlay != overlay) revert NoChunkSampleHashReveal();
+}
+
 function commitStampSampleHash(
     bytes32 obfuscatedHash,
-    uint64 commitRound,
-    uint256 revealIndex
+    uint64 commitRound
 ) external whenNotPaused {
     requireStampSampleHashCommitPhase(commitRound);
     if (commitRound != currentRevealRound) revert NoChunkSampleHashReveal();
-    if (revealIndex >= currentReveals.length) revert NoChunkSampleHashReveal();
 
     bytes32 overlay = Stakes.overlayOfAddress(msg.sender);
-    Reveal storage revealRecord = currentReveals[revealIndex];
-    StsRevealData storage data = stsRevealOfOverlay[overlay];
+    revealIndexForOverlay(overlay, commitRound);
 
-    if (revealRecord.overlay != overlay) revert NoChunkSampleHashReveal();
-    if (data.roundNumber != commitRound) revert NoChunkSampleHashReveal();
+    StsRevealData storage data = stsRevealOfOverlay[overlay];
+    if (data.stampSampleHashRevealed) revert AlreadyRevealed();
     if (stampCommitOfOverlay[overlay].roundNumber == commitRound) revert AlreadyCommitted();
 
     stampCommitOfOverlay[overlay] = StampSampleCommitment({
@@ -571,21 +591,18 @@ function commitStampSampleHash(
 
 function revealStampSampleHash(
     uint64 commitRound,
-    uint256 revealIndex,
     bytes32 stampSampleHash,
     bytes32 revealNonce
 ) external whenNotPaused {
     requireStampSampleHashRevealPhase(commitRound);
     if (commitRound != currentRevealRound) revert NoChunkSampleHashReveal();
-    if (revealIndex >= currentReveals.length) revert NoChunkSampleHashReveal();
 
     bytes32 overlay = Stakes.overlayOfAddress(msg.sender);
+    uint256 revealIndex = revealIndexForOverlay(overlay, commitRound);
     Reveal storage revealRecord = currentReveals[revealIndex];
     StsRevealData storage data = stsRevealOfOverlay[overlay];
     StampSampleCommitment storage stampCommit = stampCommitOfOverlay[overlay];
 
-    if (revealRecord.overlay != overlay) revert NoChunkSampleHashReveal();
-    if (data.roundNumber != commitRound) revert NoChunkSampleHashReveal();
     if (stampCommit.roundNumber != commitRound) revert NoStampSampleHashReveal();
     if (data.stampSampleHashRevealed) revert AlreadyRevealed();
 
@@ -638,19 +655,16 @@ Proof submission verifies only stamp witnesses. There are no random witnesses fr
 ```solidity
 function submitStsProof(
     uint64 roundNumber,
-    uint256 revealIndex,
     StampProof[3] calldata proofs
 ) external whenNotPaused {
     requireProofSubmissionPhase(roundNumber);
     if (roundNumber != currentRevealRound) revert NoChunkSampleHashReveal();
-    if (revealIndex >= currentReveals.length) revert NoChunkSampleHashReveal();
 
     bytes32 overlay = Stakes.overlayOfAddress(msg.sender);
+    uint256 revealIndex = revealIndexForOverlay(overlay, roundNumber);
     Reveal storage revealRecord = currentReveals[revealIndex];
     StsRevealData storage data = stsRevealOfOverlay[overlay];
 
-    if (revealRecord.overlay != overlay) revert NoChunkSampleHashReveal();
-    if (data.roundNumber != roundNumber) revert NoChunkSampleHashReveal();
     if (!data.stampSampleHashRevealed) revert NoStampSampleHashReveal();
     if (data.proofSubmitted) revert ProofAlreadySubmitted();
 
