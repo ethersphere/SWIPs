@@ -39,7 +39,7 @@ This extension adds that channel. It specifies:
 - **`swarm_sendGsoc`** — broadcast a message on a topic that any subscriber to
   the derived GSOC address receives.
 - **`swarm_getMessagingIdentity`** — disclose this origin's PSS public key and
-  overlay, so peers can address messages to it.
+  routing target, so peers can address messages to it.
 
 PSS and GSOC are existing Swarm/Bee primitives; this extension does not define
 them, only their exposure at the provider boundary with consent and
@@ -109,8 +109,9 @@ if (caps.features?.includes('messaging')) {
 ```
 
 `swarm_getCapabilities` is additionally extended with messaging limits (see
-[Limits](#limits)). Both `features` and the new limit fields MAY be returned
-before `swarm_requestAccess` (they are static capability facts).
+[Limits](#limits)). Both `features` and the new limit fields MUST be available
+before `swarm_requestAccess` — the core spec makes `swarm_getCapabilities`
+permission-free, and these are static capability facts, not user data.
 
 ### Convenience Methods
 
@@ -121,7 +122,7 @@ addition to the core set:
 window.swarm.getMessagingIdentity()                        // swarm_getMessagingIdentity
 window.swarm.subscribe({ kind, topic })                    // swarm_subscribe
 window.swarm.unsubscribe({ subscriptionId })               // swarm_unsubscribe
-window.swarm.sendPss({ topic, recipient, data })           // swarm_sendPss
+window.swarm.sendPss({ topic, recipient, targets, data })  // swarm_sendPss
 window.swarm.sendGsoc({ topic, data })                     // swarm_sendGsoc
 ```
 
@@ -172,6 +173,7 @@ following `data.reason` values for `-32602` (Invalid Params):
 | `invalid_topic` | `swarm_subscribe`, `swarm_sendPss`, `swarm_sendGsoc` | Topic is missing or not a valid non-empty string / 64-char hex where hex is required. |
 | `invalid_address` | `swarm_subscribe` | An explicit GSOC `address` is not a valid 64-char hex. |
 | `invalid_recipient` | `swarm_sendPss` | Recipient public key is missing or not a valid 33-byte compressed secp256k1 key (66-char hex). |
+| `invalid_target` | `swarm_sendPss` | `targets` is missing or not valid hex encoding 1–`maxTargetDepth` whole bytes. |
 | `invalid_kind` | `swarm_subscribe` | `kind` is not `"gsoc"` or `"pss"`. |
 | `payload_too_large` | `swarm_sendPss`, `swarm_sendGsoc` | Payload exceeds `maxMessageBytes`. |
 | `subscription_not_found` | `swarm_unsubscribe` | No active subscription with the given id for this origin. |
@@ -179,11 +181,13 @@ following `data.reason` values for `-32602` (Invalid Params):
 | `unsupported_option` | messaging methods accepting `options` | An unrecognized option field was supplied. |
 
 A subscription whose underlying receive pipeline fails after being established
-(e.g. the node loses connectivity) MUST NOT silently stop. The provider SHOULD
-emit a `message` with a transport-level error indicator OR emit `disconnect`
-semantics per the core spec; at minimum, implementations MUST document their
-failure signalling. (Normative signalling of mid-stream subscription errors is
-deferred to a future revision; see [Future Work](#future-work).)
+(e.g. the node loses connectivity) has no per-subscription error signal in this
+revision — the `SubscriptionMessage` schema deliberately has no error variant,
+and normative mid-stream error signalling is deferred to a future revision (see
+[Future Work](#future-work)). Where the failure is node-wide, the core spec's
+`disconnect` event already applies. Implementations MUST document how a
+degraded or failed pipeline behaves (silent gap until recovery, automatic
+teardown, etc.) so applications can reason about liveness.
 
 ---
 
@@ -192,7 +196,7 @@ deferred to a future revision; see [Future Work](#future-work).)
 #### `swarm_getMessagingIdentity`
 
 Return this origin's messaging identity — the PSS public key peers encrypt to,
-and the node overlay used for neighborhood targeting.
+and the neighborhood-prefix target peers route toward when sending to it.
 
 Operates under the **messaging permission tier** (see [Permission Model](#permission-model)):
 the returned public key is a stable per-origin identifier, so disclosure
@@ -205,7 +209,7 @@ requires consent, mirroring `swarm_getSigningIdentity` in the core spec.
 ```javascript
 {
   pssPublicKey: string,   // 66-char hex, 33-byte compressed secp256k1 public key
-  overlay: string,        // 64-char hex node overlay address (neighborhood targeting)
+  pssTarget: string,      // hex neighborhood prefix (1–maxTargetDepth bytes); peers pass it as `targets` in swarm_sendPss
   identityMode: string    // "app-scoped" or "bee-wallet" (as in the core spec)
 }
 ```
@@ -223,6 +227,12 @@ the node is unavailable.
   cannot present another's messaging identity.
 - Whether the PSS key is bound to the same key as `swarm_getSigningIdentity`'s
   `owner` is implementation-defined; dApps MUST NOT assume equality.
+- `pssTarget` MUST be a truncated neighborhood prefix of at most
+  `maxTargetDepth` bytes, NOT the node's full overlay address. PSS routing only
+  needs a prefix; the full 64-hex overlay is a node-global value, identical for
+  every origin, that would function as a cross-origin correlation handle and
+  disclose the node's exact network position (see
+  [Security Considerations](#security-considerations)).
 
 ---
 
@@ -260,16 +270,30 @@ surfaced. `4900` if the node is unavailable. `-32602` for
 - Subscribing establishes a receive pipeline for the target neighborhood. The
   implementation is responsible for pulling and decrypting matching chunks and
   delivering decoded payloads via the `message` event.
-- **GSOC topic → address derivation MUST be deterministic** so that independent
-  parties passing the same `topic` subscribe to and send at the same address.
-  The derivation MUST be documented by the implementation and SHOULD match
-  bee-js `gsocMine` semantics for cross-implementation interop.
+- **GSOC topic → address derivation MUST be deterministic within an
+  implementation**: any two origins passing the same `topic` to the same
+  provider MUST resolve to the same address, whether subscribing or sending.
+  The derivation MUST be documented by the implementation.
+- **Cross-implementation convergence is NOT guaranteed in this revision.**
+  Determinism alone does not pin the address: implementations must additionally
+  agree on the identifier derivation (topic → 32-byte SOC identifier), the
+  target-neighborhood derivation (topic → overlay prefix), the mining algorithm
+  and its search order (e.g. bee-js `gsocMine`), and the required proximity —
+  a difference in any one yields a different address for the same topic. Until
+  a normative derivation profile exists (see [Future Work](#future-work)),
+  applications interoperating across different providers MUST exchange the
+  resolved GSOC `address` (returned by both `swarm_subscribe` and
+  `swarm_sendGsoc`) out of band and use the raw `address` parameter.
 - For PSS, only messages the node can decrypt (encrypted to this origin's PSS
   key) are delivered. Undecryptable traffic in the neighborhood MUST NOT be
   delivered.
 - The provider MUST deduplicate deliveries; the same message MUST NOT be
   delivered twice for one subscription. (Across a resubscribe, redelivery is
-  permitted — see delivery semantics.)
+  permitted — see delivery semantics.) Note that two *sends* with
+  byte-identical payloads on the same key are indistinguishable at the
+  transport layer and MAY therefore be coalesced into a single delivery;
+  applications that need repeated identical messages observed individually
+  MUST make payloads distinct (e.g. include a sequence number or nonce).
 - Subscriptions are **origin-scoped** and **session-scoped**. They MUST be torn
   down automatically when the page unloads (`pagehide`) and when access is
   revoked (`disconnect`). Implementations are NOT REQUIRED to persist
@@ -332,7 +356,7 @@ consumes a postage stamp).
 |---|---|---|---|
 | `topic` | `string` | Yes | Topic the recipient subscribes on. Hashed/normalized by the provider as in Bee PSS. |
 | `recipient` | `string` | Yes | Recipient PSS public key: 66-char hex, 33-byte compressed secp256k1 (as returned by `swarm_getMessagingIdentity`). |
-| `targets` | `string` | No | Neighborhood prefix as hex (1–`maxTargetDepth` bytes). If omitted, the provider derives targeting from the recipient/overlay. Deeper targets = more precise routing, higher cost. |
+| `targets` | `string` | Yes | Neighborhood prefix as hex (1–`maxTargetDepth` bytes) locating the recipient — the value the recipient's `swarm_getMessagingIdentity` returned as `pssTarget`, shared out of band alongside their public key. The sender's provider cannot derive this from the public key alone. Deeper targets = more precise routing, higher cost. |
 | `data` | `string \| Uint8Array \| ArrayBuffer` | Yes | Payload. Strings encoded UTF-8. MUST be ≤ `maxMessageBytes`. |
 | `options` | `object` | No | Reserved. Unknown fields rejected with `unsupported_option`. |
 
@@ -436,7 +460,9 @@ This extension adds one tier to the core permission lifecycle:
 - **Send consent.** `swarm_sendPss`/`swarm_sendGsoc` MAY additionally require
   per-operation approval (like `swarm_publishData`), or fall under an origin
   auto-approve the user has enabled. Implementations MUST still enforce size
-  limits and stamp checks under auto-approve.
+  limits and stamp checks under auto-approve, and SHOULD additionally apply a
+  per-origin send rate cap there — messaging sends are cheap to issue in a
+  loop and each consumes postage.
 - **Subscription resource control.** Subscriptions consume bandwidth for as long
   as they are open. Implementations MUST cap concurrent subscriptions per origin
   (`maxSubscriptions`) and SHOULD apply per-origin bandwidth accounting to the
@@ -515,6 +541,17 @@ considerations:
   Implementations MUST cap concurrent subscriptions (`maxSubscriptions`) and
   SHOULD bound per-origin receive bandwidth, with tighter limits for
   un-granted origins.
+- **Cross-origin identity correlation.** `pssPublicKey` is per-origin under
+  `app-scoped` derivation, but any node-global value returned to multiple
+  origins is a correlation handle. This is why `swarm_getMessagingIdentity`
+  returns a truncated `pssTarget` prefix rather than the node's full overlay
+  address: the full overlay is identical for every origin, uniquely identifies
+  the user's node, and discloses its exact network position. Even the
+  truncated prefix leaks up to `maxTargetDepth` bytes of neighborhood
+  information and is the same across origins; implementations SHOULD keep
+  `maxTargetDepth` small. Under `bee-wallet` mode the public key itself is
+  node-global; users selecting it accept cross-origin linkability, as in the
+  core spec.
 - **Metadata exposure.** PSS hides payloads but the existence and neighborhood
   of traffic is observable to the network. Subscribing to a topic reveals
   interest in that neighborhood to peers the node pulls from. Applications
@@ -553,12 +590,15 @@ if (hasMessaging) {
 ### Messaging Identity
 
 ```javascript
+const { maxTargetDepth } = (await window.swarm.getCapabilities()).limits
 const id = await window.swarm.getMessagingIdentity()
 assert(/^[0-9a-f]{66}$/.test(id.pssPublicKey))   // 33-byte compressed key
-assert(/^[0-9a-f]{64}$/.test(id.overlay))
+assert(/^([0-9a-f]{2})+$/.test(id.pssTarget))    // whole bytes, hex
+assert(id.pssTarget.length / 2 <= maxTargetDepth) // truncated prefix, never the full overlay
+assert(['app-scoped', 'bee-wallet'].includes(id.identityMode))
 ```
 
-### GSOC Broadcast Round-Trip (two peers, same topic)
+### GSOC Broadcast Round-Trip (two peers, same topic, same provider implementation)
 
 ```javascript
 // Peer B subscribes
@@ -578,7 +618,8 @@ const received = new Promise((resolve) => {
 // Peer A sends on the same topic (address derives identically)
 const sent = await window.swarm.sendGsoc({ topic: 'room:doc-42', data: 'hello room' })
 assert(sent.sent === true)
-assert(sent.address === sub.key)   // deterministic topic→address derivation
+assert(sent.address === sub.key)   // same-provider topic→address determinism
+                                   // (across different providers, exchange `address` instead)
 
 assert(await received === 'hello room')
 ```
@@ -590,10 +631,12 @@ assert(await received === 'hello room')
 const me = await window.swarm.getMessagingIdentity()
 const sub = await window.swarm.subscribe({ kind: 'pss', topic: 'dm:alice' })
 
-// Sender (knowing recipient.pssPublicKey and topic)
+// Sender (knowing the recipient's pssPublicKey, pssTarget, and topic,
+// shared out of band)
 await window.swarm.sendPss({
   topic: 'dm:alice',
   recipient: recipientPssPublicKey,   // 66-char hex
+  targets: recipientPssTarget,        // recipient's getMessagingIdentity().pssTarget
   data: 'private hello',
 })
 // recipient's 'message' event fires with kind:'pss', decrypted payload
@@ -642,6 +685,11 @@ try {
 
 ## Future Work
 
+- **Normative GSOC derivation profile.** A pinned topic → (identifier,
+  target neighborhood, proximity) derivation plus mining algorithm and search
+  order, so the same topic converges on the same address across *independent*
+  provider implementations, not only within one. Until then, cross-provider
+  interop goes through the raw `address` parameter.
 - **Mid-stream error signalling.** A normative way to report that an established
   subscription's pipeline has degraded/failed (a dedicated event or a
   `message` error variant), rather than the current SHOULD-document approach.
@@ -662,6 +710,8 @@ gateway endpoints equivalent to:
 - `GET /gsoc/subscribe/{address}` (streaming) — backs `swarm_subscribe` (gsoc)
 - `GET /pss/subscribe/{topic}` (streaming) — backs `swarm_subscribe` (pss)
 - `GET /addresses` reporting `pssPublicKey`/overlay — backs `swarm_getMessagingIdentity`
+  (the provider truncates the overlay to the `pssTarget` prefix; the full
+  overlay never crosses the page boundary)
 
 The provider is responsible for translating the ergonomic, consent-gated,
 origin-scoped method surface above onto whatever node interface it drives; these
