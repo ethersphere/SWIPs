@@ -176,6 +176,7 @@ following `data.reason` values for `-32602` (Invalid Params):
 | `invalid_target` | `swarm_sendPss` | `targets` is missing or not valid hex encoding 1–`maxTargetDepth` whole bytes. |
 | `invalid_kind` | `swarm_subscribe` | `kind` is not `"gsoc"` or `"pss"`. |
 | `payload_too_large` | `swarm_sendPss`, `swarm_sendGsoc` | Payload exceeds `maxMessageBytes`. |
+| `invalid_payload` | `swarm_sendGsoc` | Payload is empty. A GSOC update is a single-owner chunk and bee's chunk layer rejects an empty SOC payload, so an empty broadcast cannot be expressed. (`swarm_sendPss` **does** accept an empty payload — the PSS trojan framing carries an explicit length.) |
 | `subscription_not_found` | `swarm_unsubscribe` | No active subscription with the given id for this origin. |
 | `too_many_subscriptions` | `swarm_subscribe` | The origin has reached `maxSubscriptions`. |
 | `unsupported_option` | messaging methods accepting `options` | An unrecognized option field was supplied. |
@@ -262,9 +263,24 @@ Open a long-lived subscription. Incoming messages are delivered via the
 
 **Errors:** `4001` if the user rejects the messaging-permission prompt this call
 triggered. `4100` if the origin lacks basic connection or a prompt cannot be
-surfaced. `4900` if the node is unavailable. `-32602` for
+surfaced. `4900` if the node is unavailable, **or if the node's aggregate
+subscription capacity is exhausted** (see below). `-32602` for
 `invalid_kind`, `invalid_topic`, `invalid_address`, `too_many_subscriptions`,
 `unsupported_option`.
+
+**Per-origin cap vs. node capacity — two distinct failures.**
+`too_many_subscriptions` (`-32602`) means *this origin* has reached
+`maxSubscriptions`: the dApp caused it and can fix it by unsubscribing. But a
+receive pipeline is a **node-wide** resource — an implementation typically
+bounds the number of *distinct neighborhoods* it will pull concurrently across
+**all** origins (the reference light-node implementation allows 8), and that
+pool can be exhausted by *other* origins' subscriptions. That case MUST be
+reported as `4900` with a message naming subscription capacity, NOT as
+`too_many_subscriptions`: it is not a parameter error, the calling dApp did
+nothing wrong, and it is **retryable** — capacity frees when other
+subscriptions close. DApps SHOULD treat it like any other transient node
+condition (back off and retry, or degrade to feed polling) rather than as a
+permanent refusal.
 
 **Behavior:**
 - Subscribing establishes a receive pipeline for the target neighborhood. The
@@ -357,7 +373,7 @@ consumes a postage stamp).
 | `topic` | `string` | Yes | Topic the recipient subscribes on. Hashed/normalized by the provider as in Bee PSS. |
 | `recipient` | `string` | Yes | Recipient PSS public key: 66-char hex, 33-byte compressed secp256k1 (as returned by `swarm_getMessagingIdentity`). |
 | `targets` | `string` | Yes | Neighborhood prefix as hex (1–`maxTargetDepth` bytes) locating the recipient — the value the recipient's `swarm_getMessagingIdentity` returned as `pssTarget`, shared out of band alongside their public key. The sender's provider cannot derive this from the public key alone. Deeper targets = more precise routing, higher cost. |
-| `data` | `string \| Uint8Array \| ArrayBuffer` | Yes | Payload. Strings encoded UTF-8. MUST be ≤ `maxMessageBytes`. |
+| `data` | `string \| Uint8Array \| ArrayBuffer` | Yes | Payload. Strings encoded UTF-8. MUST be ≤ `maxMessageBytes`. MAY be empty — the PSS trojan framing carries an explicit length, so a zero-byte message is well-formed (useful for pings/signals). |
 | `options` | `object` | No | Reserved. Unknown fields rejected with `unsupported_option`. |
 
 **Result:**
@@ -396,7 +412,7 @@ Operates under the **messaging send tier**.
 |---|---|---|---|
 | `topic` | `string` | Conditional | Topic the provider deterministically maps to a GSOC address (same derivation as `swarm_subscribe`). Required unless `address` is given. |
 | `address` | `string` | Conditional | Raw 64-char hex GSOC address. Mutually exclusive with `topic`. |
-| `data` | `string \| Uint8Array \| ArrayBuffer` | Yes | Payload. Strings encoded UTF-8. MUST be ≤ `maxMessageBytes`. |
+| `data` | `string \| Uint8Array \| ArrayBuffer` | Yes | Payload. Strings encoded UTF-8. MUST be **1**..`maxMessageBytes` bytes: an empty payload is rejected with `invalid_payload` (a GSOC update is a single-owner chunk, and bee's chunk layer refuses an empty SOC payload — the provider must not sign a chunk the network will not accept). |
 | `options` | `object` | No | Reserved. Unknown fields rejected with `unsupported_option`. |
 
 **Result:**
@@ -410,7 +426,8 @@ Operates under the **messaging send tier**.
 
 **Errors:** `4001` if the user rejects a per-send prompt. `4100` if not
 connected. `4900` if node unavailable or no usable postage stamp. `-32602` for
-`invalid_topic`, `invalid_address`, `payload_too_large`, `unsupported_option`.
+`invalid_topic`, `invalid_address`, `invalid_payload`, `payload_too_large`,
+`unsupported_option`.
 
 **Behavior:**
 - GSOC send writes a Single Owner Chunk at the derived address. The provider
@@ -440,7 +457,7 @@ connected. `4900` if node unavailable or no usable postage stamp. `-32602` for
 |---|---|---|
 | `maxMessageBytes` | 3584 | Max PSS/GSOC payload. A Swarm chunk is 4096 bytes; PSS/GSOC framing and encryption overhead reduce the usable payload. Implementations MUST advertise the true usable maximum. |
 | `maxTargetDepth` | 3 | Max neighborhood-prefix length in bytes for PSS `targets`. |
-| `maxSubscriptions` | 32 | Max concurrent active subscriptions per origin. |
+| `maxSubscriptions` | 32 | Max concurrent active subscriptions **per origin**. The node additionally bounds its *aggregate* receive pipelines across all origins (implementation-defined; not advertised here because it is shared state, not a per-origin promise) — exhaustion of that pool surfaces as a retryable `4900`, see `swarm_subscribe`. |
 
 Applications needing to move more than `maxMessageBytes` in one logical message
 MUST chunk at the application layer, or publish the bulk via `swarm_publishData`
@@ -669,6 +686,24 @@ try {
   assert(err.code === -32602)
   assert(err.data.reason === 'payload_too_large')
 }
+```
+
+### Payload Bounds (empty)
+
+```javascript
+// GSOC cannot express an empty broadcast (bee rejects an empty SOC payload):
+try {
+  await window.swarm.sendGsoc({ topic: 't', data: '' })
+  assert.fail('should reject')
+} catch (err) {
+  assert(err.code === -32602)
+  assert(err.data.reason === 'invalid_payload')
+}
+// PSS carries an explicit length, so a zero-byte message is valid:
+const res = await window.swarm.sendPss({
+  topic: 't', recipient: peerKey, targets: peerTarget, data: '',
+})
+assert(res.sent === true)
 ```
 
 ### Permission Gating
