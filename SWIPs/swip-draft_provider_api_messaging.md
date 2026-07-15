@@ -299,7 +299,10 @@ permanent refusal.
   a normative derivation profile exists (see [Future Work](#future-work)),
   applications interoperating across different providers MUST exchange the
   resolved GSOC `address` (returned by both `swarm_subscribe` and
-  `swarm_sendGsoc`) out of band and use the raw `address` parameter.
+  `swarm_sendGsoc`) out of band and use the raw `address` parameter — for
+  **receiving only**. Sending requires the mined owner key, which only the
+  topic derivation yields, so cross-provider *senders* must share the topic
+  itself (see `swarm_sendGsoc` Behavior).
 - For PSS, only messages the node can decrypt (encrypted to this origin's PSS
   key) are delivered. Undecryptable traffic in the neighborhood MUST NOT be
   delivered.
@@ -410,8 +413,7 @@ Operates under the **messaging send tier**.
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `topic` | `string` | Conditional | Topic the provider deterministically maps to a GSOC address (same derivation as `swarm_subscribe`). Required unless `address` is given. |
-| `address` | `string` | Conditional | Raw 64-char hex GSOC address. Mutually exclusive with `topic`. |
+| `topic` | `string` | Yes | Topic the provider deterministically maps to a GSOC address (same derivation as `swarm_subscribe`). Unlike `swarm_subscribe`, there is no raw `address` alternative — see Behavior. |
 | `data` | `string \| Uint8Array \| ArrayBuffer` | Yes | Payload. Strings encoded UTF-8. MUST be **1**..`maxMessageBytes` bytes: an empty payload is rejected with `invalid_payload` (a GSOC update is a single-owner chunk, and bee's chunk layer refuses an empty SOC payload — the provider must not sign a chunk the network will not accept). |
 | `options` | `object` | No | Reserved. Unknown fields rejected with `unsupported_option`. |
 
@@ -426,13 +428,22 @@ Operates under the **messaging send tier**.
 
 **Errors:** `4001` if the user rejects a per-send prompt. `4100` if not
 connected. `4900` if node unavailable or no usable postage stamp. `-32602` for
-`invalid_topic`, `invalid_address`, `invalid_payload`, `payload_too_large`,
-`unsupported_option`.
+`invalid_topic`, `invalid_payload`, `payload_too_large`, `unsupported_option`.
 
 **Behavior:**
 - GSOC send writes a Single Owner Chunk at the derived address. The provider
   performs any required owner mining so the chunk lands in the correct
   neighborhood, signs it, and uploads it with an automatically-selected batch.
+- **There is deliberately no raw `address` variant** (asymmetric with
+  `swarm_subscribe`, which accepts one). Writing a GSOC requires signing with
+  the mined owner key, and that key is recovered by re-running the derivation
+  from the topic; a GSOC address is a hash output
+  (`keccak256(identifier ‖ owner)`) from which neither the identifier nor the
+  owner key can be recovered. An address alone therefore carries nothing to
+  sign with — watching an address is passive, authoring at one is not. Senders
+  interoperating across providers MUST share the topic (and, until a normative
+  derivation profile exists, use the same provider implementation or agree on
+  the derivation out of band).
 - Re-sending on the same topic overwrites the SOC at that address with a newer
   timestamp (this is how a broadcast channel advances). Because delivery is
   at-least-once and unordered, subscribers MUST NOT assume they observe every
@@ -522,6 +533,18 @@ SOC address falls in a chosen neighborhood — a different owner, chosen by the
 provider, not the origin identity. Overloading the core method with a mining
 mode would complicate its clean "sign with your identity" contract; a dedicated
 method keeps both honest.
+
+### Why does `swarm_sendGsoc` accept a topic but not an address?
+
+An earlier draft mirrored `swarm_subscribe` and allowed a raw `address` on
+send. That was unimplementable: authoring a GSOC means producing a signature
+from the mined owner key, and the address — `keccak256(identifier ‖ owner)` —
+is a one-way hash of the very material a sender needs. Every conforming
+provider would have had to reject the parameter at runtime; better for the
+interface to make the impossible state unrepresentable. The asymmetry is
+principled: subscribing to an address is passive observation, sending to one
+is authorship, and authorship needs the key that only the topic derivation
+(or out-of-band agreement on it) can reproduce.
 
 ### Why expose a PSS public key separately from the signing identity?
 
