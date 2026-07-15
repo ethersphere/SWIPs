@@ -2,7 +2,7 @@
 SWIP: <to be assigned>
 title: Pullsync Chunk checksum for divergent sync
 author: acud (@acud)
-discussions-to: <URL>
+discussions-to: /dev/null
 status: Draft
 type: Standards Track
 category: Networking
