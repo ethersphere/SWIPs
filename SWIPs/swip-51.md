@@ -1,7 +1,7 @@
 ---
-SWIP: 24
+SWIP: 51
 title: Redistribution spam and griefing mitigation
-author: Marko Cardinal (@0xCardiE)
+author: Mark Bliss (@n00b21337)
 discussions-to: https://discord.gg/Q6BvSkCv (Swarm Discord '#swips')
 status: Draft
 type: Standards Track
