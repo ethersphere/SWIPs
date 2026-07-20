@@ -41,7 +41,7 @@ The design achieves
 
 The neighbourhood sybil attack is when the same operator runs several nodes (or runs one client node, but plays with several) in the same neighbourhood. This would allow them to share storage without replication and yet get paid.
 To mitigate this we resort to the rather weak incentive of additive stake as a proof of redundancy. If stake is variable and is linearly proportional to earnings, then, mutatis mutandis,  due to the added operational costs, it is always more economical for one operator in a neihgbourhood to run just one node with all the stake than several nodes.
-Random NH assignnment makes it impractical (expensive) for any operator to  attempt to place several nodes in the same storage neighbourhood  The proposed scheme solves the problem of "one operator, one node in a neighbourhood".
+Random NH assignnment makes it impractical (expensive) for any operator to  attempt to place several nodes in the same particular storage neighbourhood. The proposed scheme solves the problem of "one operator, one node in a neighbourhood" unless the operator globally owns the majority of the nodes.
 
 
 #### Fixed stake
@@ -58,9 +58,9 @@ _Address ranges (neighbourhoods)_ are defined by a shared prefix in the binary r
 
 Randomness is derived from on-chain entropy after registration, so assignment is unpredictable at commit time and reproducible at validation time.
 The assigment is done by constraining the overlay address to have the initial $d$ specific bits.
-The choice of constraint is donen so that the system continuously enforces _balanced coverage_.
-The exact node ID is determined outside the protocol,
-Using the entropy of an arbitrary nonce, then, candidate nodes are able to find (mine) a suitable overlay address that  satisfies the constraint.
+The constraint is chosen so that the system continuously enforces _balanced coverage_.
+The exact node ID is determined outside the protocol:
+using the entropy of an arbitrary nonce, then, candidate nodes are able to find (mine) a suitable overlay address that  satisfies the constraint.
 
 When  nodes want to leave the network, rebalancing may be necessary.
 
@@ -71,7 +71,7 @@ Let the set of active nodes be denoted by:
 $$
 S = \{n_0, n_1, \ldots\}, \quad N = |S|.
 $$
-Each node is identified by an Ethereum address $a_i \in \mathbb{\Sigma}^{160}$ and an overlay address $o_i \in \mathbb{\Sigma}^{256}$, where $\mathbb{\Sigma}=\{0,1\}$.
+Each node is identified by an *Ethereum address* $a_i \in \mathbb{\Sigma}^{160}$ and an *overlay address* $o_i \in \mathbb{\Sigma}^{256}$, where $\mathbb{\Sigma}=\{0,1\}$.
 
 A _neighbourhood_ (designated by pivot address $p$ and depth $d$) is an address range characterised by sharing  bit prefix with $p$ with length $>d$.
 $$
@@ -89,56 +89,75 @@ $$
 \end{cases}
 $$
 Now we can show that
-\begin{enumerate}
-\item $d=\lfloor \text{log}_2(N) \rfloor$, and
-\item $D=\text{log}_2(N)$, and
-\item $\mid\{ n_i\in S \mid u_i = d+1 \}\mid = 2(N-2^d)$.
-\end{enumerate}
-
-Let us define a node's _unique neighbourhood_ wrt.~S as the neighbourhood designated by the node's overlay address $o_i$ at their unique depth $u_i$:
 $$
-NH_{i,S} := o_i, u_i
-$$
-The address space is fully partitioned by the nodes in S at all times, each address falls within a subnetwork node's unique disjoint neighbourhood.
-$$
-\forall a\in\mathbb{\Sigma}^{256}, a\in NH_i  \text{, for some }0\leq i<N
-$$
-as a flwoer
-$$
-\forall 0\leq i<j<N, |NH_i|=|NH_j| \lor |NH_i|=2\cdot|NH_j|
+\begin{align}
+\circ\ & d=\lfloor \text{log}_2(N) \rfloor\text{, and} \\
+\circ\ & \mid\{ n_i\in S \mid u_i = d+1 \}\mid = 2(N-2^d).
+\end{align}
 $$
 
-This entails that the  depth that all nodes are unique at are equal or just has 1 as a difference:
+Let us define a node's _unique neighbourhood_ wrt.~$S$ as the neighbourhood designated by the node's overlay address $o_i$ at their unique depth $u_i$:
 $$
-\forall 0\leq i, j ,<N, abs(u_i-u_j) \leq 1
+\mathit{nh}_{i,S} := NH(o_i, u_i)
 $$
-and finally, that
+When S is balanced, the address space is fully partitioned by the nodes in S at all times: *each address falls within a subnetwork node's unique disjoint neighbourhood.*
 $$
-\forall 0\leq i\le N, u_i=d \text{ or }u_i=d+1
+\forall a\in\mathbb{\Sigma}^{256}, a\in \mathit{nh}_{i,S}  \text{, for some }0\leq i<N
 $$
-where
+and as a corollary:
 $$
-d=\lfloor log N\rfloor
-$$
-
-The system maintains a depth parameter $d \in \mathbb{N}$ such that
-$$
-2^{d-1} < N \le 2^d.
-$$
-Neighbourhoods are represented as indices in a complete binary space:
-$$
-I : \{0, \ldots, 2^d - 1\} \to \mathbb{\Sigma}^{256} \cup \{\varnothing\},
-$$
-where $I[i] = \varnothing$ denotes an empty slot. A reverse mapping
-$$
-J : o_i \mapsto j
+\forall 0\leq i<j<N, |\mathit{nh}_i|=|\mathit{nh}_j| \lor |\mathit{nh}_i|=2\cdot|\mathit{nh}_j|
 $$
 
-The system enforces the condition
+
+
+In other words, balanced sets always have *full coverage* and tend towards *equality* (of coverage, workload, responsibility).
+
+
+Since, by definition, an overlay of any node is in the nodes unique neighbourhood,
 $$
-\forall i, \quad I[2i] \neq 0 \;\lor\; I[2i+1] \neq 0,
+\forall i\in S, o_i\in \mathit{nh}_{i, S}
 $$
-which ensures that every prefix of length $d-1$ contains at least one node. This invariant defines the admissible states of the system.
+Now, given full coverage, the newly added nodes overlay belongs to a unique neighbourhood of $S$:
+$$
+\exists k\neq n, o_n\in \mathit{nh}_{k,S},  
+$$
+and from disjointness, it follows that no other neighbourhood 
+$$
+\forall i\neq k\in S, o_n \notin \mathit{nh}_{i,S}
+$$
+In general, it is true that adding nodes can only make neighbourhoods narrower:
+$$
+\forall S, S', S\subset S'\Rightarrow \forall i\in S, \mathit{nh}_{i, S'}\subseteq \mathit{nh}_{i, S'}.
+$$
+If we want to add a node $n$ to $S$ resulting in
+$$
+S'= \{n\}\bigcup S,
+$$
+and 
+$$
+o_n\in \mathit{nh}_{k, S} 
+$$
+and 
+$$
+o_n \notin \mathit{nh}_{k, S'}
+$$
+which entails that node $k$'s neighbourhood does change between $S$ and $S'$:
+$$
+\mathit{nh}_{k, S'}\subset \mathit{nh}_{k, S}.
+$$
+This can only happen if $k$'s uniquness depth increases, from which it follows that, for set $S$,
+$$
+u_k = d,
+$$
+and for $S'$,
+$$
+u_k = d+1.
+$$
+In other words, any node added to $S$ must join a free neighbourhood $\mathit{nh}_{k,S}$ but must not match the $d+1$-th bit of $o_k$. 
+Conversely, when a node $g$ is removed, it must have a sister so that after removal, that balancedness remains invariant. This may necessiate rebalancing first, i.e., in case $g$'s removal would result in a non-balanced set,  requires finding a random donor $j$ with $u_j=d+1$ to be reinserted as $g$'s sister.[^donor]
+
+[^donor]: In fact, the donor could just reinsert at $g$'s spot, however, any short overlap of activity is easier to handle if donor is $g$'s sister.
 
 ## Architecture
 
@@ -153,31 +172,13 @@ Candidate nodes end up assigned to a random free neighbourhood in a way that all
 #### Registration
 
 In the first step, a node's intention to participate as a provider in the service network gets recorded in the _commit queue_ $C$.
-The current blockheight $h_i$ is recorded together with the ether address by pushing the entry struct ($e_i = \langle a_i,h_i\rangle$) to the end of commit queue.
+The current blockheight $h_i$ is recorded together with the ether address $a_i$ by pushing the entry struct ($e_i = \langle a_i,h_i\rangle$) to the end of commit queue.
 
 At the time of registering, we check if the node's ether address is not already on the list.
 In order to prevent repeated trials, each node must be registered only once.
-A non-refundable application fee ${\$_a}$ is deposited.
+A non-refundable application fee is deposited.
 
-
-
-
-### Get prefix 
-
-### Get an overlay prefix assigned
-
-This function includes a read-only call that and returns the neighbourhood that the node is currently assigned to. This call is public so that the client can enquire about the neighbourhood they are assigned to
-
-This public read only call takes as argument a node's ether address $a_i$ returns the current prefix contraing the overlay assignment.
-Note that calling the function twice may result in a different constraint prefix if there is another successful assignment in between the two calls.
-
-If the resulting overlay address falls into the neighbourhood that the registrant was assigned to, i.e., the correctness of the nonce submitted from the perspective of the staking contract.
-
-## Assign
-
-The assign call is the second transactional endpoint called by the staking contract. It takes the provider's ether address as well as the mined overlay as arguments.
-
-### Expiry
+#### Expiry
 
 
 The entry is valid for a period of $G$ blocks after the registration. In practice, $G$ must be less than $256$, the number of blocks for which the blockhash is available from within the EVM.
@@ -188,148 +189,109 @@ The `expire` function call iterates the commit queue from the oldest, going thro
 
 After calling `expire`, the validity of the registration is checked by finding the entry for the ether address in the commit queue.
 
-### Entropy
+#### Entropy
 
 Nodes derive randomness from a high entropy seed
 $$
-\rho_i = H(\text{blockhash}(h_i+1) \parallel h_i \parallel a_i),
+\rho_i = \mathit{H}(\text{blockhash}(h_i+1) \parallel h_i \parallel a_i),
 $$
 which is not known at the time of registration. The _validity window_ $VW < 256$ ensures that the referenced blockhash remains accessible.
 
-### Mine a nonce
+#### ANeighbourhood assignment
 
-The commited node,  upon learning the neighbourhood $\mathit{nh}_i$, find a nonce $\nu_i$ to generate the overlay address which is:
+Assignment of a node to a neighbourhood must observe balancedness of the set as an invariant. Since 
+$2^{d+1} - N$ is the number of free neighbourhoods. A node computes
 $$
-o_i := \mathit{H}(a_i \parallel networkID \parallel \nu_i)
+r_i = \rho_i \bmod 2^{d+1}-N.
+$$
+Let $f_0, f_1, \ldots, f_{F-1}$ be the indexes of free neighbourhoods, these are available for assignment. Out of these free neighbourhoods, one is chosen wiht equal probability: 
+$$
+k=f_{r_i}
+$$
+
+This calculation is made available as a read-only call. It takes as argument a node's ether address $a_i$ returns the current prefix constrainng the overlay assignment.[^format]
+
+[^format]: the result is formatted the same way as given to the bee client as the target of mining: `010101010101`
+
+Calling the function multiple times may return a different constraint prefix if there is another successful assignment in between the two calls.
+
+
+### Mining an overlay nonce
+
+The commited node,  upon learning the neighbourhood $k$, must find a nonce $\nu_i$ to generate the overlay address which is:
+$$
+o_i := \mathit{H}( \nu_i \parallel a_i \parallel networkID )
 $$
 that falls in the correct neighbourhood.
 $$
-\nu_i \leftarrow \mathbb{\Sigma}^{256}, \quad o_i\gg(255-d)=\mathit{nh}_i
-$$
-The mined overlay $o_i$ must be submitted to the contract, which once the overlay is verified, removes the entry from the commit queue.
-
-
-Given $F(1)=2^{d+1} - N$ is the number of free neighbourhoods currently free. A node computes
-$$
-k_i = \rho_i \bmod 2^{d+1}-N.
+\nu_i \leftarrow \mathbb{\Sigma}^{256},\text{ such that }  o_i\gg(255-d)=k \land o_i\gg(254-d)&&1
 $$
 
-The neighbourhoods nodes can be allocated to a cell $j=c_{k_i}$ only if $Free(j)$ is true.
-The assigned index is determined by descending the trie. At a node index $j$, $F(Left(j))$ denotes the number of free slots in the left subtree. If $k < F(Left(i))$, the traversal continues to the left child. Otherwise, the traversal continues to the right child with updated rank $k_i \mapsto k_i - F(Left(i))$:
+## Assigning the complete overlay
 
-```mermaid
-flowchart LR
-  A([Start]) --> AA["$j=1, d=0, c=''$"]
-  AA --> BB{"$V(j)=\varnothing?$"}
-  BB -->|Yes| CC{"$F(j)=1?$"}
-  BB -->|No| DD["$w=V(j)$"]
-  DD --> CC 
-  CC -->|Yes| DD["$c=c\parallel \not w[d]$"]
-  DD --> X[(end)]
-  CC -->|No| B{"$k<F(Left(j))?$"}
-  B -->|Yes| C["$j=Left(j)$"]
-  B -->|No| D["$k=k-F(Left(j))$<br>$j=Right(j)$"]
-  C --> E["$d++$"]
-  D --> E
-  E --> AA
-```
+The assign call is the second transactional endpoint called by the staking contract. It takes the provider's ether address as well as the mined overlay as arguments.
+The mined overlay $o_i$ must be submitted to the contract, which, once the overlay is verified, removes the entry from the commit queue and then records the complete overlay $o_i$ associated to the node's ether address $a_i$ (it does make a difference what data structure is used, see section X.X)
 
 ## Deregistration and Rebalancing
 
 Nodes are free to deregister at any time. 
 If the sister node exists, removal proceeds directly and the invariant remains satisfied.
 
-If removal would leave both child of the parent empty, then _rebalancing_ is required. A donor pair is selected using the same rank-based traversal over $F(c)$. From the selected pair, one of the two nodes is chosen and removed. The donor node is reinserted into the commit queue and assigned to the empty pair.
+If removal would leave both child of the parent empty, then _rebalancing_ is required: one *donor pair* of nodes is selected from among the non-free neighbourhoods of depth $d$. From the selected pair, one of the two nodes is chosen and removed. The donor node is reinserted into the commit queue and gets assigned the sister neighbourhood of the node to be removed.
 
-The original node is removed only after the donor successfully completes reassignment, ensuring that the invariant is never violated. In order that the rebalancing cannot be manipulated, ie., the selected node reinserted into the neighbourhood of the deregistrant, the donor must to be selected with proper randomness, not known at the time of deregistration.  
-
-Given $\mathbb{F}(1)=N-2^{d}$ is the number of free neighbourhoods currently full (doubly filled). A node computes
+The original node is removed only after the donor successfully completes reassignment, ensuring that the invariant is never violated. In order that the rebalancing cannot be manipulated, ie., the selected node reinserted into the neighbourhood of the deregistrant, the donor must be selected with proper randomness, not known at the time of deregistration.  This randomness is derived the same way as when we add a node: deregistration call just records the blockheight $h_i$, and the following blockhash serves as the high entropy seed for randomness:
 $$
-k_i = \rho_i \bmod N-2^{d}
+\rho_i = H(\text{blockhash}(h_i+1) \parallel h_i \parallel a_i),
 $$
 
-The neighbourhoods nodes can be allocated to a cell $j=c_{k_i}$ only if $Free(j)$ is true.
-The assigned index is determined by descending the trie. At a node index $j$, $F(Left(j))$ denotes the number of free slots in the left subtree. If $k < F(Left(i))$, the traversal continues to the left child. Otherwise, the traversal continues to the right child with updated rank $k_i \mapsto k_i - F(Left(i))$:
+Given the number of free neighbourhoods currently full (doubly filled) is $N-2^{d}$. A node computes
+$$
+r_i = \rho_i \bmod N-2^{d}
+$$
+
+Let $f_0, f_1, \ldots f_{N-2^{d}-1}$ be the sorted list of indexes for doubly-filled (non-free) neighbourhoods, i.e., those whose continuations are both unique at $d+1$.
 
 ## Specification
 
 ### Registration
 
-An initially empty list (_commit queue_) of _entry struct_ types holds the current committers. The struct holds information about the ether address of the node and the blockheight the address registered at.
+## Data Structures
 
-## Data Structure
+For registration and deregistration the contract maintains two distinct commit queues $C_R$ and $C_D$.
+This initially empty list of _entry_ struct types holds information about the node that committed to enter or leave the DSN. The entry struct holds information about the ether address of the node and the blockheight the address registered at.
 
-The assignment structure is implemented as an implicit complete binary trie over the index space. Each node $v$ of the trie corresponds to a contiguous interval of indices. The subtrie has the role of maintaining two quantities.
-
-### Counting free neighbourhoods for candidate assignment
-
-The first quantity stands for the number of free slots in the subtree rooted at index $i$; these are tracking the number of candidate neighbourhoods to assign.
-$$
-F: \mathbb{N}\to\mathbb{N}\\
-F(i) = \begin{cases}
-F(Left(i)) + F(Right(i))&\text{if } Depth(i)<d-1\\
-1&\text{if } Depth(i)=d-1\text{ and }{Free}(i)\\
-0&\text{otherwise}
-\end{cases}
-$$
-When the trie becomes fully balanced with a number of nodes turning $N = 2^d-1$, then each neighbourhood at level $d-1$ is free, i.e., has exactly one assignable child:
-$$
-\forall i, 2^{d-1}\leq i< 2^{d} \longrightarrow F(i)=1
-$$
-In this case,
-$$
-\forall 0< i<2^{d}, \quad F(i) = 2^{d -Depth(i)}.
-$$
-By the time the next depth is reached, $N=2^{d+1}-1$-th element is assigned, all
-of the free neighbourhoods got allocated, thus:
-$$
-\forall i, 2^{d-1}\leq i< 2^{d} \longrightarrow F(i)=0
-$$
-and therefore:
-$$
-\forall 0< i<2^{d}, \quad F(i) = 0.
-$$
-
-#### Counting fully saturated leaves for donor selection
-
-The second quantity stands for the number of nodes on level $d-1$ with both their children assigned in the subtree: these correspond to _candidate donor pairs_.
+The queues are always expanded by the `(de)register` functions (tx-s) and cleaned by `expire` (called by `add/remove`).
 
 $$
-S: \mathbb{N}\to\mathbb{N}\\
-S(i) = \begin{cases}
-S(Left(i)) + S(Right(i))&\text{if } Depth(i)<d-1\\
-1&\text{if } Depth(i)=d-1\text{ and }Full(i)\\
-0&\text{otherwise}
-\end{cases}
+C_X : [\,]\mathit{entry}
 $$
 
-When the trie becomes fully balanced with a number of nodes turning $N = 2^d-1$, then each neighbourhood at level $d-1$ has exactly one child, none can be or need be selected as donor:
+Mappings on both overlay ($O$),
 $$
-\forall i, 2^{d-1}\leq i< 2^{d} \longrightarrow S(i)=0
+O : \mathbb{\Sigma}^{256} \mapsto \mathbb{N},
 $$
-In this case,
+and ethereum address ($A$) are maintained:
 $$
-\forall 0< i<2^{d}, \quad S(i) = 0.
+A : \mathbb{\Sigma}^{160} \mapsto \mathbb{N}.
 $$
-By the time $2^{d-1}$ nodes are assigned and the trie is again balanced having $N=2^{d}-1$ nodes, all
-of the free neighbourhoods got allocated, thus:
-$$
-\forall i, 2^{d-1}\leq i< 2^{d} \longrightarrow S(i)=1
-$$
-and therefore:
-$$
-\forall 0< i<2^{d}, \quad S(i) = 2^{d -Depth(i)}.
-$$
+Given an active set of nodes $S$, such that for any node with address $a$,  $A(a)=N=\mid S\mid$ where $N$ is the number of nodes in $S$ when (ie just before)  $n$ is inserted. In other words, if $A(a)=n$ then node with address $a$ was inserted as the $n$-th node.[^total]
 
-Surely, initially, when $N=0$, $d=0$, then $F(0)=1$, and $S(0)=0$
+[^total]: The total number is 
 
-Updates propagate along the path from a leaf to the root, resulting in logarithmic complexity.
+### ICBT
 
-## Data Structure Illustration
+The association of neighbourhoods and nodes is stored in a data structure we call *implicit complete binary trie (ICBT)*. Each node $v$ of the trie corresponds to a neighbourhood (the shared prefix is expressed by the traversal, ie., left is 0, right is 1). 
 
-## Data Structure
+This data structure has the role of maintaining the number of neighbourhoods that are (free = assignable to a new peer, or full = selectable as donor) under a node.
+$$
+I : \mathbb{N}\to \mathit{node} \cup \{\varnothing\},
+$$
+where $I[i] = \varnothing$ (nil value) denotes an empty slot. 
 
-The assignment structure is implemented as an implicit complete binary trie over the index space. The index space starts with 1, only entries are
+If $A(a)=n$ then its index in the trie is the depth at which it is unique ($i=u_i+2^d$)
+$$
+I[i]=\langle o_i, 0 \rangle
+$$
 
 ```mermaid
 graph TD
@@ -359,7 +321,7 @@ $$
 \text{parent of }i& \mathrm{Parent}(i) & i/2 &\\
 \text{left child of }i&\mathrm{Left}(i) & 2i\\
 \text{right child of }i& \mathrm{Right}(i) & 2i+1\\
-\text{sister of }i& \mathrm{Sister}(i) & \mathrm{Parent}(i\mathrm{Parent}(i)) + \mathrm{abs}(\mathrm{Right}(\mathrm{Parent}(i)))\\
+\text{sister of }i& \mathrm{Sister}(i) & i + 1 - 2 (i \bmod 2)\\
 \text{depth of }i& \mathrm{Depth}(i) & \mathrm{Floor}(\log_2(i))\\
 \text{position of }i& \mathrm{Pos}(i) & i \mod \mathrm{Depth}(i)
 \end{array}
@@ -374,26 +336,114 @@ V(i) &\text{otherwise}
 \end{cases}
 $$
 
-We can define the predicate _not assigned_ as follows:
+We can define the predicate _not assigned_ ($\mathit{NA}$) as follows:
 $$
-NA(i) \leftrightarrow V!(i) = \varnothing .
+\mathrm{NA}(i) \leftrightarrow V!(i) = \varnothing .
 $$
 This allows us to define free and fully assigned neighbourhoods:
 $$
-\mathrm{Free}(i) \leftrightarrow NA(\mathrm{Left}(i))  \lor NA(\mathrm{Right}(i))
+\mathrm{Free}(i) \leftrightarrow \mathrm{NA}(\mathrm{Left}(i))  \lor \mathrm{NA}(\mathrm{Right}(i))
 $$
 and
 $$
-\mathrm{Full}(i) \leftrightarrow !NA(\mathrm{Left}(i)) \land !NA(\mathrm{Right}(i))
+\mathrm{Full}(i) \leftrightarrow !\mathrm{NA}(\mathrm{Left}(i)) \land !\mathrm{NA}(\mathrm{Right}(i))
 $$
 
 The data structure operations all enforce the condition
 
 $$
-\forall i, \mathrm{Depth}(i)< d\longrightarrow V(i)\neq \varnothing \lor V(i+1)\neq \varnothing
+\forall i, \mathrm{Depth}(i)< d\Rightarrow V(i)\neq \varnothing \lor V(i+1)\neq \varnothing
 $$
 
 which ensures that every prefix of length $d-1$ contains at least one node. This invariant contrains the admissible states of the system.
+
+
+### Counting free neighbourhoods for candidate assignment
+
+Function $F_0(i)$ on the index tracks the number of free slots (candidate neighbourhoods to assign) in the subtree rooted at index $i$:
+$$
+F_0: \mathbb{N}\to\mathbb{N}\\
+F_0(i) = \begin{cases}
+F_0(Left(i)) + F_0(Right(i))&\text{if } Depth(i)<d-1\\
+1&\text{if } Depth(i)=d-1\text{ and }{Free}(i)\\
+0&\text{otherwise}
+\end{cases}
+$$
+When the trie becomes fully balanced with a number of nodes turning $N = 2^D$, then each neighbourhood at level $D$ is free, i.e., has exactly one assignable child:
+$$
+\forall 2^{D-1}\leq i< 2^{D}, \quad F_0(i)=1
+$$
+In this case,
+$$
+\forall 0< i<2^{D}, \quad F_0(i) = 2^{D-Depth(i)}.
+$$
+By the time the next depth is reached, $N=2^{D+1}-1$-th element is assigned, all
+of the free neighbourhoods got allocated, thus:
+$$
+\forall 2^{D}\leq i< 2^{D+1}, \quad F_0(i)=1
+$$
+and therefore:
+$$
+\forall 0< i<2^{D}, \quad F_0(i) = 0.
+$$
+
+#### Counting fully saturated leaves for donor selection
+
+The second quantity one needs to track is the number of nodes in the subtree with both their children assigned on level ${d}: these correspond to _candidate donor pairs_.
+We can use F_1
+$$
+
+S: &\mathbb{N}\to\mathbb{N}\\
+F_1(i) &T= \begin{cases}
+F_1(Left(i)) + F_1(Right(i))&\text{if } Depth(i)<d-1\\
+1&\text{if } Depth(i)=d-1\text{ and }Full(i)\\
+0&\text{otherwise}
+\end{cases}
+$$
+
+When the trie becomes fully balanced with a number of nodes turning $N = 2^D$, then each neighbourhood at level $D$ has exactly one child, none can be or need be selected as donor:
+$$
+\forall 2^{D-1}\leq i< 2^{D}, \quad F_1(i)=0
+$$
+In this case,
+$$
+\forall 0< i<2^{D}, \quad F_1(i) = 0.
+$$
+By the time $2^{D}$ nodes are assigned and the trie is again balanced having $N=2^{D+1}$ nodes, all
+of the free neighbourhoods got allocated, thus:
+$$
+\forall 2^{D-1}\leq i< 2^{D}, \quad F_1(i)=1
+$$
+and therefore:
+$$
+\forall 0< i<2^{D-1}, \quad F_1(i) = 2^{D-Depth(i)}.
+$$
+
+Surely, initially, when $N=0$, $d=0$, then $F_0(0)=1$, and $F_1(0)=0$
+Note that when $D=0, N=2^0=1$:
+$$
+F_0(1)+F_1(1)=2^D
+$$
+From the definition it is also clear that, for all other situations when $2^d<N$, 
+Updates propagate along the path from a leaf to the root, resulting in logarithmic number of updates.
+
+The assigned index is determined by descending the trie. At a node index $j$, $F_0(Left(j))$ denotes the number of free slots in the left subtree. If $k < F_0(Left(i))$, the traversal continues to the left child. Otherwise, the traversal continues to the right child with updated rank $k_i \mapsto k_i - F_0(Left(i))$:
+
+```
+  FOR j=1, d=0, c=''; 
+    IF V!(j)==NIL THEN
+      F_0(j)="$w=V(j)$"]
+  DD --> CC 
+  CC -->|Yes| DD["$c=c\parallel \not w[d]$"]
+  DD --> X[(end)]
+  CC -->|No| B{"$k<F_0(Left(j))?$"}
+  B -->|Yes| C["$j=Left(j)$"]
+  B -->|No| D["$k=k-F_0(Left(j))$<br>$j=Right(j)$"]
+  C --> E["$d++$"]
+  D --> E
+  E --> AA
+```
+
 
 ##
 
@@ -402,14 +452,15 @@ The IBT is used to
 - assign neighbourhoods for new applicants
 - find candidate donors for rebalancing  
 - find the closest node to an address
-
-### Further endpoints
+W### Further endpoints
 
 A public read-only endpoint exists for querying neighbourhoods as well as nodes. Accessor for $d$ and $N$ will return the current neighbourhood depth and the current number of assigned neighbourhoods. A public accessor for $A_d$ will  return for a neighbourhood (between $0$ and $2^d-1 inclusive) the overlay of the node assigned to that neighbourhood. Another endpoint will return for any overlay $o$ the closest node, so that the network service can find responsible nodes for (i.e., closest to) any address in the space shared by overlays:
 
 $$
 g(a)=O![a\gg(255-d)]
 $$
+
+If the resulting overlay address falls into the neighbourhood that the registrant was assigned to, i.e., the correctness of the nonce submitted from the perspective of the staking contract.
 
 ### Changes to the bee client
 
