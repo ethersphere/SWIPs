@@ -349,11 +349,13 @@ live ones and are subject to the same at-least-once/may-duplicate guarantees;
 originally sent (a sender-supplied timestamp, if wanted, is application payload).
 Whether historical messages are ordered relative to each other is
 implementation-defined; applications needing send-order MUST carry their own
-sequence. The recoverable depth scales with the mining prefix length (see
-[PSS mining depth](#pss-mining-depth-prefix-length)): at the adopted `L = 24`
-convention the whole neighborhood backlog is small enough (~1–2K chunks) to
-sweep completely, so the mailbox recovers *all* retained offline messages, not
-just a recent window.
+sequence. How far back the mailbox reaches is implementation-defined and, at the
+default 2-byte prefix, is a **recent-history window** rather than the complete
+backlog (a light-node receiver sweeps a busy neighborhood bin, so a bounded
+lookback covers minutes-to-hours, not all of history). A complete backlog sweep
+would require the trojan concentrated into a sparse deep bin pulled by a
+deeply-resident receiver (see [PSS mining depth](#pss-mining-depth-prefix-length)
+for why that trade is not the default).
 
 ---
 
@@ -444,52 +446,61 @@ storer's reserve and is simply not stored — the send returns success (the chun
 was accepted for upload) but no one retains it, so it is undeliverable. On the
 public network `d` is on the order of a dozen bits and rises with network growth;
 a 1-byte (`L=8`) target is below it, which is why 1-byte targets are rejected. A
-2-byte (`L=16`) target is the current de-facto floor; a 3-byte (`L=24`) target is
-comfortably above `d` with headroom for growth.
+2-byte (`L=16`) target is comfortably above `d` today and is the adopted default.
 
-**Upper bound — mining cost.** Mining is ~`2^L` hashes, so `maxTargetDepth`
-(typically 3 bytes) caps sender work.
+**Upper bound — mining cost.** Mining is `~2^L` hashes, so each extra byte is
+~256× the sender work: a 2-byte mine is sub-second, a 3-byte mine is seconds on a
+constrained (mobile) sender and can exceed a send timeout. `maxTargetDepth` caps
+the deep end.
 
-**Why the receiver cares — reception cost, and the mailbox.** A light-node
-receiver pulls candidate chunks from the neighborhood and tries to decrypt them.
-The volume it must sift is governed by `L`: on a depth-`d` storer the chunks at
-proximity `≥ L` number roughly `2^(reserve_bits − (L − d))` of the reserve, so
-each extra bit of `L` **halves** the receiver's candidate traffic. At `L=16,
-d≈12` that is a sizeable fraction of ingest; at `L=24` it is only ~1–2K chunks —
-small enough that a receiver can sweep the neighborhood's **entire** trojan
-backlog on subscribe, which is exactly what makes the `history` mailbox
-(above) recover *all* offline messages rather than only recent ones. Deeper
-targets thus cost the sender more to mine but make the receiver dramatically
-cheaper and unlock complete offline delivery.
+**Reception cost — and why deeper does not help a light node.** A receiver pulls
+candidate chunks from the covering peers nearest the target and tries to decrypt
+them. It is tempting to think a deeper `L` cuts this: on a depth-`d` storer the
+chunks at proximity `≥ L` number roughly `2^(reserve_bits − (L − d))`, so
+concentrating the trojan deeper shrinks that set. But a receiver only realizes
+that if it pulls the deep bin — which requires a covering peer at proximity
+`≥ L`, i.e. the receiver itself being **deeply resident** in the target
+neighborhood. A light node's covering peers sit shallower than `L`, so it pulls
+the *same* bins and downloads the *same* candidates regardless of `L` — measured
+identical at `L=16` and `L=24` on a reference light node. For the light-node
+deployments this extension targets, a deeper prefix therefore adds sender cost
+without reducing reception cost, and the mailbox is a recent-history window at
+any `L`. (A deeply-resident receiver — a near-full node in the neighborhood —
+*would* benefit, and could privately agree a deeper `L` with its senders.)
 
-**Convention — `L = 24` (3-byte targets).** Interoperating sender and receiver
-implementations MUST agree on `L`: a receiver pulls the bins a message at prefix
-`L` can occupy, so a sender mining to a different `L` may land where the receiver
-is not looking. This SWIP adopts **24 bits (3 bytes)** as the normative
-convention, on the recommendation of the Swarm protocol's designer:
+**Convention — `L = 16` (2-byte targets), with a `2..maxTargetDepth` range.**
+Interoperating sender and receiver implementations MUST agree on `L`: a receiver
+pulls the bins a message at prefix `L` can occupy, so a sender mining to a
+different `L` may land where the receiver is not looking. This SWIP adopts
+**16 bits (2 bytes)** as the interoperability default:
 
-- Senders SHOULD mine `targets` to 3 bytes; receivers assume `L = 24`.
-- 2 bytes remains the hard `invalid_target` floor (below the network storage
-  depth a chunk is not retained at all), and 1 byte is always rejected. A 2-byte
-  message is *stored* but a conforming `L = 24` receiver may not find it, so
-  2-byte sends are deprecated for interop.
-- 24 bits keeps the receiver's candidate traffic ~256× smaller than 16 and, per
-  [Delivery semantics](#delivery-semantics-normative), makes the whole
-  neighborhood trojan backlog small enough (~1–2K chunks) for the `history`
-  mailbox to recover *all* offline messages, not just a recent window.
+- Senders SHOULD mine `targets` to 2 bytes; receivers assume `L = 16`.
+- 2 bytes is also the hard `invalid_target` floor (below the network storage
+  depth a chunk is not retained at all); 1 byte is always rejected.
+- Implementations MAY mine deeper (up to `maxTargetDepth`) where sender and
+  receiver privately agree, but a conforming default receiver assumes 16.
 
-**Cost note (informative).** Mining is ~`2^L` hashes, so `L = 24` is ~256× a
-2-byte mine — sub-second on a server, but seconds on a constrained (mobile)
-sender. Implementations SHOULD mine off the request's critical path (background
-task / generous timeout) rather than blocking a send on it; a reference light
-node observed occasional send-timeout at `L = 24` under a 60 s budget until the
-timeout was raised.
+**Why not deeper.** A deeper prefix concentrates a trojan into a smaller slice of
+the reserve, which *in principle* cuts a receiver's candidate traffic and shrinks
+the recoverable mailbox backlog. But that benefit accrues only to a receiver
+**deeply resident** in the target neighborhood (covering peers at proximity
+`≥ L`); a light node's covering peers sit shallower, so it pulls the same bins
+and downloads the same candidates regardless of `L` — measured identical at
+`L = 16` and `L = 24` on a reference light node. Meanwhile mining is `~2^L`
+hashes, so each extra byte is ~256× the sender work: `L = 24` is seconds on a
+constrained (mobile) sender and can exceed a send timeout. Since PSS already
+carries an economic anti-spam gate — every send burns a **postage stamp** — the
+extra proof-of-work buys a light-node deployment little and costs its senders a
+lot. Hence the 2-byte default.
 
-Because `L` governs storage and retrieval for *every* PSS participant, not just
-this provider surface, it is arguably a network-wide parameter that belongs
-alongside the storage-depth conventions in the core Swarm protocol
-documentation; this SWIP fixes it at the provider boundary and defers any
-broader normative home to the core spec.
+**Open question (protocol-level).** Whether the network *should* mandate a deeper
+prefix as a deliberate anti-spam / anti-free-riding **proof-of-work** on senders
+— distinct from postage's economic gate — is a live protocol-incentive question
+raised by the Swarm protocol designer and still under discussion. It governs
+storage and retrieval for *every* PSS participant, not just this provider
+surface, so its normative home is arguably the core Swarm protocol
+documentation, not this extension; this SWIP fixes the provider default at 16 and
+will track any core-level decision.
 
 Broadcast a message on a topic. Any origin subscribed (via `swarm_subscribe`
 with `kind: "gsoc"`) to the address the topic derives to receives it.
