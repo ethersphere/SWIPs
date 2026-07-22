@@ -350,8 +350,10 @@ originally sent (a sender-supplied timestamp, if wanted, is application payload)
 Whether historical messages are ordered relative to each other is
 implementation-defined; applications needing send-order MUST carry their own
 sequence. The recoverable depth scales with the mining prefix length (see
-[PSS mining depth](#pss-mining-depth-prefix-length)): a deeper prefix makes the
-whole neighborhood backlog small enough to sweep completely.
+[PSS mining depth](#pss-mining-depth-prefix-length)): at the adopted `L = 24`
+convention the whole neighborhood backlog is small enough (~1–2K chunks) to
+sweep completely, so the mailbox recovers *all* retained offline messages, not
+just a recent window.
 
 ---
 
@@ -460,16 +462,34 @@ backlog on subscribe, which is exactly what makes the `history` mailbox
 targets thus cost the sender more to mine but make the receiver dramatically
 cheaper and unlock complete offline delivery.
 
-**Convention.** Implementations MUST reject `targets`/`pssTarget` shorter than 2
-bytes (`invalid_target`) and SHOULD document the mining prefix they use.
-Interoperating sender and receiver implementations MUST agree on `L`: a receiver
-pulls the bins a message at prefix `L` can occupy, so a sender mining to a
-different `L` may land where the receiver is not looking. This SWIP does not yet
-pin a single normative `L` — 2 bytes maximizes compatibility with today's
-senders, 3 bytes is materially better for receiver cost and offline delivery —
-and flags it as an open question for the Swarm community (it is arguably a
-network-wide parameter that belongs alongside the storage-depth conventions in
-the core protocol docs, not only in this provider spec).
+**Convention — `L = 24` (3-byte targets).** Interoperating sender and receiver
+implementations MUST agree on `L`: a receiver pulls the bins a message at prefix
+`L` can occupy, so a sender mining to a different `L` may land where the receiver
+is not looking. This SWIP adopts **24 bits (3 bytes)** as the normative
+convention, on the recommendation of the Swarm protocol's designer:
+
+- Senders SHOULD mine `targets` to 3 bytes; receivers assume `L = 24`.
+- 2 bytes remains the hard `invalid_target` floor (below the network storage
+  depth a chunk is not retained at all), and 1 byte is always rejected. A 2-byte
+  message is *stored* but a conforming `L = 24` receiver may not find it, so
+  2-byte sends are deprecated for interop.
+- 24 bits keeps the receiver's candidate traffic ~256× smaller than 16 and, per
+  [Delivery semantics](#delivery-semantics-normative), makes the whole
+  neighborhood trojan backlog small enough (~1–2K chunks) for the `history`
+  mailbox to recover *all* offline messages, not just a recent window.
+
+**Cost note (informative).** Mining is ~`2^L` hashes, so `L = 24` is ~256× a
+2-byte mine — sub-second on a server, but seconds on a constrained (mobile)
+sender. Implementations SHOULD mine off the request's critical path (background
+task / generous timeout) rather than blocking a send on it; a reference light
+node observed occasional send-timeout at `L = 24` under a 60 s budget until the
+timeout was raised.
+
+Because `L` governs storage and retrieval for *every* PSS participant, not just
+this provider surface, it is arguably a network-wide parameter that belongs
+alongside the storage-depth conventions in the core Swarm protocol
+documentation; this SWIP fixes it at the provider boundary and defers any
+broader normative home to the core spec.
 
 Broadcast a message on a topic. Any origin subscribed (via `swarm_subscribe`
 with `kind: "gsoc"`) to the address the topic derives to receives it.
