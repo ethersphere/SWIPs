@@ -204,41 +204,6 @@ Bee clients and indexers must track admission/eviction, call staged finalization
 
 ---
 
-## Test Cases
-
-Before setting `MAX_COMMITS`:
-
-1. Sybil scaling gas on Gnosis fork: staged steps at N ∈ {1, 10, 100, 500, MAX}.
-2. `finalizeParticipation` + failing `verifyWinner` leaves non-reveal freezes in place.
-3. Empty round: `finalizeParticipation` closes without payout.
-4. `PostageStamp.withdraw()` failure does not consume payout rights.
-5. Stake-weighted admission fairness over many rounds.
-6. Worst-case K participants do not DoS next-round commit via storage cleanup.
-
-Illustrative gas thresholds are not acceptance criteria until measured.
-
----
-
-## Implementation
-
-Reference: [storage-incentives](https://github.com/ethersphere/storage-incentives) (`fix/minimal_depth_resolve` branch)
-
-- [`Redistribution.sol`](https://github.com/ethersphere/storage-incentives/blob/fix/minimal_depth_resolve/src/Redistribution.sol)
-- [`Staking.sol`](https://github.com/ethersphere/storage-incentives/blob/fix/minimal_depth_resolve/src/Staking.sol)
-- [SPAM_GRIEFING.md](https://github.com/ethersphere/storage-incentives/blob/fix/minimal_depth_resolve/docs/SPAM_GRIEFING.md)
-- [MINIMUM_DEPTH_OPTIONS.md](https://github.com/ethersphere/storage-incentives/blob/fix/minimal_depth_resolve/docs/MINIMUM_DEPTH_OPTIONS.md)
-
-**Status:** proposed architecture; not in production.
-
-## Roadmap
-
-1. Gnosis fork benchmarks → `MAX_COMMITS`
-2. Exact weighted admission algorithm and `RoundState` layout
-3. Staged finalization + Bee client update
-4. Empty-round step-1 incentives
-5. Fabricated-hash validity or timeout/fallback
-6. Depth floor governance ([MINIMUM_DEPTH_OPTIONS.md](https://github.com/ethersphere/storage-incentives/blob/fix/minimal_depth_resolve/docs/MINIMUM_DEPTH_OPTIONS.md))
-
 ## Copyright
 
 Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
