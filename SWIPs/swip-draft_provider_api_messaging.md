@@ -120,7 +120,7 @@ addition to the core set:
 
 ```javascript
 window.swarm.getMessagingIdentity()                        // swarm_getMessagingIdentity
-window.swarm.subscribe({ kind, topic })                    // swarm_subscribe
+window.swarm.subscribe({ kind, topic, history })           // swarm_subscribe
 window.swarm.unsubscribe({ subscriptionId })               // swarm_unsubscribe
 window.swarm.sendPss({ topic, recipient, targets, data })  // swarm_sendPss
 window.swarm.sendGsoc({ topic, data })                     // swarm_sendGsoc
@@ -173,7 +173,7 @@ following `data.reason` values for `-32602` (Invalid Params):
 | `invalid_topic` | `swarm_subscribe`, `swarm_sendPss`, `swarm_sendGsoc` | Topic is missing or not a valid non-empty string / 64-char hex where hex is required. |
 | `invalid_address` | `swarm_subscribe` | An explicit GSOC `address` is not a valid 64-char hex. |
 | `invalid_recipient` | `swarm_sendPss` | Recipient public key is missing or not a valid 33-byte compressed secp256k1 key (66-char hex). |
-| `invalid_target` | `swarm_sendPss` | `targets` is missing or not valid hex encoding 1–`maxTargetDepth` whole bytes. |
+| `invalid_target` | `swarm_sendPss` | `targets` is missing, not valid hex, or outside 2–`maxTargetDepth` whole bytes (a 1-byte target is too shallow to be stored — see [PSS mining depth](#pss-mining-depth-prefix-length)). |
 | `invalid_kind` | `swarm_subscribe` | `kind` is not `"gsoc"` or `"pss"`. |
 | `payload_too_large` | `swarm_sendPss`, `swarm_sendGsoc` | Payload exceeds `maxMessageBytes`. |
 | `invalid_payload` | `swarm_sendGsoc` | Payload is empty. A GSOC update is a single-owner chunk and bee's chunk layer rejects an empty SOC payload, so an empty broadcast cannot be expressed. (`swarm_sendPss` **does** accept an empty payload — the PSS trojan framing carries an explicit length.) |
@@ -210,7 +210,7 @@ requires consent, mirroring `swarm_getSigningIdentity` in the core spec.
 ```javascript
 {
   pssPublicKey: string,   // 66-char hex, 33-byte compressed secp256k1 public key
-  pssTarget: string,      // hex neighborhood prefix (1–maxTargetDepth bytes); peers pass it as `targets` in swarm_sendPss
+  pssTarget: string,      // hex neighborhood prefix (2..maxTargetDepth bytes); peers pass it as `targets` in swarm_sendPss
   identityMode: string    // "app-scoped" or "bee-wallet" (as in the core spec)
 }
 ```
@@ -228,12 +228,19 @@ the node is unavailable.
   cannot present another's messaging identity.
 - Whether the PSS key is bound to the same key as `swarm_getSigningIdentity`'s
   `owner` is implementation-defined; dApps MUST NOT assume equality.
-- `pssTarget` MUST be a truncated neighborhood prefix of at most
-  `maxTargetDepth` bytes, NOT the node's full overlay address. PSS routing only
-  needs a prefix; the full 64-hex overlay is a node-global value, identical for
-  every origin, that would function as a cross-origin correlation handle and
-  disclose the node's exact network position (see
-  [Security Considerations](#security-considerations)).
+- `pssTarget` MUST be a truncated neighborhood prefix, **at least 2 and at most
+  `maxTargetDepth` bytes**, NOT the node's full overlay address. Two bounds, two
+  reasons:
+  - *Upper* (privacy): the full 64-hex overlay is a node-global value, identical
+    for every origin, that would function as a cross-origin correlation handle
+    and disclose the node's exact network position (see
+    [Security Considerations](#security-considerations)).
+  - *Lower* (deliverability): the prefix length is the number of leading bits a
+    sender's trojan chunk is mined to match, and it must be **deep enough that
+    storers in the neighborhood actually keep the chunk** — a prefix shallower
+    than the network's storage depth produces chunks no reserve retains, so the
+    message is undeliverable. It also governs the receiver's pull cost. See
+    [PSS mining depth](#pss-mining-depth-prefix-length).
 
 ---
 
@@ -249,6 +256,7 @@ Open a long-lived subscription. Incoming messages are delivered via the
 | `kind` | `"gsoc" \| "pss"` | Yes | Subscription type. |
 | `topic` | `string` | Conditional | GSOC: a topic string the provider deterministically maps to a GSOC address. PSS: the topic to receive on. Required unless a raw `address` is given for GSOC. |
 | `address` | `string` | Conditional | GSOC only. A raw 64-char hex GSOC/SOC address, for interoperating with GSOCs whose address was derived elsewhere. Mutually exclusive with `topic`. |
+| `history` | `boolean` | No | PSS only. When `true`, on subscribe the provider attempts to deliver messages that arrived *before* the subscription — a **mailbox** — recovering offline messages, subject to storer retention and an implementation-defined bound (see [Delivery semantics](#delivery-semantics-normative)). Default `false` (live traffic only). Ignored for GSOC (a SOC has a single latest value, not a message backlog). |
 | `options` | `object` | No | Reserved. Unknown fields rejected with `unsupported_option`. |
 
 **Result:**
@@ -322,12 +330,28 @@ permanent refusal.
   addressable by `swarm_unsubscribe`.
 
 **Delivery semantics (normative):** Messages are **best-effort, unordered, and
-at-least-once**. A subscriber MAY miss messages published while it was not
-subscribed, MAY receive messages out of send order, and MAY (across
-resubscription) receive a message more than once. Applications MUST tolerate
-this. Ordering/causality and gap recovery are application concerns; the durable
-Swarm feed layer (core spec) is the appropriate substrate for authoritative
-state and catch-up, with messaging used for live propagation.
+at-least-once**. Without `history`, a subscriber MAY miss messages published
+while it was not subscribed, MAY receive messages out of send order, and MAY
+(across resubscription) receive a message more than once. Applications MUST
+tolerate this. Ordering/causality and gap recovery are application concerns; the
+durable Swarm feed layer (core spec) is the appropriate substrate for
+authoritative state and catch-up, with messaging used for live propagation.
+
+**With `history: true` (mailbox):** on subscribe the provider SHOULD additionally
+deliver messages that arrived before the subscription — offline delivery. This
+is **bounded and best-effort**, not a durable queue: recovery is limited by (a)
+storer **retention** — a message whose postage stamp has expired, or that has
+been evicted from neighborhood reserves, is unrecoverable; and (b) an
+**implementation-defined lookback bound** the provider MAY impose to keep the
+recovery sweep cheap. Recovered messages carry the same `message`-event shape as
+live ones and are subject to the same at-least-once/may-duplicate guarantees;
+`receivedAt` reflects when the *provider* recovered the message, not when it was
+originally sent (a sender-supplied timestamp, if wanted, is application payload).
+Whether historical messages are ordered relative to each other is
+implementation-defined; applications needing send-order MUST carry their own
+sequence. The recoverable depth scales with the mining prefix length (see
+[PSS mining depth](#pss-mining-depth-prefix-length)): a deeper prefix makes the
+whole neighborhood backlog small enough to sweep completely.
 
 ---
 
@@ -375,7 +399,7 @@ consumes a postage stamp).
 |---|---|---|---|
 | `topic` | `string` | Yes | Topic the recipient subscribes on. Hashed/normalized by the provider as in Bee PSS. |
 | `recipient` | `string` | Yes | Recipient PSS public key: 66-char hex, 33-byte compressed secp256k1 (as returned by `swarm_getMessagingIdentity`). |
-| `targets` | `string` | Yes | Neighborhood prefix as hex (1–`maxTargetDepth` bytes) locating the recipient — the value the recipient's `swarm_getMessagingIdentity` returned as `pssTarget`, shared out of band alongside their public key. The sender's provider cannot derive this from the public key alone. Deeper targets = more precise routing, higher cost. |
+| `targets` | `string` | Yes | Neighborhood prefix as hex (**2**–`maxTargetDepth` bytes) locating the recipient — the value the recipient's `swarm_getMessagingIdentity` returned as `pssTarget`, shared out of band alongside their public key. The sender's provider cannot derive this from the public key alone. The prefix length sets the trojan's mining depth (see [PSS mining depth](#pss-mining-depth-prefix-length)): it MUST be deep enough that neighborhood storers keep the chunk, and deeper targets cost more to mine but less to receive. |
 | `data` | `string \| Uint8Array \| ArrayBuffer` | Yes | Payload. Strings encoded UTF-8. MUST be ≤ `maxMessageBytes`. MAY be empty — the PSS trojan framing carries an explicit length, so a zero-byte message is well-formed (useful for pings/signals). |
 | `options` | `object` | No | Reserved. Unknown fields rejected with `unsupported_option`. |
 
@@ -402,7 +426,50 @@ connected. `4900` if node unavailable or no usable postage stamp. `-32602` for
 
 ---
 
-#### `swarm_sendGsoc`
+### PSS mining depth (prefix length)
+
+A PSS message is a *trojan chunk* whose content-address is **mined** to share a
+number of leading bits — the **prefix length**, `L` bits = `targets`/`pssTarget`
+byte-count × 8 — with the recipient's overlay, so the network routes it into the
+recipient's neighborhood. `L` is not a free knob; it is bounded on both sides,
+which is why this spec constrains `targets`/`pssTarget` to **2–`maxTargetDepth`
+bytes** rather than the underlying primitive's 1-byte floor.
+
+**Lower bound — storability.** Neighborhood storers keep a chunk only if it falls
+within their storage depth `d` (the proximity order at which the reserve is
+maintained). A trojan mined to `L < d` lands *outside* every neighborhood
+storer's reserve and is simply not stored — the send returns success (the chunk
+was accepted for upload) but no one retains it, so it is undeliverable. On the
+public network `d` is on the order of a dozen bits and rises with network growth;
+a 1-byte (`L=8`) target is below it, which is why 1-byte targets are rejected. A
+2-byte (`L=16`) target is the current de-facto floor; a 3-byte (`L=24`) target is
+comfortably above `d` with headroom for growth.
+
+**Upper bound — mining cost.** Mining is ~`2^L` hashes, so `maxTargetDepth`
+(typically 3 bytes) caps sender work.
+
+**Why the receiver cares — reception cost, and the mailbox.** A light-node
+receiver pulls candidate chunks from the neighborhood and tries to decrypt them.
+The volume it must sift is governed by `L`: on a depth-`d` storer the chunks at
+proximity `≥ L` number roughly `2^(reserve_bits − (L − d))` of the reserve, so
+each extra bit of `L` **halves** the receiver's candidate traffic. At `L=16,
+d≈12` that is a sizeable fraction of ingest; at `L=24` it is only ~1–2K chunks —
+small enough that a receiver can sweep the neighborhood's **entire** trojan
+backlog on subscribe, which is exactly what makes the `history` mailbox
+(above) recover *all* offline messages rather than only recent ones. Deeper
+targets thus cost the sender more to mine but make the receiver dramatically
+cheaper and unlock complete offline delivery.
+
+**Convention.** Implementations MUST reject `targets`/`pssTarget` shorter than 2
+bytes (`invalid_target`) and SHOULD document the mining prefix they use.
+Interoperating sender and receiver implementations MUST agree on `L`: a receiver
+pulls the bins a message at prefix `L` can occupy, so a sender mining to a
+different `L` may land where the receiver is not looking. This SWIP does not yet
+pin a single normative `L` — 2 bytes maximizes compatibility with today's
+senders, 3 bytes is materially better for receiver cost and offline delivery —
+and flags it as an open question for the Swarm community (it is arguably a
+network-wide parameter that belongs alongside the storage-depth conventions in
+the core protocol docs, not only in this provider spec).
 
 Broadcast a message on a topic. Any origin subscribed (via `swarm_subscribe`
 with `kind: "gsoc"`) to the address the topic derives to receives it.
@@ -467,7 +534,7 @@ connected. `4900` if node unavailable or no usable postage stamp. `-32602` for
 | Limit | Recommended Default | Notes |
 |---|---|---|
 | `maxMessageBytes` | 3584 | Max PSS/GSOC payload. A Swarm chunk is 4096 bytes; PSS/GSOC framing and encryption overhead reduce the usable payload. Implementations MUST advertise the true usable maximum. |
-| `maxTargetDepth` | 3 | Max neighborhood-prefix length in bytes for PSS `targets`. |
+| `maxTargetDepth` | 3 | Max neighborhood-prefix length in bytes for PSS `targets`/`pssTarget`. The minimum is fixed at **2 bytes** (below the network storage depth chunks are not retained — see [PSS mining depth](#pss-mining-depth-prefix-length)); this limit caps the deep end (sender mining cost). |
 | `maxSubscriptions` | 32 | Max concurrent active subscriptions **per origin**. The node additionally bounds its *aggregate* receive pipelines across all origins (implementation-defined; not advertised here because it is shared state, not a per-origin promise) — exhaustion of that pool surfaces as a retryable `4900`, see `swarm_subscribe`. |
 
 Applications needing to move more than `maxMessageBytes` in one logical message
@@ -680,6 +747,24 @@ await window.swarm.sendPss({
   data: 'private hello',
 })
 // recipient's 'message' event fires with kind:'pss', decrypted payload
+```
+
+### Mailbox (offline delivery)
+
+```javascript
+// A sender posts to a room while nobody is subscribed.
+await window.swarm.sendPss({ topic: 'room:42', recipient, targets, data: 'sent while you were away' })
+
+// Later, a client subscribes WITH history — and receives the earlier message.
+const seen = []
+window.swarm.on('message', (m) => { if (m.subscription === sub.subscriptionId) seen.push(m.result.data) })
+const sub = await window.swarm.subscribe({ kind: 'pss', topic: 'room:42', history: true })
+// `seen` includes messages sent before this subscription existed
+// (bounded by storer retention; see Delivery semantics).
+
+// Without history, the same subscribe would only receive messages sent
+// from now on:
+const liveOnly = await window.swarm.subscribe({ kind: 'pss', topic: 'room:42' })
 ```
 
 ### Unsubscribe Stops Delivery
