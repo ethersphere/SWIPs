@@ -65,11 +65,11 @@ G_claim(N) ≈ 450k + (N − 1) × 25k
 | ~3M     | Wallet / RPC cap     | ~100              |
 | ~17M    | Gnosis block limit   | ~660              |
 
-**Sepolia validation (round 74469, honest nodes active):** 100 sybil commits + ~7 honest → honest `claim()` used **2,842,847** gas (estimate ~2.9M). Claim succeeded; sybils frozen. Liveness break at N≈100 raises cost but did not block claim; higher N or truth poisoning required.
+Examples: N = 100 → ~2.9M; N = 500 → ~12.9M; N = 660 → ~17M (block cliff).
 
 Commit-phase attacker cost is O(N²) (uniqueness scans) — partial deterrent, not protection for the single `claim()` tx.
 
-~100 sybils ≈ 1,000 BZZ locked at height 0; ~660 ≈ 6,600 BZZ. If every claim is blocked, no freeze applies (rollback bug). Re-measure on a Gnosis fork before setting `MAX_COMMITS`.
+~100 sybils ≈ 1,000 BZZ locked at height 0; ~660 ≈ 6,600 BZZ. If every claim is blocked, no freeze applies (rollback bug). Figures are engineering estimates; benchmark on a Gnosis fork before setting `MAX_COMMITS`.
 
 ---
 
