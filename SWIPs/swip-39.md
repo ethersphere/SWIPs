@@ -13,7 +13,7 @@ created: 2025-07-21
 
 This SWIP specifies an on-chain registry that assigns participating Swarm nodes to overlay-address prefixes while maintaining balanced coverage of the address space. For $N$ active nodes, every node is assigned an area of responsibility at one of two adjacent depths, so the largest area is at most twice the size of the smallest.
 
-A commit–finalize procedure selects an available prefix using post-commit blockchain entropy. The node then mines an overlay address satisfying that prefix and activates it through the registry. When a departure would violate the balance invariant, the registry coordinates reassignment of an active node before completing the departure.
+After committing, a node derives its target prefix deterministically from post-commit blockchain entropy — a read-only calculation, with no reservation held by the registry. The node mines an overlay address satisfying the prefix and activates it through the registry; if the neighbourhood has been taken in the meantime, the calculation simply yields a new target. When a departure would violate the balance invariant, the registry reassigns an active node to the vacated position before completing the departure; the selected node must relocate or else it is dropped and its stake forfeited.
 
 The mechanism is intended to make targeted concentration in a particular neighbourhood probabilistic and costly, and to support balanced allocation of storage-incentive or decentralised-service workloads. It does not by itself establish operator identity or prevent one operator from registering multiple nodes.
 
@@ -292,7 +292,7 @@ The mined overlay $o_i$ must be submitted to the contract, which, once the overl
 Nodes are free to deregister at any time.
 If the sister node exists, removal proceeds directly and the invariant remains satisfied.
 
-If removal would leave both children of the parent empty, then _rebalancing_ is required: upon calling `deregister`, one _donor pair_ of nodes is selected from among the full (doubly filled) neighbourhoods of depth $d$. From the selected pair, one of the two nodes is chosen and removed. The donor node is reinserted into the commit queue and gets assigned the sister neighbourhood of the node to be removed.
+If removal would leave both children of the parent empty, then _rebalancing_ is required: upon calling `deregister`, one _donor pair_ of nodes is selected from among the full (doubly filled) neighbourhoods of depth $d$. From the selected pair, one of the two nodes is chosen as _donor_. The donor's neighbourhood is taken over by its sister, so the donor is removed first exactly as if it had chosen to leave itself — balance is preserved, since the sister becomes unique at depth $d$. The donor is then entered into the commit queue as if newly registering, except that the recorded blockheight is set by the `deregister` call, and it gets assigned the sister neighbourhood of the node to be removed. The donor must complete this relocation within the validity window; otherwise it is dropped from the registry with its stake forfeited, and a fresh donor is drawn.
 
 The original node is removed only after the donor successfully completes reassignment, ensuring that the invariant is never violated. In order that the rebalancing cannot be manipulated, i.e., the selected node reinserted into the neighbourhood of the deregistrant, the donor must be selected with proper randomness, not known at the time of deregistration.  This randomness is derived the same way as when we add a node: deregistration call just records the block height $h_i$, and the following blockhash serves as the high entropy seed for randomness:
 
@@ -307,6 +307,10 @@ r_i = \rho_i \bmod (N-2^{d})
 $$
 
 Let $f_0, f_1, \ldots f_{N-2^{d}-1}$ be the sorted list of indexes for doubly-filled (non-free) neighbourhoods, i.e., those whose continuations are both unique at $d+1$.
+
+#### Data handover
+
+This SWIP specifies only the assignment of nodes to neighbourhoods; the handover of stored content during relocation is deliberately left unspecified. A relocated node is expected to synchronise the reserve of its newly assigned neighbourhood, while the neighbourhood it vacated retains the data with the sister node. With upcoming durability guarantees, such relocation gaps become repairable events; in particular, a newly assigned node need not sync its reserve live from its sister but may instead acquire the neighbourhood's content from cold storage.
 
 ## Specification
 
