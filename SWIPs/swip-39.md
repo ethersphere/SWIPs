@@ -51,7 +51,7 @@ Variable stake is not really compatible with random assignment. If a candidate n
 
 #### Shadow world fabrication attack
 
-In order to control the stamp at game time, attackers must invest the same amount of stamp resources as the entire swarm's used capacity. Assuming that the average utilisation rate over a relevant period is $0<u\leq 1$,  the reward/cost ratio for the attacker for any wins is $r=1+\frac{1}{u}$. This implies that the attacker needs to win at least once every  $r$ rounds in order just to break even.
+In order to control the stamp at game time, attackers must invest the same amount of stamp resources as the entire swarm's used capacity. Assuming that the average utilisation rate over a relevant period is $0 < u\leq 1$,  the reward/cost ratio for the attacker for any wins is $r=1+\frac{1}{u}$. This implies that the attacker needs to win at least once every  $r$ rounds in order just to break even.
 
 ## Solution
 
@@ -68,90 +68,125 @@ When  nodes want to leave the network, rebalancing may be necessary.
 ### Formal exposition
 
 Let the set of active nodes be denoted by:
+
 $$
 S = \{n_0, n_1, \ldots\}, \quad N = |S|.
 $$
+
 Each node is identified by an _Ethereum address_ $a_i \in \mathbb{\Sigma}^{160}$ and an _overlay address_ $o_i \in \mathbb{\Sigma}^{256}$, where $\mathbb{\Sigma}=\{0,1\}$.
 
 A _neighbourhood_ (designated by pivot address $p$ and depth $d$) is an address range characterised by sharing  bit prefix of length $>d$ with $p$.
+
 $$
 \newcommand{\idx}[1]{\texttt{[}\,#1\,\texttt{]}}
 \mathrm{NH}(p,d)=\left\{a\in\mathbb{\Sigma}^{256} \,\mid\,\forall 0\leq i<d,\, a\idx{i}=p\idx{i}\right\}
 $$
+
 Given a set of nodes $S$, a node $n_i\in S$ is _unique at depth_ $u_i$ if $u_i$ is the smallest integer such that no other node falls  in its neighbourhood (designated by its overlay $o_i$ at depth $u_i$):
+
 $$
 \forall 0\leq j<N, j\neq i \longrightarrow o_j\notin NH(o_i,u_i)
 $$
+
 This allows us to define _balance(dness)_. We say that a set of nodes $S$ is _balanced (at depth)_ $d$, if each node is _unique at depth_ $d$ or $d+1$: $S$ is _balanced_ iff
+
 $$
 \{ u_0, u_1, \ldots , u_{N-1}\} = \begin{cases}
 \{d\} & \text{if }N=2^D \text{ for some }D\in\mathbb{N} \\
 \{d,d+1\} & \text{ otherwise}
 \end{cases}
 $$
+
 Now we can show that
+
 $$
-\begin{align}
-\circ\ & d=\lfloor \text{log}_2(N) \rfloor\text{, and} d=D\text{ if }N=2^D\\
-\circ\ & \mid\{ n_i\in S \mid u_i = d \}\mid = 2^{d+1}-N.
+\begin{aligned}
+\circ\ & d=\lfloor \text{log}_2(N) \rfloor\text{, and } d=D\text{ if }N=2^D\\
+\circ\ & \mid\{ n_i\in S \mid u_i = d \}\mid = 2^{d+1}-N.\\
 \circ\ & \mid\{ n_i\in S \mid u_i = d+1 \}\mid = 2N-2^{d+1}.
-\end{align}
+\end{aligned}
 $$
 
 Let us define a node's _unique neighbourhood_ wrt.~$S$ as the neighbourhood designated by the node's overlay address $o_i$ at their unique depth $u_i$:
+
 $$
 \mathit{nh}_{i,S} := NH(o_i, u_i)
 $$
+
 When S is balanced, the address space is fully partitioned by the nodes in $S$ at all times: _each address falls within a subnetwork node's unique disjoint neighbourhood._
+
 $$
 \forall a\in\mathbb{\Sigma}^{256}, a\in \mathit{nh}_{i,S}  \text{, for some }0\leq i<N
 $$
+
 and as a corollary:
+
 $$
 \forall 0\leq i<j<N, |\mathit{nh}_i|=|\mathit{nh}_j| \lor |\mathit{nh}_i|=2\cdot|\mathit{nh}_j|
 $$
+
 In other words, balanced sets always have _full coverage_ and tend towards _equality_ (of coverage, workload, responsibility)
 
 Since, by definition, an overlay of any node is in the nodes _unique neighbourhood_,
+
 $$
 \forall i\in S, o_i\in \mathit{nh}_{i, S}.
 $$
+
 Now, given full coverage, the newly added nodes overlay belongs to a unique neighbourhood of $S$:
+
 $$
 \exists k\neq n, o_n\in \mathit{nh}_{k,S},  
 $$
+
 and from disjointness, it follows that no other neighbourhood
+
 $$
 \forall i\neq k\in S, o_n \notin \mathit{nh}_{i,S}
 $$
+
 In general, it is true that adding nodes can only make neighbourhoods narrower:
+
 $$
 \forall S, S', S\subset S'\Longrightarrow \forall n_i\in S, \mathit{nh}_{i, S'}\subseteq \mathit{nh}_{i, S}.
 $$
+
 If we want to add a node $n$ to $S$ resulting in
+
 $$
 S'= \{n\}\bigcup S,
 $$
+
 Now knowing
+
 $$
 o_n\in \mathit{nh}_{k, S}
 $$
+
 and
+
 $$
 o_n \notin \mathit{nh}_{k, S'}
 $$
+
 which entails that node $k$'s neighbourhood does change between $S$ and $S'$ and:
+
 $$
 \mathit{nh}_{k, S'}\subset \mathit{nh}_{k, S}.
 $$
+
 This can only happen if $k$'s uniquness depth increases, from which it follows that, for set $S$,
+
 $$
 u_k = d,
 $$
+
 and for $S'$,
+
 $$
 u_k = d+1.
 $$
+
 In other words, any node added to $S$ must join a free neighbourhood $\mathit{nh}_{k,S}$ but _must not match the_ $d+1$-_th bit of_ $o_k$.
 
 Conversely, when a node $g$ is removed, it must have a sister so that after removal, that balancedness remains invariant. This may necessitate rebalancing first, i.e., in case $g$'s removal would result in a non-balanced set,  requires finding a random donor $j$ with $u_j=d+1$ to be reinserted as $g$'s sister.[^donor]
@@ -205,19 +240,24 @@ After calling `expire`, the validity of the registration is checked by finding t
 #### Entropy
 
 Nodes derive randomness from a high entropy seed
+
 $$
 \rho_i = \mathit{H}(\text{blockhash}(h_i+1) \parallel h_i \parallel a_i),
 $$
+
 which is not known at the time of registration. The _validity window_ $VW < 256$ ensures that the referenced blockhash remains accessible.
 
 #### Neighbourhood assignment
 
 Assignment of a node to a neighbourhood must observe balancedness of the set as an invariant. Since
 $2^{d+1} - N$ is the number of free neighbourhoods. A node computes
+
 $$
 r_i = \rho_i \bmod (2^{d+1}-N).
 $$
+
 Let $f_0, f_1, \ldots, f_{F-1}$ be the indexes of free neighbourhoods, these are available for assignment. Out of these free neighbourhoods, one is chosen with equal probability:
+
 $$
 k=f_{r_i}
 $$
@@ -231,10 +271,13 @@ Calling the function multiple times may return a different constraint prefix if 
 #### Mining an overlay nonce
 
 The commited node,  upon learning the neighbourhood $k$, must find (mine) a nonce $\nu_i$ to generate its actual _overlay address_
+
 $$
 o_i := \mathit{H}( \nu_i \parallel a_i \parallel networkID )
 $$
+
 that falls in the correct neighbourhood.
+
 $$
 \nu_i \leftarrow \mathbb{\Sigma}^{256},\text{ such that }  o_i\gg(255-d)=k \land o_i\ll d\gg 255 = O![k]\ll d\gg 255
 $$
@@ -252,11 +295,13 @@ If the sister node exists, removal proceeds directly and the invariant remains s
 If removal would leave both children of the parent empty, then _rebalancing_ is required: upon calling `deregister`, one _donor pair_ of nodes is selected from among the full (doubly filled) neighbourhoods of depth $d$. From the selected pair, one of the two nodes is chosen and removed. The donor node is reinserted into the commit queue and gets assigned the sister neighbourhood of the node to be removed.
 
 The original node is removed only after the donor successfully completes reassignment, ensuring that the invariant is never violated. In order that the rebalancing cannot be manipulated, i.e., the selected node reinserted into the neighbourhood of the deregistrant, the donor must be selected with proper randomness, not known at the time of deregistration.  This randomness is derived the same way as when we add a node: deregistration call just records the block height $h_i$, and the following blockhash serves as the high entropy seed for randomness:
+
 $$
 \rho_i = H(\text{blockhash}(h_i+1) \parallel h_i \parallel a_i),
 $$
 
 Given the number of free neighbourhoods currently full (doubly filled) is $2N-2^{d+1}$. A node computes
+
 $$
 r_i = \rho_i \bmod (N-2^{d})
 $$
@@ -273,13 +318,15 @@ This initially empty list of _entry_ struct types holds information about the no
 The queues are always extended by the `(de)register` functions (tx-s) and cleaned by `expire` (called by `(un)assign`).
 
 $$
-C_X: \idx{}\mathit{entry}
+C_X: \texttt{[}\,\texttt{]}\ \mathit{entry}
 $$
 
 Mappings from Ethereum address ($A$) to are maintained:
+
 $$
 A : \mathbb{\Sigma}^{160} \mapsto \mathbb{N}.
 $$
+
 Given an active set of nodes $S$, such that for any node with address $a$,  $A(a)=N=\mid S\mid$ where $N$ is the number of nodes in $S$ when (ie just before)  $n$ is inserted. In other words, if $A(a)=n$ then node with address $a$ was inserted as the $n$-th node.
 
 ### ICBT
@@ -289,9 +336,11 @@ The association of neighbourhoods and nodes is stored in a data structure we cal
 #### Layout
 
 This data structure has the role of maintaining the number of neighbourhoods that are (free = assignable to a new peer, or full = selectable as donor) under a node.
+
 $$
 I : \mathbb{N}\to \mathit{node} \cup \{\varnothing\},
 $$
+
 where $I[i] = \varnothing$ (nil value) denotes an empty slot and the node value type is a tuple of the
 
 - overlay,
@@ -301,11 +350,13 @@ where $I[i] = \varnothing$ (nil value) denotes an empty slot and the node value 
 $$
 \mathit{node}= \langle \Sigma^{256}, \mathbb{N}, \mathbb{N}\rangle
 $$
+
 Both the second and third is constrained to $\overline{0,N-1}$.
 
 Since the values of $A$ form a continuous range of integers from 0 to N (i.e., unique ordinal of first insertion), it is possible to use this as a type-agnostic version of this data structure and maintain a typed array mapping from the third component of the node struct, to another one.
 
 If $A(a)=n$ then its index in the trie is the depth at which it is unique ($i=u_i-2^d$)
+
 $$
 I[i]=\langle o_i, 0, N \rangle.
 $$
@@ -337,7 +388,7 @@ The implicit binary structure means the represented tree can be traversed using 
 $$
 \begin{array}{l|l|l}
 \mathrm{description} & \mathrm{notation} & \mathrm{definition}\\\hline
-\text{parent of }i& \mathrm{Parent}(i) & i/2 &\\
+\text{parent of }i& \mathrm{Parent}(i) & i/2 \\
 \text{left child of }i&\mathrm{Left}(i) & 2i\\
 \text{right child of }i& \mathrm{Right}(i) & 2i+1\\
 \text{sister of }i& \mathrm{Sister}(i) & i + 1 - 2 (i \bmod 2)\\
@@ -358,14 +409,19 @@ V(i) &\text{otherwise}
 $$
 
 We can define the predicate _not assigned_ ($\mathit{NA}$) as follows:
+
 $$
 \mathrm{NA}(i) \Longleftrightarrow V(i) = \varnothing .
 $$
+
 This allows us to define free and fully assigned neighbourhoods:
+
 $$
 \mathrm{Free}(i) \Longleftrightarrow \mathrm{NA}(\mathrm{Left}(i))  \lor \mathrm{NA}(\mathrm{Right}(i))
 $$
+
 and
+
 $$
 \mathrm{Full}(i) \Longleftrightarrow !\mathrm{NA}(\mathrm{Left}(i)) \land !\mathrm{NA}(\mathrm{Right}(i))
 $$
@@ -387,6 +443,7 @@ The ICBT is used to
 ### Counting free neighbourhoods for candidate assignment
 
 Function $F_0(i)$ on the index tracks the number of free slots (candidate neighbourhoods to assign) in the left subtree rooted at index $i$:
+
 $$
 F_0: \mathbb{N}\to\mathbb{N}\\
 F_0(i) = \begin{cases}
@@ -395,20 +452,28 @@ F_0(Left(i)) + F_0(Right(i))&\text{if } Depth(i)<d-1\\
 0&\text{otherwise}
 \end{cases}
 $$
+
 When the trie becomes fully balanced with a number of nodes turning $N = 2^D$, then each neighbourhood at level $D$ is free, i.e., has exactly one assignable child:
+
 $$
 \forall 2^{D-1}\leq i< 2^{D}, \quad F_0(i)=1
 $$
+
 In this case,
+
 $$
 \forall 0< i<2^{D-1}, \quad F_0(i) = 2^{D-Depth(i)}.
 $$
+
 By the time the next depth is reached, $N=2^{D+1}-1$-th element is assigned, all
 of the free neighbourhoods got allocated, thus:
+
 $$
 \forall 2^{D}\leq i< 2^{D+1}, \quad F_0(i)=0
 $$
+
 and therefore,
+
 $$
 \forall 0< i<2^{D}, \quad F_0(i) = 0.
 $$
@@ -438,10 +503,10 @@ func OverlayPref( k uint32 ) returns []byte
 
 The second quantity one needs to track is the number of nodes in the subtree with both their children assigned on level ${d}$: these correspond to _candidate donor pairs_.
 We can use $F_1$
-$$
 
-S: &\mathbb{N}\to\mathbb{N}\\
-F_1(i) &T= \begin{cases}
+$$
+F_1: \mathbb{N}\to\mathbb{N}\\
+F_1(i) = \begin{cases}
 F_1(Left(i)) + F_1(Right(i))&\text{if } Depth(i)<d-1\\
 1&\text{if } Depth(i)=d-1\text{ and }Full(i)\\
 0&\text{otherwise}
@@ -449,25 +514,33 @@ F_1(Left(i)) + F_1(Right(i))&\text{if } Depth(i)<d-1\\
 $$
 
 When the trie becomes fully balanced with a number of nodes turning $N = 2^D$, then each neighbourhood at level $D$ has exactly one child, none can be or need be selected as donor:
+
 $$
 \forall 2^{D-1}\leq i< 2^{D}, \quad F_1(i)=0
 $$
+
 In this case,
+
 $$
 \forall 0< i<2^{D-1}, \quad F_1(i) = 0.
 $$
+
 By the time $2^{D}$ nodes are assigned and the trie is again balanced having $N=2^{D+1}$ nodes, all
 of the free neighbourhoods got allocated, thus:
+
 $$
 \forall 2^{D-1}\leq i< 2^{D}, \quad F_1(i)=1
 $$
+
 and therefore:
+
 $$
 \forall 0< i<2^{D-1}, \quad F_1(i) = 2^{D-Depth(i)}.
 $$
 
 Surely, initially, when $N=0$, $d=0$, then $F_0(0)=1$, and $F_1(0)=0$.
 Note that when $D=0, N=2^0=1$:
+
 $$
 F_0(i)+F_1(i)=0 \bmod 2^{d-depth()}.
 $$
@@ -498,7 +571,7 @@ func SelectDonor( k uint32 ) returns overlay
 
 ### Further endpoints
 
-A public read-only endpoint exists for querying neighbourhoods as well as nodes. Accessor for $d$ and $N$ will return the current neighbourhood depth and the current number of assigned neighbourhoods. A public accessor for $A_d$ will  return for a neighbourhood (between $0$ and $2^d-1 inclusive) the overlay of the node assigned to that neighbourhood. Another endpoint will return for any partial address $o$ the closest node, so that the network service can find responsible nodes for (i.e., closest to) any address in the space shared by overlays:
+A public read-only endpoint exists for querying neighbourhoods as well as nodes. Accessor for $d$ and $N$ will return the current neighbourhood depth and the current number of assigned neighbourhoods. A public accessor for $A_d$ will  return for a neighbourhood (between $0$ and $2^d-1$ inclusive) the overlay of the node assigned to that neighbourhood. Another endpoint will return for any partial address $o$ the closest node, so that the network service can find responsible nodes for (i.e., closest to) any address in the space shared by overlays:
 
 $$
 \begin{eqnarray}
