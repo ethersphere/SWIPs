@@ -13,584 +13,780 @@ created: 2025-07-21
 
 This SWIP specifies an on-chain registry that assigns participating Swarm nodes to overlay-address prefixes while maintaining balanced coverage of the address space. For $N$ active nodes, every node is assigned an area of responsibility at one of two adjacent depths, so the largest area is at most twice the size of the smallest.
 
-After committing, a node derives its target prefix deterministically from post-commit blockchain entropy — a read-only calculation, with no reservation held by the registry. The node mines an overlay address satisfying the prefix and activates it through the registry; if the neighbourhood has been taken in the meantime, the calculation simply yields a new target. When a departure would violate the balance invariant, the registry reassigns an active node to the vacated position before completing the departure; the selected node must relocate or else it is dropped and its stake forfeited.
+A node joins in exactly two transactions: it first commits its identity, stake, and fee; then — after deriving its target prefix from post-commit blockchain entropy through a read-only calculation, with no reservation held by the registry — it mines a conforming overlay address and activates it. If the target neighbourhood is taken in the meantime, the calculation simply yields a new target. When a departure would violate the balance invariant, the registry reassigns an active node to the vacated position before completing the departure; the selected donor must relocate or else it is dropped and its stake forfeited.
 
-The mechanism is intended to make targeted concentration in a particular neighbourhood probabilistic and costly, and to support balanced allocation of storage-incentive or decentralised-service workloads. It does not by itself establish operator identity or prevent one operator from registering multiple nodes.
+The mechanism is intended to make targeted concentration in a particular neighbourhood probabilistic and costly, and to support balanced allocation of storage-incentive or decentralised-service workloads. It does not establish operator identity or prevent one operator from registering multiple nodes.
+
+## Scope
+
+This SWIP defines:
+
+- the balance invariant maintained by the registry;
+- the join, activation, and departure state transitions;
+- the source and use of randomness;
+- the contract state required to select prefixes and donor nodes;
+- the integration points required by the swarm client; and
+- the security and liveness assumptions of the mechanism.
+
+The join procedure consists of two transactions, `register` and `activate`; everything between them — entropy finalization, target-prefix computation, and overlay mining — happens off-chain or through read-only calls. The registry holds no reservations: the target prefix is at all times a deterministic, read-only computation over current contract state. A target invalidated by an intervening activation simply yields a new target; under realistic churn such races are rare and cost only local mining work.
+
+### Terminology
+
+**Address space** — the set $\Sigma^{256}$, where $\Sigma=\{0,1\}$.
+
+**Overlay** — node overlay address derived from a node's public key, network ID, and overlay nonce using Bee's canonical overlay derivation function.
+
+**Prefix** — a bit string $p\in\Sigma^\ell$. Its length $\ell$ is its depth.
+
+**Neighbourhood** — the subset of the address space that share a prefix.
+
+**Leaf** — a prefix currently assigned to exactly one active node. Active leaves form a complete, prefix-free partition of the address space.
+
+**Sibling** — the other child of the same parent prefix. For $p=b_0\ldots b_{\ell-1}$, its sibling is $b_0\ldots(1-b_{\ell-1})$.
+
+**Split candidate** — an active leaf at the current minimum depth $d$. A join splits this leaf into two child prefixes.
+
+**Donor pair** — two active sibling leaves at depth $d+1$. One member can move to a vacated depth-$d$ leaf while the other expands to their shared parent.
+
+**Registration** — a request to join that has committed an identity, stake, and fee before its assignment entropy is known.
+
+**Deregistration** — a request to leave the sub-network.
+
+**Pending departure** — a departure awaiting donor relocation.
+
+**Active node count** — $N$, the number of activated nodes in the balanced partition. A pending registration is not active.
+
+### Goals and explicit non-goals
+
+The goals of this SWIP are:
+
+- complete coverage of the address space by disjoint areas of responsibility;
+- a maximum factor of two between the largest and smallest areas;
+- uniformly random selection among currently eligible split candidates or donor pairs;
+- assignment that is unknown to an applicant when it commits stake and fees;
+- a bounded, explicit procedure for failed joins and failed donor relocations;
+- logarithmic contract work in the number of active nodes for selection and tree updates; and
+- deterministic validation of assignments by the contract and Bee clients.
+
+The following are explicit non-goals:
+
+- proving that two Ethereum addresses belong to different operators;
+- enforcing one human or one operator per node;
+- preventing a well-funded operator from registering many independently assigned nodes;
+- defining the postage redistribution game itself;
+- defining the stake amount, application fee, reward, or slashing schedule; and
+- specifying the transfer of stored content between nodes (see [Data handover](#data-handover)).
+
+Stake, fees, activation deadlines, and relocation deadlines are nevertheless security parameters. Their values MUST be specified by deployment configuration or by the staking specification on which a deployment depends.
 
 ## Motivation
 
-### Balance and area of responsibility
+Swarm assigns work according to proximity in the overlay address space. A node is responsible for jobs, chunks, or protocol actions whose identifiers fall within an address range close to its overlay. If participating overlays cluster, some parts of the address space receive more providers than others, responsibility becomes uneven, and operators may deliberately co-locate identities.
 
-The most obvious use case for a balanced sub-network is a _decentralised service network_ _(DSN)_, a set of nodes that commit to collectively perform some task. Instances of this task submitted by the  users of the DSN
-are best thought of as a partially ordered set of _input/output jobs_. These jobs are then assigned to the service nodes in the DSN based on whether the _job ID_ falls within the node's _area of responsibility_. Execution is load balanced, as long as:
+A balanced registry replaces self-selected neighbourhood placement with random assignment among the prefixes that preserve complete coverage. Given uniformly distributed workload identifiers and broadly comparable job costs, balanced areas of responsibility provide approximately balanced expected work per node.
 
-- jobs are of comparable complexity,
-- job IDs are random and uniform within the address space (the hash of their description), and
-- nodes' areas of responsibility are address ranges of equal size.
+The mechanism is useful for a _decentralised service network (DSN)_: a set of nodes that commit to perform addressable jobs. It is also applicable to the postage redistribution game, where several nodes controlled by one operator should not be able to target the same storage neighbourhood cheaply and share a single reserve while presenting it as replicated storage.
 
-_Areas of responsibility_ are defined by _proximity_, i.e., a contiguous range of addresses close to each other and to    the node's ID (i.e., the node overlay address is in the same address space) using logarithmic distance  as a metric.
+Random assignment does not eliminate Sybil identities. It changes targeted placement from a direct choice into a probabilistic strategy. An operator attempting to acquire a particular prefix must fund multiple registrations, pay for abandoned or expired assignments, or operate nodes in all prefixes assigned to it. The economic effect therefore depends on the required stake, non-refundable fee, assignment deadline, and rules for selective aborts.
 
-The design achieves
-
-- fairness,
-- bounded cost of operation, and
-- resistance to manipulation.
-
-### Further support when applied to the current postage redistribution game
-
-#### Sybil attacks
-
-The neighbourhood sybil attack is when the same operator runs several nodes (or runs one client node, but plays with several) in the same neighbourhood. This would allow them to share storage without replication and yet get paid.
-To mitigate this we resort to the rather weak incentive of additive stake as a proof of redundancy. If stake is variable and is linearly proportional to earnings, then, mutatis mutandis,  due to the added operational costs, it is always more economical for one operator in a neighbourhood to run just one node with all the stake than several nodes adding up to the same.
-
-Random assignment makes targeted concentration in a chosen neighbourhood probabilistic and economically costly. It does not prevent one operator from registering multiple nodes. Its effectiveness therefore depends on the per-registration stake, the non-refundable fee, penalties for abandoned assignments, and the number of identities an attacker can fund.
-
-#### Fixed stake
-
-Variable stake is not really compatible with random assignment. If a candidate node is assigned a neighbourhood with high stake density, it can earn less with the same stake, which is not really fair. Fixed stake across neighbourhoods, on the other hand, does not imply any a priori (dis)advantage. Uniform prices could and should allow changes over time.
-
-#### Shadow world fabrication attack
-
-In order to control the stamp at game time, attackers must invest the same amount of stamp resources as the entire swarm's used capacity. Assuming that the average utilisation rate over a relevant period is $0 < u\leq 1$,  the reward/cost ratio for the attacker for any wins is $r=1+\frac{1}{u}$. This implies that the attacker needs to win at least once every  $r$ rounds in order just to break even.
+Fixed stake per active node is compatible with this construction because equally sized assignments then face the same nominal capital requirement. Variable stake may still be supported, but the reward and selection rules must not make a randomly assigned node systematically worse off merely because other nodes in the same neighbourhood carry more stake.
 
 ## Solution
 
-_Address ranges (neighbourhoods)_ are defined by a shared prefix in the binary representation of an address, i.e., a neighbourhood designated by $a$ of depth $d$. This SWIP describes an on-chain DSN registry, where nodes identified by their Ethereum addresses are assigned a neighbourhood at random. This involves a 2-step interaction with the blockchain; in the initial transaction, candidate nodes commit to participate by registering their address and record the blockheight.
+Let $S=\{n_0,\ldots,n_{N-1}\}$ be the set of active nodes. Node $n_i$ has an Ethereum staking identity $a_i$, a Bee public key $P_i$, and an overlay $o_i\in\Sigma^{256}$. The staking identity MUST authorize the public key used to derive the overlay.
 
-Randomness is derived from on-chain entropy after registration, so assignment is unpredictable at commit time and reproducible at validation time.
-The assignment is done by constraining the overlay address to have the initial $d$ specific bits.
-The constraint is chosen so that the system continuously enforces _balanced coverage_.
-The exact node ID is determined outside the protocol:
-using the entropy of an arbitrary nonce, then, candidate nodes are able to find (mine) a suitable overlay address that  satisfies the constraint.
-
-When  nodes want to leave the network, rebalancing may be necessary.
-
-### Formal exposition
-
-Let the set of active nodes be denoted by:
+For a prefix $p\in\Sigma^\ell$, define:
 
 $$
-S = \{n_0, n_1, \ldots\}, \quad N = |S|.
+NH(p)=\{x\in\Sigma^{256}\mid \forall\,0\leq j<\ell,\ x[j]=p[j]\}.
 $$
 
-Each node is identified by an _Ethereum address_ $a_i \in \mathbb{\Sigma}^{160}$ and an _overlay address_ $o_i \in \mathbb{\Sigma}^{256}$, where $\mathbb{\Sigma}=\{0,1\}$.
-
-A _neighbourhood_ (designated by pivot address $p$ and depth $d$) is an address range characterised by sharing  bit prefix of length $>d$ with $p$.
+Equivalently, for a pivot address $x$ and depth $\ell$:
 
 $$
-\newcommand{\idx}[1]{\texttt{[}\,#1\,\texttt{]}}
-\mathrm{NH}(p,d)=\left\{a\in\mathbb{\Sigma}^{256} \,\mid\,\forall 0\leq i<d,\, a\idx{i}=p\idx{i}\right\}
+NH(x,\ell)=\{y\in\Sigma^{256}\mid
+\forall\,0\leq j<\ell,\ y[j]=x[j]\}.
 $$
 
-Given a set of nodes $S$, a node $n_i\in S$ is _unique at depth_ $u_i$ if $u_i$ is the smallest integer such that no other node falls  in its neighbourhood (designated by its overlay $o_i$ at depth $u_i$):
+The registry associates each active node with one leaf prefix, and the node's overlay MUST fall within the neighbourhood designated by that prefix.
+
+### Balance invariant
+
+For $N=0$, the partition is empty. For $N\geq1$, define:
 
 $$
-\forall 0\leq j<N, j\neq i \longrightarrow o_j\notin NH(o_i,u_i)
+d=\lfloor\log_2 N\rfloor.
 $$
 
-This allows us to define _balance(dness)_. We say that a set of nodes $S$ is _balanced (at depth)_ $d$, if each node is _unique at depth_ $d$ or $d+1$: $S$ is _balanced_ iff
+The active leaf set $L(S)$ is balanced if and only if:
+
+1. every leaf has depth $d$ or $d+1$;
+2. no leaf is a prefix of another leaf;
+3. the leaves cover the entire address space; and
+4. every leaf is assigned to exactly one active node whose overlay has that prefix.
+
+The number of active leaves at each depth is:
 
 $$
-\{ u_0, u_1, \ldots , u_{N-1}\} = \begin{cases}
-\{d\} & \text{if }N=2^D \text{ for some }D\in\mathbb{N} \\
-\{d,d+1\} & \text{ otherwise}
-\end{cases}
+\left|\{p\in L(S)\mid |p|=d\}\right|=2^{d+1}-N,
 $$
 
-Now we can show that
-
 $$
-\begin{aligned}
-\circ\ & d=\lfloor \text{log}_2(N) \rfloor\text{, and } d=D\text{ if }N=2^D\\
-\circ\ & \mid\{ n_i\in S \mid u_i = d \}\mid = 2^{d+1}-N.\\
-\circ\ & \mid\{ n_i\in S \mid u_i = d+1 \}\mid = 2N-2^{d+1}.
-\end{aligned}
+\left|\{p\in L(S)\mid |p|=d+1\}\right|
+=2N-2^{d+1}.
 $$
 
-Let us define a node's _unique neighbourhood_ wrt.~$S$ as the neighbourhood designated by the node's overlay address $o_i$ at their unique depth $u_i$:
+These counts sum to $N$. There are $2^{d+1}-N$ split candidates and $N-2^d$ donor pairs.
+
+Because a depth-$d$ neighbourhood has twice the address-space volume of a depth-$(d+1)$ neighbourhood, the largest area of responsibility is at most twice the smallest.
+
+#### Preservation under insertion
+
+If $N=0$, the first node is assigned the empty prefix $\epsilon$.
+
+If $N\geq1$, a join selects one split candidate $p$ at depth $d$. Let the incumbent overlay's next bit be $b=o_{\mathrm{inc}}[d]$. The incumbent is reassigned to $p\mathbin\Vert b$, and the joining node is assigned:
 
 $$
-\mathit{nh}_{i,S} := NH(o_i, u_i)
+p_{\mathrm{new}}=p\mathbin\Vert(1-b).
 $$
 
-When S is balanced, the address space is fully partitioned by the nodes in $S$ at all times: _each address falls within a subnetwork node's unique disjoint neighbourhood._
+Replacing $p$ by its two children preserves disjointness and full coverage. When the insertion increases $N$ from $2^{d+1}-1$ to $2^{d+1}$, all leaves are at depth $d+1$, which becomes the new minimum depth.
+
+#### Preservation under removal
+
+Four cases exist:
+
+1. If $N=1$, remove the sole root leaf and return to the empty partition.
+2. If $N=2^d>1$, all leaves are at depth $d$. Remove the departing leaf and replace its sibling with their depth-$(d-1)$ parent.
+3. If $N>2^d$ and the departing leaf has depth $d+1$, remove it.
+4. If $N>2^d$ and the departing leaf has depth $d$, select _a donor pair_ at depth $d+1$, move one donor to the departing prefix.
+
+Each transformation reduces $N$ by one and preserves the invariant once the required donor relocation has completed.
+
+### Join protocol
+
+The join protocol consists of exactly two transactions: `register` and `activate`. No reservation is held by the registry at any point.
+
+#### 1. Register
+
+The applicant submits:
+
+- its staking identity $a_i$;
+- its Bee public key $P_i$;
+- the required stake;
+- a non-refundable application fee.
+
+The contract creates a registration with a unique request ID, records the registration block height $h_i$, and appends the entry to the registration queue. An identity MUST NOT have more than one live registration or active assignment. The stake remains locked until the registration activates or expires according to the staking rules.
+
+Registering does not modify the active prefix tree.
+
+The registration is valid for a _validity window_ of $VW$ blocks. In practice $VW < 256$, the number of blocks for which a block hash remains available from within the EVM. Since block heights in the registration queue are monotonically increasing, entries expire from the front; a permissionless `expire` call advances the queue head past expired entries and burns their fees, without ever iterating the full queue.
+
+#### 2. Compute the target prefix
+
+After the configured entropy delay has passed, the applicant's target prefix is a deterministic, read-only computation over current contract state: the contract derives a seed as specified in [Randomness and anti-grinding measures](#randomness-and-anti-grinding-measures) and selects a split candidate uniformly among those currently eligible.
+
+The computation is exposed as a read-only call taking the applicant's identity and returning the current constraint prefix and the registration deadline. Calling it repeatedly MAY return a different prefix if another activation landed in between; nothing is locked on the applicant's behalf.
+
+For $N=0$, selection is omitted and the target is the empty prefix. There is no incumbent.
+
+#### 3. Mine an overlay
+
+The applicant mines a nonce $\nu_i$ such that Bee's canonical overlay derivation:
 
 $$
-\forall a\in\mathbb{\Sigma}^{256}, a\in \mathit{nh}_{i,S}  \text{, for some }0\leq i<N
+o_i=\operatorname{Overlay}(P_i,\operatorname{networkID},\nu_i)
 $$
 
-and as a corollary:
+starts with the target prefix.
 
-$$
-\forall 0\leq i<j<N, |\mathit{nh}_i|=|\mathit{nh}_j| \lor |\mathit{nh}_i|=2\cdot|\mathit{nh}_j|
-$$
+For a prefix of length $\ell$, mining takes $2^\ell$ trials in expectation. Implementations SHOULD expose progress and the registration deadline to the operator.
 
-In other words, balanced sets always have _full coverage_ and tend towards _equality_ (of coverage, workload, responsibility)
+#### 4. Activate or expire
 
-Since, by definition, an overlay of any node is in the nodes _unique neighbourhood_,
+Before the deadline, the applicant submits $\nu_i$ and any proof required to bind the call to $a_i$. The contract:
 
-$$
-\forall i\in S, o_i\in \mathit{nh}_{i, S}.
-$$
+1. derives or verifies $o_i$;
+2. recomputes the target prefix from current state and verifies that $o_i$ starts with it;
+3. either creates the root leaf when $N=0$, or replaces the selected leaf with the incumbent and applicant child leaves;
+4. marks the applicant active;
+5. updates aggregate tree counters; and
+6. removes the registration from the queue.
 
-Now, given full coverage, the newly added nodes overlay belongs to a unique neighbourhood of $S$:
+If the tree changed between mining and activation, the recomputed target may differ and verification fails; the applicant recomputes and re-mines within its validity window. If the window lapses without activation, the registration expires and the application fee is forfeited. Additional stake penalties, if any, are defined by the staking specification.
 
-$$
-\exists k\neq n, o_n\in \mathit{nh}_{k,S},  
-$$
+### Departure and rebalancing
 
-and from disjointness, it follows that no other neighbourhood
+Nodes are free to deregister at any time. For registration and deregistration the contract maintains two distinct commit queues, $C_R$ and $C_D$, extended by the `register`/`deregister` transactions and cleaned by `expire`.
 
-$$
-\forall i\neq k\in S, o_n \notin \mathit{nh}_{i,S}
-$$
+#### Direct collapse
 
-In general, it is true that adding nodes can only make neighbourhoods narrower:
+Direct collapse applies when either:
 
-$$
-\forall S, S', S\subset S'\Longrightarrow \forall n_i\in S, \mathit{nh}_{i, S'}\subseteq \mathit{nh}_{i, S}.
-$$
+- $N>1$ is a power of two; or
+- $N$ is not a power of two and the departing leaf has depth $d+1$.
 
-If we want to add a node $n$ to $S$ resulting in
+In both cases the departing node has an active leaf sibling, and collapsing that sibling to their parent produces the depth distribution required for $N-1$. The departure completes immediately: the contract removes the departing leaf, moves the sibling to the parent, and releases the departing stake as permitted.
 
-$$
-S'= \{n\}\bigcup S,
-$$
+If $N=1$, there is no sibling. The registry MAY remove the sole root assignment after the configured departure delay, leaving the service with no coverage. User interfaces MUST make this consequence explicit.
 
-Now knowing
+#### Donor relocation
 
-$$
-o_n\in \mathit{nh}_{k, S}
-$$
+If $N>2^d$ and the departing node is a depth-$d$ leaf, direct collapse would violate the invariant. The contract therefore relocates a donor:
 
-and
+1. the departure is committed by the `deregister` call, recording its block height before donor-selection entropy is known;
+2. the contract selects a donor pair uniformly and one member of the pair as the moving donor;
+3. the donor's own leaf is taken over by its sibling — the donor is removed exactly as if it had chosen to leave itself, which is a balanced removal since the sibling becomes unique at depth $d$;
+4. the donor is entered into the commit queue as if newly registering, except that its recorded block height is the one set by the `deregister` call, and its target is fixed to the sibling prefix of the departing node;
+5. the donor mines a new conforming overlay and activates it within the validity window; and
+6. upon the donor's activation, the departing assignment is removed and the departure completes.
 
-$$
-o_n \notin \mathit{nh}_{k, S'}
-$$
+The donor MAY operate its old and new overlays concurrently during the transition.
 
-which entails that node $k$'s neighbourhood does change between $S$ and $S'$ and:
-
-$$
-\mathit{nh}_{k, S'}\subset \mathit{nh}_{k, S}.
-$$
-
-This can only happen if $k$'s uniquness depth increases, from which it follows that, for set $S$,
-
-$$
-u_k = d,
-$$
-
-and for $S'$,
-
-$$
-u_k = d+1.
-$$
-
-In other words, any node added to $S$ must join a free neighbourhood $\mathit{nh}_{k,S}$ but _must not match the_ $d+1$-_th bit of_ $o_k$.
-
-Conversely, when a node $g$ is removed, it must have a sister so that after removal, that balancedness remains invariant. This may necessitate rebalancing first, i.e., in case $g$'s removal would result in a non-balanced set,  requires finding a random donor $j$ with $u_j=d+1$ to be reinserted as $g$'s sister.[^donor]
-
-[^donor]: In fact, the donor could just reinsert at $g$'s spot, however, any short overlap of activity is easier to handle if donor is $g$'s sister.
-
-## Architecture
-
-This contract is deployed together with a staking contract similar to the [swarm storage incentive staking contract](https://github.com/ethersphere/storage-incentives/blob/master/src/Staking.sol). This contract will retain the total stake treasury, as well as enabling a node operator to deposit, withdraw and maintain their stake. Concerns should be strictly separated to improve security of locked funds and upgradability of both contracts.
-
-The node assignment contract is composed of several transactional endpoints:
-
-$$
-\begin{array}{lllll}
-\hline %toprule
-& \text{HTTP request} & & \text{HTTP response}\\
-% \multicolumn{3}[c]{HTTP request}  & \multicolumn{2}[c]{HTTP response}\\
-\text{method}  & \text{URL} & \text{description} & \text{status} &  \text{body} \\
-\hline %midrule
-\texttt{POST} & \texttt{/bzz/bal/} & \text{registration} & 201, 400, 402, 404 & \\
-\texttt{PUT} & \texttt{/bzz/bal/assign/}\langle\texttt{overlay}\rangle & \text{assign overlay} & 200, 400, 404 & \text{overlay prefix constraint}\\
-\texttt{POST} & \texttt{/bzz/bal} & \text{deregister} & 200, 201, 204, 400, 402, 404 & \text{pending rebalancing}\\
-\texttt{DELETE} & \texttt{/bzz/bal/unassign} & \text{leave} & 200, 400, 404 \\
-\hline %bottomrule
-\end{array}
-$$
-
-### Registering and Random Assignment
-
-Candidate nodes end up assigned to a random free neighbourhood in a way that all the potential free neighbourhoods had the same chance of being selected.
-
-#### Registration
-
-In the first step, a node's intention to participate as a provider in the service network gets recorded in the _commit queue_ $C$.
-The current blockheight $h_i$ is recorded together with the ether address $a_i$ by pushing an _entry struct_ ($e_i = \langle a_i,h_i\rangle$) to the end of commit queue.
-
-At the time of registering, we check if the node's ether address is not already on the list.
-In order to prevent repeated trials, each node must be registered only once.
-A non-refundable application fee is deposited.
-
-#### Expiry
-
-The entry is valid for a period of $G$ blocks after the registration. In practice, $G$ must be less than $256$, the number of blocks for which the blockhash is available from within the EVM.
-
-Since the blockheight values of the commit queue items are monotonically increasing, entries at the beginning of the list expire first. By iterating up to the first valid entry, expired entries can be iterated on efficiently.
-
-The `expire` function call iterates the commit queue from the oldest, going through all expired entries, burns their deposit, and, by setting the head of the list to the first valid item, removes them from the front of the commit queue.
-
-After calling `expire`, the validity of the registration is checked by finding the entry for the ether address in the commit queue.
-
-#### Entropy
-
-Nodes derive randomness from a high entropy seed
-
-$$
-\rho_i = \mathit{H}(\text{blockhash}(h_i+1) \parallel h_i \parallel a_i),
-$$
-
-which is not known at the time of registration. The _validity window_ $VW < 256$ ensures that the referenced blockhash remains accessible.
-
-#### Neighbourhood assignment
-
-Assignment of a node to a neighbourhood must observe balancedness of the set as an invariant. Since
-$2^{d+1} - N$ is the number of free neighbourhoods. A node computes
-
-$$
-r_i = \rho_i \bmod (2^{d+1}-N).
-$$
-
-Let $f_0, f_1, \ldots, f_{F-1}$ be the indexes of free neighbourhoods, these are available for assignment. Out of these free neighbourhoods, one is chosen with equal probability:
-
-$$
-k=f_{r_i}
-$$
-
-This calculation is made available as a read-only call. It takes as argument a node's ether address $a_i$ returns the current prefix constraining the overlay assignment.[^format]
-
-[^format]: the neighbourhood constraint prefix is formatted the same way as when given to the bee client as the target of mining: `010101010101`
-
-Calling the function multiple times may return a different constraint prefix if there was another successful assignment in between the two calls.
-
-#### Mining an overlay nonce
-
-The commited node,  upon learning the neighbourhood $k$, must find (mine) a nonce $\nu_i$ to generate its actual _overlay address_
-
-$$
-o_i := \mathit{H}( \nu_i \parallel a_i \parallel networkID )
-$$
-
-that falls in the correct neighbourhood.
-
-$$
-\nu_i \leftarrow \mathbb{\Sigma}^{256},\text{ such that }  o_i\gg(255-d)=k \land o_i\ll d\gg 255 = O![k]\ll d\gg 255
-$$
-
-#### Assign the actual overlay
-
-The assign transaction call is the second transactional endpoint called by the staking contract. It takes the provider's ether address as well as the mined overlay as arguments.
-The mined overlay $o_i$ must be submitted to the contract, which, once the overlay is verified, removes the entry from the commit queue and then records the complete overlay $o_i$ associated to the node's ether address $a_i$ (it does make a difference what data structure is used).
-
-### deregistration and Rebalancing
-
-Nodes are free to deregister at any time.
-If the sister node exists, removal proceeds directly and the invariant remains satisfied.
-
-If removal would leave both children of the parent empty, then _rebalancing_ is required: upon calling `deregister`, one _donor pair_ of nodes is selected from among the full (doubly filled) neighbourhoods of depth $d$. From the selected pair, one of the two nodes is chosen as _donor_. The donor's neighbourhood is taken over by its sister, so the donor is removed first exactly as if it had chosen to leave itself — balance is preserved, since the sister becomes unique at depth $d$. The donor is then entered into the commit queue as if newly registering, except that the recorded blockheight is set by the `deregister` call, and it gets assigned the sister neighbourhood of the node to be removed. The donor must complete this relocation within the validity window; otherwise it is dropped from the registry with its stake forfeited, and a fresh donor is drawn.
-
-The original node is removed only after the donor successfully completes reassignment, ensuring that the invariant is never violated. In order that the rebalancing cannot be manipulated, i.e., the selected node reinserted into the neighbourhood of the deregistrant, the donor must be selected with proper randomness, not known at the time of deregistration.  This randomness is derived the same way as when we add a node: deregistration call just records the block height $h_i$, and the following blockhash serves as the high entropy seed for randomness:
-
-$$
-\rho_i = H(\text{blockhash}(h_i+1) \parallel h_i \parallel a_i),
-$$
-
-Given the number of free neighbourhoods currently full (doubly filled) is $2N-2^{d+1}$. A node computes
-
-$$
-r_i = \rho_i \bmod (N-2^{d})
-$$
-
-Let $f_0, f_1, \ldots f_{N-2^{d}-1}$ be the sorted list of indexes for doubly-filled (non-free) neighbourhoods, i.e., those whose continuations are both unique at $d+1$.
+If the donor fails to activate within the validity window, it is dropped from the registry and its stake is forfeited; a fresh donor is drawn with new entropy and the procedure repeats. The departing node remains active until a donor completes.
 
 #### Data handover
 
-This SWIP specifies only the assignment of nodes to neighbourhoods; the handover of stored content during relocation is deliberately left unspecified. A relocated node is expected to synchronise the reserve of its newly assigned neighbourhood, while the neighbourhood it vacated retains the data with the sister node. With upcoming durability guarantees, such relocation gaps become repairable events; in particular, a newly assigned node need not sync its reserve live from its sister but may instead acquire the neighbourhood's content from cold storage.
+This SWIP specifies only the assignment of nodes to neighbourhoods; the handover of stored content during relocation is deliberately left unspecified. A relocated node is expected to synchronise the reserve of its newly assigned neighbourhood, while the neighbourhood it vacated retains the data with the sibling node. With upcoming durability guarantees, such relocation gaps become repairable events; in particular, a newly assigned node need not sync its reserve live from its sibling but may instead acquire the neighbourhood's content from cold storage.
 
-## Specification
+### Randomness and anti-grinding measures
 
-### Data Structures
-
-For registration and deregistration the contract maintains two distinct commit queues $C_R$ and $C_D$.
-This initially empty list of _entry_ struct types holds information about the node that committed to enter or leave the DSN. The entry struct holds information about the ether address of the node and the blockheight the address registered at.
-
-The queues are always extended by the `(de)register` functions (tx-s) and cleaned by `expire` (called by `(un)assign`).
+For request $q$, registered in block $h_q$, let the entropy block be:
 
 $$
-C_X: \texttt{[}\,\texttt{]}\ \mathit{entry}
+t_q=h_q+\Delta,
 $$
 
-Mappings from Ethereum address ($A$) to are maintained:
+where $\Delta\geq1$ is a configured delay. The seed becomes computable only after $t_q$ has the configured number of confirmations, and remains computable only while its block hash is available to the contract.
+
+The seed is domain-separated:
 
 $$
-A : \mathbb{\Sigma}^{160} \mapsto \mathbb{N}.
+\rho_q=\operatorname{keccak256}(
+\texttt{"SWIP39"}\parallel
+\operatorname{chainID}\parallel
+\operatorname{contractAddress}\parallel
+q\parallel
+a_q\parallel
+\operatorname{blockhash}(t_q)).
 $$
 
-Given an active set of nodes $S$, such that for any node with address $a$,  $A(a)=N=\mid S\mid$ where $N$ is the number of nodes in $S$ when (ie just before)  $n$ is inserted. In other words, if $A(a)=n$ then node with address $a$ was inserted as the $n$-th node.
+The deployment MUST specify $\Delta$, the confirmation delay, and the validity window. On an EVM deployment using the `BLOCKHASH` opcode, activation MUST occur before the referenced hash becomes unavailable.
 
-### ICBT
+The block hash is unpredictable to the applicant at registration under the assumed chain model, but it is not a perfect randomness beacon. A proposer may have limited influence through block construction, withholding, or censorship. Deployments requiring stronger guarantees SHOULD replace the block-hash source with a verifiable randomness mechanism while retaining the same domain separation and request binding.
 
-The association of neighbourhoods and nodes is stored in a data structure we call _implicit complete binary trie (ICBT)_. Each node $v$ of the trie corresponds to a neighbourhood (the shared prefix is expressed by the traversal, i.e., left is 0, right is 1).
-
-#### Layout
-
-This data structure has the role of maintaining the number of neighbourhoods that are (free = assignable to a new peer, or full = selectable as donor) under a node.
+Selection MUST be uniform over the eligible count $m$. Directly computing $\rho\bmod m$ introduces modulo bias unless $m$ divides $2^{256}$. Implementations MUST use rejection sampling:
 
 $$
-I : \mathbb{N}\to \mathit{node} \cup \{\varnothing\},
+L=2^{256}-(2^{256}\bmod m).
 $$
 
-where $I[i] = \varnothing$ (nil value) denotes an empty slot and the node value type is a tuple of the
-
-- overlay,
-- the number of free/full slots subsumed under the subtree,
-- and the ordinal of first insertion
+Interpret successive domain-separated hashes as integers until $x < L$, then select rank:
 
 $$
-\mathit{node}= \langle \Sigma^{256}, \mathbb{N}, \mathbb{N}\rangle
+r=x\bmod m.
 $$
 
-Both the second and third is constrained to $\overline{0,N-1}$.
+The following measures limit assignment grinding:
 
-Since the values of $A$ form a continuous range of integers from 0 to N (i.e., unique ordinal of first insertion), it is possible to use this as a type-agnostic version of this data structure and maintain a typed array mapping from the third component of the node struct, to another one.
+- stake is locked before entropy is known;
+- an identity has at most one live registration;
+- the application fee is not refunded after entropy becomes available;
+- an expired registration forfeits its fee;
+- request IDs and identities are included in the seed; and
+- selection is computed from contract state, not from a caller-supplied list.
 
-If $A(a)=n$ then its index in the trie is the depth at which it is unique ($i=u_i-2^d$)
+These measures price selective aborts but do not prevent one operator from funding multiple identities. Security analysis MUST therefore express resistance in economic and probabilistic terms rather than as a one-operator-one-node guarantee.
 
-$$
-I[i]=\langle o_i, 0, N \rangle.
-$$
+### Contract state and transitions
 
-Now an illustration:
+The registry is deployed alongside the current staking contract (cf. the [swarm storage incentive staking contract](https://github.com/ethersphere/storage-incentives/blob/master/src/Staking.sol)), and it is the staking contract that uses the registry: assignment, balance bookkeeping, and donor selection live here, while custody of stake and the freezing and slashing logic driven by the redistribution game remain the staking contract's concern. The registry only reports assignment events — activation, expiry, donor default — and never holds or slashes stake itself. This strict separation of concerns improves both the security of locked funds and the upgradability of either contract.
+
+The registry maintains:
+
+- `activeCount`: the number $N$ of active nodes;
+- `leaves`: trie leaves containing owner, public-key commitment, and overlay;
+- `participants`: staking identity to active assignment;
+- `registrations`: request ID to registration record;
+- `registrationQueue` ($C_R$) and `departureQueue` ($C_D$): pending request IDs in commit order;
+- subtree counts for split-candidate and donor-pair selection;
+- `pendingDeparture`: the departure currently awaiting donor relocation, if any; and
+- configuration parameters and references to the staking contract.
+
+Joins require no coordination state: registrations queue freely and activations validate against current state. Only donor relocation pends:
+
+| State | Meaning | Permitted terminal action |
+|---|---|---|
+| `Idle` | No pending rebalancing | Registrations, activations, and direct departures proceed freely |
+| `DonorPending` | Donor drawn, relocation in progress | Donor activates and the departure completes, or the deadline passes: stake forfeited, fresh donor drawn |
+
+```mermaid
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Idle: register / activate / direct deregister
+    Idle --> DonorPending: deregister requiring rebalancing
+    DonorPending --> Idle: donor activates, departure completes
+    DonorPending --> DonorPending: deadline passed, stake forfeited, fresh donor drawn
+```
+
+Contract methods and Bee HTTP endpoints are distinct interfaces. A reference contract is expected to expose operations equivalent to:
+
+- `register(publicKeyCommitment)`;
+- `targetPrefix(identity)` (read-only);
+- `activate(requestID, nonce, authorization)`;
+- `expire()`;
+- `deregister()`;
+- `expireDonor(leaveID)`;
+- `getAssignment(identity)`; and
+- `closestActiveNode(address)`.
+
+All state-changing methods MUST validate the expected state and deadline. External calls to staking or proof-verification contracts MUST follow checks-effects-interactions or an equivalent reentrancy-safe pattern.
+
+## Implementation
+
+This section describes one implementation strategy. The invariant and state transitions are normative; the exact storage layout is not.
+
+### Trie representation and algorithms
+
+An _implicit complete binary trie (ICBT)_ uses one-based heap indices; no pointers are stored, and the represented tree is traversed using basic arithmetic on the indexes. The root has index $1$; each trie node corresponds to a neighbourhood, with the shared prefix expressed by the traversal (left is 0, right is 1):
+
+| Description | Notation | Definition |
+|---|---|---|
+| depth of $i$ | $\operatorname{Depth}(i)$ | $\lfloor\log_2 i\rfloor$ |
+| parent of $i$ | $\operatorname{Parent}(i)$ | $\lfloor i/2\rfloor$ |
+| left child of $i$ | $\operatorname{Left}(i)$ | $2i$ |
+| right child of $i$ | $\operatorname{Right}(i)$ | $2i+1$ |
+| sibling of $i$ | $\operatorname{Sibling}(i)$ | $i+1-2(i\bmod 2)$ |
+| position of $i$ within its level | $\operatorname{Position}(i)$ | $i-2^{\operatorname{Depth}(i)}$ |
+| index of prefix $p$ with $\lvert p\rvert=\ell$ | $\operatorname{Index}(p)$ | $2^\ell+\operatorname{uint}(p)$ |
+
+The binary representation of $\operatorname{Position}(i)$, padded to $\operatorname{Depth}(i)$ bits, is exactly the prefix designated by index $i$ — so the constraint prefix handed to the miner can be read off the index alone, with no storage access. The first three levels:
 
 ```mermaid
 graph TD
-    R((root))
-    0 --> 1
-    1 --> 2
-    1 --> 3
-    2 --> 4
-    2 --> 5
-    3 --> 6
-    3 --> 7
-    4 --> 8
-    4 --> 9
-    5 --> 10
-    5 --> 11
-    6 --> 12
-    6 --> 13
-    7 --> 14
-    7 --> 15
+    1["1: ε"]
+    1 --> 2["2: 0"]
+    1 --> 3["3: 1"]
+    2 --> 4["4: 00"]
+    2 --> 5["5: 01"]
+    3 --> 6["6: 10"]
+    3 --> 7["7: 11"]
+    4 --> 8["8: 000"]
+    4 --> 9["9: 001"]
+    5 --> 10["10: 010"]
+    5 --> 11["11: 011"]
+    6 --> 12["12: 100"]
+    6 --> 13["13: 101"]
+    7 --> 14["14: 110"]
+    7 --> 15["15: 111"]
 ```
 
-The implicit binary structure means the represented tree can be traversed using basic arithmetic on the indexes:
+Each stored trie record may contain:
 
-$$
-\begin{array}{l|l|l}
-\mathrm{description} & \mathrm{notation} & \mathrm{definition}\\\hline
-\text{parent of }i& \mathrm{Parent}(i) & i/2 \\
-\text{left child of }i&\mathrm{Left}(i) & 2i\\
-\text{right child of }i& \mathrm{Right}(i) & 2i+1\\
-\text{sister of }i& \mathrm{Sister}(i) & i + 1 - 2 (i \bmod 2)\\
-\text{depth of }i& \mathrm{Depth}(i) & \mathrm{Floor}(\log_2(i))\\
-\text{position of }i& \mathrm{Pos}(i) & i \mod 2^{\mathrm{Depth}(i)}
-\end{array}
-$$
+- an active leaf assignment, if one exists at that exact prefix;
+- `splitCount`, the number of eligible split candidates in its subtree; and
+- `donorCount`, the number of eligible donor-pair parents in its subtree.
 
-#### Resolve values via parents
+Only nodes on a modified leaf-to-root path require counter updates, giving $O(\log N)$ tree writes per activation or completed departure. The stored trie is sparse and requires $O(N)$ assignment records.
 
-When the index structure is used as a map, the rule of inheritance allows you to look up a value that was 'inherited' from an earlier stage (inserted at a shallower depth). We can define $V$ as a lookup function for a map over the above index structure, then $V!$ is
+The ICBT SHOULD be implemented as a self-contained container data-structure contract (or library) exposing only the generic trie operations — insert, remove, ranked selection, counter maintenance, and closest-match lookup — which the balancing registry contract then merely uses. This separation keeps the data structure independently testable against a reference model, reusable by other registries, and auditable in isolation from the protocol logic.
 
-$$
-V!(i)=\begin{cases}
-V!(\mathrm{Parent}(i)) &\text{if } V(i)=\varnothing\text{ and }i>1\\
-V(i) &\text{otherwise}
-\end{cases}
-$$
+#### Rank selection
 
-We can define the predicate _not assigned_ ($\mathit{NA}$) as follows:
+Given a zero-based rank $r < c(1)$, where $c(i)$ is the relevant aggregate count for the subtree rooted at $i$, selection descends as follows:
 
-$$
-\mathrm{NA}(i) \Longleftrightarrow V(i) = \varnothing .
-$$
-
-This allows us to define free and fully assigned neighbourhoods:
-
-$$
-\mathrm{Free}(i) \Longleftrightarrow \mathrm{NA}(\mathrm{Left}(i))  \lor \mathrm{NA}(\mathrm{Right}(i))
-$$
-
-and
-
-$$
-\mathrm{Full}(i) \Longleftrightarrow !\mathrm{NA}(\mathrm{Left}(i)) \land !\mathrm{NA}(\mathrm{Right}(i))
-$$
-
-The data structure operations all enforce the condition
-
-$$
-\forall i, \mathrm{Depth}(i)< d\Rightarrow V(i)\neq \varnothing \lor V(i+1)\neq \varnothing
-$$
-
-which ensures that every prefix of length $d-1$ contains at least one node. This invariant constrains the admissible states of the system.
-
-The ICBT is used to
-
-- find candidate neighbourhoods for new applicants
-- find candidate donors for rebalancing  
-- find the closest node to an address (prefix)
-
-### Counting free neighbourhoods for candidate assignment
-
-Function $F_0(i)$ on the index tracks the number of free slots (candidate neighbourhoods to assign) in the left subtree rooted at index $i$:
-
-$$
-F_0: \mathbb{N}\to\mathbb{N}\\
-F_0(i) = \begin{cases}
-F_0(Left(i)) + F_0(Right(i))&\text{if } Depth(i)<d-1\\
-1&\text{if } Depth(i)=d-1\text{ and }{Free}(i)\\
-0&\text{otherwise}
-\end{cases}
-$$
-
-When the trie becomes fully balanced with a number of nodes turning $N = 2^D$, then each neighbourhood at level $D$ is free, i.e., has exactly one assignable child:
-
-$$
-\forall 2^{D-1}\leq i< 2^{D}, \quad F_0(i)=1
-$$
-
-In this case,
-
-$$
-\forall 0< i<2^{D-1}, \quad F_0(i) = 2^{D-Depth(i)}.
-$$
-
-By the time the next depth is reached, $N=2^{D+1}-1$-th element is assigned, all
-of the free neighbourhoods got allocated, thus:
-
-$$
-\forall 2^{D}\leq i< 2^{D+1}, \quad F_0(i)=0
-$$
-
-and therefore,
-
-$$
-\forall 0< i<2^{D}, \quad F_0(i) = 0.
-$$
-
-We define now a sketch of the _OverlayPref_ function. its single argument is $r_i$.
-
-```python
-func OverlayPref( k uint32 ) returns []byte
-  uint32 j = 1
-  uint32 c = 0 
-  for depth(j)<=depth() 
-    if !NA(O(j)) o=O(j)   # overlay assigned
-    c<<=1                 # shift c
-    j=Left(j)             # set j to left child
-    if k>F(j)             # if k over volume on left branch
-      k-=F(j)             # then adjust to subtree volume;
-      j++                 # set j as the right child
-      c||=0x01            # right 
-    F(j)=F(j)-1           # decrement volume
-  c<<=1
-  if o[d+1] == 0           # must not match existing
-    c||=0x01               # 
-  return rbinary.bigendian(c)[ 31-d : ]
+```text
+selectByRank(r, count):
+    i = 1
+    while i is not an eligible terminal:
+        left = 2 * i
+        if r < count(left):
+            i = left
+        else:
+            r = r - count(left)
+            i = left + 1
+    return i
 ```
 
-### Counting fully saturated leaves for donor selection
+Selection is read-only. Counters are updated only when an assignment activates, a departure completes, or a donor is dropped. The implementation MUST NOT decrement aggregate counters merely because a view function was called.
 
-The second quantity one needs to track is the number of nodes in the subtree with both their children assigned on level ${d}$: these correspond to _candidate donor pairs_.
-We can use $F_1$
+The target prefix can be accumulated bit by bit during the same descent — shift left on every step, set the low bit when going right — and extended by one final bit chosen as the complement of the incumbent's next overlay bit, so that the applicant takes the free child:
 
-$$
-F_1: \mathbb{N}\to\mathbb{N}\\
-F_1(i) = \begin{cases}
-F_1(Left(i)) + F_1(Right(i))&\text{if } Depth(i)<d-1\\
-1&\text{if } Depth(i)=d-1\text{ and }Full(i)\\
-0&\text{otherwise}
-\end{cases}
-$$
-
-When the trie becomes fully balanced with a number of nodes turning $N = 2^D$, then each neighbourhood at level $D$ has exactly one child, none can be or need be selected as donor:
-
-$$
-\forall 2^{D-1}\leq i< 2^{D}, \quad F_1(i)=0
-$$
-
-In this case,
-
-$$
-\forall 0< i<2^{D-1}, \quad F_1(i) = 0.
-$$
-
-By the time $2^{D}$ nodes are assigned and the trie is again balanced having $N=2^{D+1}$ nodes, all
-of the free neighbourhoods got allocated, thus:
-
-$$
-\forall 2^{D-1}\leq i< 2^{D}, \quad F_1(i)=1
-$$
-
-and therefore:
-
-$$
-\forall 0< i<2^{D-1}, \quad F_1(i) = 2^{D-Depth(i)}.
-$$
-
-Surely, initially, when $N=0$, $d=0$, then $F_0(0)=1$, and $F_1(0)=0$.
-Note that when $D=0, N=2^0=1$:
-
-$$
-F_0(i)+F_1(i)=0 \bmod 2^{d-depth()}.
-$$
-
-Updates propagate along the path from a leaf to the root, resulting in logarithmic number of updates.
-
-The assigned index is determined by descending the tri.e.,  At a node index $j$, $F_0(Left(j))$ denotes _the number of free slots in the left subtree_. If $k < F_0(Left(i))$, the traversal continues to the left child. Otherwise, the traversal continues to the right child with updated rank $k_i \mapsto k_i - F_0(Left(i))$:
-
-```python
-func SelectDonor( k uint32 ) returns overlay  
-
-  uint32 j = 1
-  for depth(j)<depth() 
-    if !NA(O(j)) o=O(j)   # overlay assigned
-    j=Left(j)             # set j to left child
-    if k>F(j)             # if k over volume on left branch
-      k-=F(j)             # then adjust to subtree volume;
-      j++                 # set j as the right child
-    F(j)=F(j)-1           # decrement volume
-
-  if !NA(O(j)) o=O(j)     # depth overlay assigned
-  j=Left(j)               # set j to left child
-  j+=rand(2)              # set to right with 0.5 probability
-  if !NA(O(j)) o=O(j)     # depth overlay assigned
-
-  return o
+```text
+targetPrefix(r):
+    i = 1
+    c = 0                            # accumulated prefix bits
+    while Depth(i) < d:
+        c = c << 1
+        i = Left(i)
+        if r >= splitCount(i):       # not enough candidates on the left
+            r = r - splitCount(i)
+            i = i + 1                # continue in the right subtree
+            c = c | 1
+    b = overlay(i)[d]                # incumbent's next bit
+    return (c << 1) | (1 - b)        # applicant takes the sibling child
 ```
 
-### Further endpoints
+Since the prefix equals the binary representation of $\operatorname{Position}(i)$, the accumulator `c` is redundant with the final index — it is shown for clarity; an implementation may just return $\operatorname{Position}$ of the selected child.
 
-A public read-only endpoint exists for querying neighbourhoods as well as nodes. Accessor for $d$ and $N$ will return the current neighbourhood depth and the current number of assigned neighbourhoods. A public accessor for $A_d$ will  return for a neighbourhood (between $0$ and $2^d-1$ inclusive) the overlay of the node assigned to that neighbourhood. Another endpoint will return for any partial address $o$ the closest node, so that the network service can find responsible nodes for (i.e., closest to) any address in the space shared by overlays:
+Donor selection descends the same way over `donorCount`, terminating at a depth-$d$ parent whose two children are active leaves, and then consumes one further random bit to pick the moving donor from the pair:
+
+```text
+selectDonor(r, s):                   # rank r over donor pairs, s one extra seed bit
+    i = 1
+    while Depth(i) < d:
+        i = Left(i)
+        if r >= donorCount(i):       # not enough pairs on the left
+            r = r - donorCount(i)
+            i = i + 1                # continue in the right subtree
+    j = Left(i) + s                  # choose one of the two siblings uniformly
+    return leaf(j)                   # the moving donor
+```
+
+The bit $s$ is taken from the same seed $\rho_q$ (e.g. the next bit after those consumed by rejection sampling), so the choice within the pair is as unpredictable as the pair itself. The donor's sibling $\operatorname{Sibling}(j)$ takes over the pair's parent prefix $i$, which is what makes the donor's removal a balanced one.
+
+#### Commit queues and expiry
+
+Both queues $C_R$ and $C_D$ hold entry structs $e=\langle a,h\rangle$ — the committing identity and its commit block height — as append-only arrays with a head index. Since block heights are recorded in commit order, they are monotonically increasing, and expired entries are always contiguous at the front. `expire` therefore never scans the whole queue: it advances the head past entries older than the validity window, burning their fees, and stops at the first valid entry:
+
+```text
+expire(queue, maxSteps):
+    steps = 0
+    while queue.head < queue.length and steps < maxSteps:
+        e = queue[queue.head]
+        if e.height + VW >= currentBlock: break   # first valid entry
+        burnFee(e)
+        queue.head = queue.head + 1
+        steps = steps + 1
+```
+
+This is $O(1)$ amortized and bounded per call by `maxSteps`. It SHOULD be invoked at the start of `activate` and `deregister` processing, so the queues are clean before any state transition; after `expire`, checking that a registration is live reduces to verifying that its entry sits at or beyond the head.
+
+A donor's re-entry is pushed with the block height recorded by the `deregister` call, so it expires on the same schedule as the departure that caused it. A defaulted donor's entry is passed over like any expired entry — its stake forfeited by `expireDonor`, which pushes the fresh donor's entry at the current height.
+
+For $N\geq1$, joining terminals are active leaves at depth $d$. Donor-selection terminals are depth-$d$ parents whose two children are active leaves. The contract MUST assert before selection that the root count equals the count implied by the invariant:
 
 $$
-\begin{eqnarray}
-g&:&\Sigma^{256}\to\Sigma^{256}\\
-g(a)&=&O!(a\gg(254-d))
-\end{eqnarray}
+\operatorname{splitCount}(1)=2^{d+1}-N,
 $$
 
-If the resulting overlay address falls into the neighbourhood that the registrant was assigned to, i.e., the correctness of the nonce submitted from the perspective of the staking contract.
+$$
+\operatorname{donorCount}(1)=N-2^d.
+$$
 
-### Changes to the bee client
+For $N=0$, the implementation uses the empty prefix as a single bootstrap slot and has no donor pair.
 
-A new endpoint must be added to clients to register a node that is not yet registered to be assigned a neighbourhood. Once the neighbourhood is known, the client can mine the nonce needed to place the overlay in the required neighbourhood.
+These assertions provide useful invariant checks in tests even if production code omits them for gas reasons.
 
-### Migration
+### Client integration
 
-Since a new updated staking contract, a stake migration will be needed for the upgrade. Before the change, all the simplification of the staking contract is recommended, especially to allow fixed stake  in order to realign redundancy of storage and monetary incentive: with a fixed amount staked, total stake is linearly proportional to the number of nodes, and therefore comparisons across neighbourhoods can be made based on the number of nodes. In particular, the random balanced assignment makes sense in terms of incentives (expected revenue).
+Bee requires an operator-facing workflow for both initial assignment and relocation:
 
+1. create or load the node key;
+2. register its public-key commitment through the staking/registry integration;
+3. wait for the entropy delay;
+4. query the current target prefix and deadline;
+5. mine an overlay nonce satisfying that prefix;
+6. submit activation (re-querying and re-mining if the target changed);
+7. start or update the node with the activated overlay; and
+8. expose registration and relocation progress.
+
+The contract and Bee MUST use exactly the same overlay derivation function, field encoding, network ID, and bit ordering. These values MUST be fixed by test vectors before deployment.
+
+For relocation, Bee SHOULD support a staging mode in which the old overlay continues serving while the new overlay is mined and synchronized. What data moves, and how, is outside this SWIP (see [Data handover](#data-handover)).
+
+Read-only Bee endpoints MAY expose registry state, but they MUST NOT be confused with contract methods. Suggested client operations are:
+
+- begin or inspect registration;
+- report the current target prefix and expiry;
+- begin nonce mining;
+- report mining progress;
+- report synchronization status; and
+- finalize activation or departure.
+
+## Security
+
+The registry improves distribution only under explicit identity, randomness, and chain-finality assumptions. It must be evaluated together with staking and the storage-proof or service protocol.
+
+### Threat model
+
+The adversary may:
+
+- create and fund multiple Ethereum identities;
+- operate multiple Bee nodes;
+- abandon an assignment after learning its prefix;
+- reorder, front-run, or censor transactions when it controls block production;
+- attempt to bias a future block hash;
+- cause nodes to go offline during joins or relocations;
+- submit stale state or invalid overlay nonces;
+- target contract operations with large queues or expensive cleanup;
+- exploit reentrancy or inconsistent cross-contract state; and
+- withhold stored data after relocating.
+
+The adversary is not assumed to:
+
+- break the hash function or signature scheme;
+- predict an honest future entropy source before registration; or
+- revert finalized chain history beyond the deployment's confirmation assumption.
+
+#### Sybil concentration
+
+If there are $m$ equally eligible split candidates and an attacker finalizes $q$ independent registrations, the number assigned to any particular candidate follows a binomial distribution with success probability $1/m$, subject to the tree changing after each successful activation. The exact multi-round probability depends on those state changes.
+
+The proposal does not impose a global-majority threshold below which concentration is impossible. Instead, each additional trial requires capital and exposes the attacker to a non-refundable fee or to operating the node at its assigned prefix. Deployment analysis SHOULD estimate the cost of obtaining a target concentration at expected network size.
+
+#### Assignment races
+
+Because no reservation is held, two applicants may compute the same target, or an activation may change the tree while another applicant mines. The activation transaction validates against current state, so consistency is never at risk; the cost is wasted mining work for the loser, who recomputes and re-mines. Under realistic churn rates such collisions are rare, and their cost falls entirely on the colliding applicants.
+
+#### Selective abort and liveness
+
+A participant can refuse to activate an undesirable target, and a selected donor can refuse to relocate. Fees, deadlines, and stake forfeiture make these choices costly, while permissionless expiry and redraw calls restore progress. Since joins are not serialized, a stalling applicant delays nobody but itself; a stalling donor delays only the departure it was drawn for, bounded by the validity window, after which its stake is forfeited and a fresh donor is drawn.
+
+#### Entropy manipulation
+
+Future block hashes provide applicant unpredictability, not cryptographic proof of unbiased randomness. Confirmation delays reduce reorganization risk but do not remove proposer influence. High-value deployments SHOULD use a stronger beacon or verifiable randomness function.
+
+#### Contract denial of service
+
+Queue processing MUST be bounded per transaction. Expiry SHOULD advance a queue head or process a caller-specified maximum number of entries; it MUST NOT require iterating through all historical registrations.
+
+No transition should require iteration over all active leaves. Ranked subtree selection and path updates keep work logarithmic in $N$.
+
+#### Storage handover
+
+The registry tracks the assignment of address ranges, not possession of data. Whether and how stored content moves when assignments change is outside this SWIP (see [Data handover](#data-handover)): the vacated neighbourhood retains the data with the sibling node, and durability guarantees make relocation gaps repairable events.
+
+#### Shadow-world fabrication
+
+Balanced assignment can force an attacker seeking control of selected neighbourhoods to acquire assignments across the global prefix space. It does not by itself prove that the attacker's stored view matches the live network or that advertised stamp utilization is genuine.
+
+Any claimed cost ratio for a shadow-world attack depends on the postage-game sampling rule, utilization measurement, reward size, and the attacker's ability to reuse data. Those assumptions and the resulting derivation SHOULD be specified in the postage redistribution SWIP rather than asserted here without a model.
+
+### Gas and performance analysis
+
+Let $d=\lfloor\log_2 N\rfloor$.
+
+- Selecting a split candidate or donor pair takes $O(d)$ trie reads.
+- Activating a join or completing a departure updates $O(d)$ aggregate records.
+- Active assignment storage is $O(N)$.
+- Registration and expiry are $O(1)$ amortized when implemented with mappings and a monotonic queue head.
+- Overlay mining for an $\ell$-bit prefix requires $2^\ell$ hashes in expectation.
+
+Since $\ell$ is approximately $\log_2N+1$, expected overlay-mining work grows approximately linearly with the number of registered nodes. This off-chain cost is a material scalability constraint and MUST be benchmarked for target network sizes and supported hardware.
+
+Donor relocation adds nonce mining bounded by the validity window; its completion time is governed by mining and transaction finalization, not by data transfer, which is out of scope.
+
+The reference implementation SHOULD report gas for:
+
+- registration;
+- activation at several tree depths;
+- direct departure;
+- donor selection;
+- donor activation;
+- expiry and redraw.
+
+## Migration and backwards compatibility
+
+Deployment requires coordinated changes to the staking contract, registry contract, and swarm node client software. Existing nodes have self-selected overlays and cannot simply be inserted into a balanced registry without either relocation or an explicitly temporary imbalance.
+
+A migration plan MUST specify:
+
+1. the snapshot or eligibility rule for existing stake;
+2. whether existing nodes retain their identities and keys;
+3. how initial prefixes are assigned;
+4. the time allowed to mine new overlays and synchronize reserves;
+5. whether old and new redistribution games overlap;
+6. how stake moves between old and new contracts;
+7. rollback conditions; and
+8. the block or condition at which the new registry becomes authoritative.
+
+A safe staged migration is:
+
+1. deploy and audit the new staking and registry contracts;
+2. register existing operators without yet making the registry authoritative;
+3. assign prefixes and allow nodes to mine overlays;
+4. synchronize new reserves while old overlays remain active;
+5. verify minimum coverage and client readiness;
+6. activate the new game at a declared boundary; and
+7. retire old assignments only after the transition criteria are met.
+
+Fixed stake per node is recommended if reward eligibility is intended to correspond directly to the number of independently operated reserves. If variable stake remains supported, its interaction with random assignment and expected revenue MUST be specified separately.
+
+## Worked examples
+
+Let $\epsilon$ denote the empty prefix. One possible balanced progression is:
+
+| $N$ | $d$ | Active leaf prefixes |
+|---:|---:|---|
+| 1 | 0 | $\epsilon$ |
+| 2 | 1 | $0,1$ |
+| 3 | 1 | $00,01,1$ |
+| 4 | 2 | $00,01,10,11$ |
+| 5 | 2 | $000,001,01,10,11$ |
+| 6 | 2 | $000,001,010,011,10,11$ |
+| 7 | 2 | $000,001,010,011,100,101,11$ |
+| 8 | 3 | $000,001,010,011,100,101,110,111$ |
+
+Every row is prefix-free and covers the full address space. For $N=5$, three leaves have depth $2$, two leaves have depth $3$, and the largest area is twice the smallest.
+
+The five-node state can be visualized as:
+
+```mermaid
+graph TD
+    root["ε"]
+    root --> p0["0"]
+    root --> p1["1"]
+    p0 --> p00["00"]
+    p0 --> p01["01: active"]
+    p00 --> p000["000: active"]
+    p00 --> p001["001: active"]
+    p1 --> p10["10: active"]
+    p1 --> p11["11: active"]
+```
+
+Only the labelled active leaves form the partition. Internal prefixes such as $0$, $00$, and $1$ are not assignments.
+
+### Join from five to six nodes
+
+Assume the active leaves are:
+
+$$
+\{000,001,01,10,11\}.
+$$
+
+Here $N=5$, $d=2$, and the split candidates are:
+
+$$
+\{01,10,11\}.
+$$
+
+Thus:
+
+$$
+\operatorname{splitCount}(1)=2^{3}-5=3.
+$$
+
+Suppose uniform selection yields leaf $10$, and the incumbent overlay starts with $100$. The incumbent keeps child $100$, while the applicant targets $101$. After activation:
+
+$$
+\{000,001,01,100,101,11\}.
+$$
+
+There are now two depth-$2$ leaves and four depth-$3$ leaves, matching:
+
+$$
+2^{3}-6=2,
+\qquad
+2(6)-2^3=4.
+$$
+
+### Direct departure from five to four nodes
+
+Start from:
+
+$$
+\{000,001,01,10,11\}.
+$$
+
+If node $001$ departs, its sibling $000$ expands to their parent $00$. The result is:
+
+$$
+\{00,01,10,11\}.
+$$
+
+All four leaves are at depth $2$.
+
+### Donor relocation
+
+Start from the same five-node state:
+
+$$
+\{000,001,01,10,11\}
+$$
+
+and remove the depth-$2$ leaf $01$. Although $01$'s sibling prefix $00$ exists in the trie, it is not an active leaf: it has been split into the donor pair $000,001$. Select $001$ as the moving donor:
+
+1. $000$ takes over the pair's parent $00$ — the donor $001$ is removed exactly as if it had chosen to leave, a balanced removal;
+2. $001$ re-enters the commit queue with the block height recorded by the `deregister` call and target $01$;
+3. $001$ mines a new overlay under $01$ and activates it; and
+4. upon activation, the departing $01$ node is removed.
+
+The final active leaves are:
+
+$$
+\{00,01,10,11\}.
+$$
+
+Note that the donor's removal is itself just a balanced removal — the departure of the donor and the departure of the deregistering node are the same operation, differing only in who initiated it.
+
+### Uniform rank selection
+
+For the five-node join example, suppose rejection sampling produces rank $r=1$ over the ordered candidates:
+
+$$
+[01,10,11].
+$$
+
+Rank selection returns $10$. If the left subtree contains one candidate, then $r\geq1$, so traversal subtracts one and continues right with rank zero. This illustrates why zero-based selection uses `r < leftCount` for the left branch and not `r <= leftCount`.
+
+The descent through the ICBT, with `splitCount` shown at each visited index:
+
+```mermaid
+graph TD
+    1["index 1 (ε): count 3"]
+    2["index 2 (0): count 1"]
+    3["index 3 (1): count 2"]
+    6["index 6 (10): count 1 — selected"]
+    7["index 7 (11): count 1"]
+    1 -.->|"r=1 ≥ 1: skip, r←0"| 2
+    1 ==>|"go right"| 3
+    3 ==>|"r=0 < 1: go left"| 6
+    3 -.-> 7
+```
+
+Solid arrows mark the traversal; the dashed branches are only inspected for their counts. The incumbent at $10$ has next bit $0$ (overlay starts $100$), so `targetPrefix` returns $10\mathbin\Vert 1=101$.
+
+## Reference implementation
+
+A conforming reference implementation should include:
+
+- a registry contract implementing the state machine;
+- a staking-contract adapter;
+- a Swarm client integration for registration, nonce mining, and relocation;
+- deterministic overlay-derivation test vectors;
+- property tests for the balance invariant;
+- adversarial tests for expiry, redraw, selective aborts, and queue growth;
+- gas benchmarks across representative values of $N$; and
+- an executable migration test.
+
+At minimum, property-based tests MUST verify after every completed transition that:
+
+$$
+|L(S)|=N,
+$$
+
+the sub-network has full coverage:
+
+$$
+\bigcup_{p\in L(S)}NH(p)=\Sigma^{256},
+$$
+
+nodes have disjoint neighbourhoods:
+
+$$
+\forall p,q\in L(S),\ p\neq q
+\Longrightarrow NH(p)\cap NH(q)=\varnothing,
+$$
+
+the nodes are balanced:
+
+$$
+\forall p\in L(S),\ |p|\in\{d,d+1\},
+$$
+
+and that every active overlay starts with its assigned prefix.
+
+The implementation SHOULD also generate random valid sequences of joins, direct departures, donor relocations, expiries, and redraws, comparing contract state against a simple off-chain model after each completed transition.
+
+The exact Solidity ABI, Bee API paths, economic parameters, and deployment addresses remain to be supplied before this SWIP can advance beyond Draft.
