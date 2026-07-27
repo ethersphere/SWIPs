@@ -17,24 +17,38 @@ A node joins in exactly two transactions: it first commits its identity, stake, 
 
 The mechanism is intended to make targeted concentration in a particular neighbourhood probabilistic and costly, and to support balanced allocation of storage-incentive or decentralised-service workloads. It does not establish operator identity or prevent one operator from registering multiple nodes.
 
-## Scope
+## Scope and goals
 
-This SWIP defines:
-
-- the balance invariant maintained by the registry;
-- the join, activation, and departure state transitions;
-- the source and use of randomness;
-- the contract state required to select prefixes and donor nodes;
-- the integration points required by the swarm client; and
-- the security and liveness assumptions of the mechanism.
+This SWIP defines the balance invariant maintained by the registry; the join, activation, and departure state transitions; the source and use of randomness; the contract state required to select prefixes and donor nodes; the integration points required by the swarm client; and the security and liveness assumptions of the mechanism.
 
 The join procedure consists of two transactions, `register` and `activate`; everything between them — entropy finalization, target-prefix computation, and overlay mining — happens off-chain or through read-only calls. The registry holds no reservations: the target prefix is at all times a deterministic, read-only computation over current contract state. A target invalidated by an intervening activation simply yields a new target; under realistic churn such races are rare and cost only local mining work.
+
+The mechanism is designed to achieve:
+
+- complete coverage of the address space by disjoint areas of responsibility;
+- a maximum factor of two between the largest and smallest areas;
+- uniformly random selection among currently eligible split candidates or donor pairs;
+- assignment that is unknown to an applicant when it commits stake and fees;
+- a bounded, explicit procedure for failed joins and failed donor relocations;
+- logarithmic contract work in the number of active nodes for selection and tree updates; and
+- deterministic validation of assignments by the contract and swarm node clients.
+
+The following are explicit non-goals:
+
+- proving that two Ethereum addresses belong to different operators;
+- enforcing one human or one operator per node;
+- preventing a well-funded operator from registering many independently assigned nodes;
+- defining the postage redistribution game itself;
+- defining the stake amount, application fee, reward, or slashing schedule; and
+- specifying the transfer of stored content between nodes (see [Data handover](#data-handover)).
+
+Stake, fees, activation deadlines, and relocation deadlines are nevertheless security parameters. Their values MUST be specified by deployment configuration or by the staking specification on which a deployment depends.
 
 ### Terminology
 
 **Address space** — the set $\Sigma^{256}$, where $\Sigma=\{0,1\}$.
 
-**Overlay** — node overlay address derived from a node's public key, network ID, and overlay nonce using Bee's canonical overlay derivation function.
+**Overlay** — node overlay address derived from a node's public key, network ID, and overlay nonce using Swarm's canonical overlay derivation function.
 
 **Prefix** — a bit string $p\in\Sigma^\ell$. Its length $\ell$ is its depth.
 
@@ -42,7 +56,7 @@ The join procedure consists of two transactions, `register` and `activate`; ever
 
 **Leaf** — a prefix currently assigned to exactly one active node. Active leaves form a complete, prefix-free partition of the address space.
 
-**Sibling** — the other child of the same parent prefix. For $p=b_0\ldots b_{\ell-1}$, its sibling is $b_0\ldots(1-b_{\ell-1})$.
+**Sibling/sister** — the other child of the same parent prefix. For $p=b_0\ldots b_{\ell-1}$, its sibling is $b_0\ldots(1-b_{\ell-1})$.
 
 **Split candidate** — an active leaf at the current minimum depth $d$. A join splits this leaf into two child prefixes.
 
@@ -55,29 +69,6 @@ The join procedure consists of two transactions, `register` and `activate`; ever
 **Pending departure** — a departure awaiting donor relocation.
 
 **Active node count** — $N$, the number of activated nodes in the balanced partition. A pending registration is not active.
-
-### Goals and explicit non-goals
-
-The goals of this SWIP are:
-
-- complete coverage of the address space by disjoint areas of responsibility;
-- a maximum factor of two between the largest and smallest areas;
-- uniformly random selection among currently eligible split candidates or donor pairs;
-- assignment that is unknown to an applicant when it commits stake and fees;
-- a bounded, explicit procedure for failed joins and failed donor relocations;
-- logarithmic contract work in the number of active nodes for selection and tree updates; and
-- deterministic validation of assignments by the contract and Bee clients.
-
-The following are explicit non-goals:
-
-- proving that two Ethereum addresses belong to different operators;
-- enforcing one human or one operator per node;
-- preventing a well-funded operator from registering many independently assigned nodes;
-- defining the postage redistribution game itself;
-- defining the stake amount, application fee, reward, or slashing schedule; and
-- specifying the transfer of stored content between nodes (see [Data handover](#data-handover)).
-
-Stake, fees, activation deadlines, and relocation deadlines are nevertheless security parameters. Their values MUST be specified by deployment configuration or by the staking specification on which a deployment depends.
 
 ## Motivation
 
@@ -93,7 +84,7 @@ Fixed stake per active node is compatible with this construction because equally
 
 ## Solution
 
-Let $S=\{n_0,\ldots,n_{N-1}\}$ be the set of active nodes. Node $n_i$ has an Ethereum staking identity $a_i$, a Bee public key $P_i$, and an overlay $o_i\in\Sigma^{256}$. The staking identity MUST authorize the public key used to derive the overlay.
+Let $S=\{n_0,\ldots,n_{N-1}\}$ be the set of active nodes. Node $n_i$ has an Ethereum staking identity $a_i$, a Swarm node public key $P_i$, and an overlay $o_i\in\Sigma^{256}$. The staking identity MUST authorize the public key used to derive the overlay.
 
 For a prefix $p\in\Sigma^\ell$, define:
 
@@ -172,15 +163,15 @@ The join protocol consists of exactly two transactions: `register` and `activate
 The applicant submits:
 
 - its staking identity $a_i$;
-- its Bee public key $P_i$;
+- its Swarm node public key $P_i$;
 - the required stake;
 - a non-refundable application fee.
 
-The contract creates a registration with a unique request ID, records the registration block height $h_i$, and appends the entry to the registration queue. An identity MUST NOT have more than one live registration or active assignment. The stake remains locked until the registration activates or expires according to the staking rules.
+The contract records the registration block height $h_i$ and appends the entry to the registration queue. An identity MUST NOT have more than one live registration or active assignment, so registrations are keyed by the staking identity itself — no separate request ID exists. The stake remains locked until the registration activates or expires according to the staking rules.
 
 Registering does not modify the active prefix tree.
 
-The registration is valid for a _validity window_ of $VW$ blocks. In practice $VW < 256$, the number of blocks for which a block hash remains available from within the EVM. Since block heights in the registration queue are monotonically increasing, entries expire from the front; a permissionless `expire` call advances the queue head past expired entries and burns their fees, without ever iterating the full queue.
+The registration is valid for a _validity window_ of $VW$ blocks. In practice $VW < 256$, the number of blocks for which a block hash remains available from within the EVM. Since block heights in the registration queue are monotonically increasing, entries expire from the front; a permissionless `expireReg` call advances the queue head past expired entries and burns their fees, without ever iterating the full queue.
 
 #### 2. Compute the target prefix
 
@@ -192,7 +183,7 @@ For $N=0$, selection is omitted and the target is the empty prefix. There is no 
 
 #### 3. Mine an overlay
 
-The applicant mines a nonce $\nu_i$ such that Bee's canonical overlay derivation:
+The applicant mines a nonce $\nu_i$ such that Swarm's canonical overlay derivation:
 
 $$
 o_i=\operatorname{Overlay}(P_i,\operatorname{networkID},\nu_i)
@@ -245,30 +236,31 @@ The donor MAY operate its old and new overlays concurrently during the transitio
 
 If the donor fails to activate within the validity window, it is dropped from the registry and its stake is forfeited; a fresh donor is drawn with new entropy and the procedure repeats. The departing node remains active until a donor completes.
 
+Any number of departures MAY pend concurrently: each records its own donor and relocation deadline, and a stalled donor delays only its own departure. Concurrent draws never collide, because the donor's sibling takeover is applied to the tree at draw time, so every draw selects from the currently remaining pairs. A leaf whose departure is pending is excluded from split-candidate eligibility, so a join cannot split a neighbourhood that is about to be vacated.
+
 #### Data handover
 
 This SWIP specifies only the assignment of nodes to neighbourhoods; the handover of stored content during relocation is deliberately left unspecified. A relocated node is expected to synchronise the reserve of its newly assigned neighbourhood, while the neighbourhood it vacated retains the data with the sibling node. With upcoming durability guarantees, such relocation gaps become repairable events; in particular, a newly assigned node need not sync its reserve live from its sibling but may instead acquire the neighbourhood's content from cold storage.
 
 ### Randomness and anti-grinding measures
 
-For request $q$, registered in block $h_q$, let the entropy block be:
+For a registration by identity $a$, committed in block $h_a$, let the entropy block be:
 
 $$
-t_q=h_q+\Delta,
+t_a=h_a+\Delta,
 $$
 
-where $\Delta\geq1$ is a configured delay. The seed becomes computable only after $t_q$ has the configured number of confirmations, and remains computable only while its block hash is available to the contract.
+where $\Delta\geq1$ is a configured delay. The seed becomes computable only after $t_a$ has the configured number of confirmations, and remains computable only while its block hash is available to the contract.
 
 The seed is domain-separated:
 
 $$
-\rho_q=\operatorname{keccak256}(
+\rho_a=\operatorname{keccak256}(
 \texttt{"SWIP39"}\parallel
 \operatorname{chainID}\parallel
 \operatorname{contractAddress}\parallel
-q\parallel
-a_q\parallel
-\operatorname{blockhash}(t_q)).
+a\parallel
+\operatorname{blockhash}(t_a)).
 $$
 
 The deployment MUST specify $\Delta$, the confirmation delay, and the validity window. On an EVM deployment using the `BLOCKHASH` opcode, activation MUST occur before the referenced hash becomes unavailable.
@@ -293,7 +285,7 @@ The following measures limit assignment grinding:
 - an identity has at most one live registration;
 - the application fee is not refunded after entropy becomes available;
 - an expired registration forfeits its fee;
-- request IDs and identities are included in the seed; and
+- the registering identity is included in the seed; and
 - selection is computed from contract state, not from a caller-supplied list.
 
 These measures price selective aborts but do not prevent one operator from funding multiple identities. Security analysis MUST therefore express resistance in economic and probabilistic terms rather than as a one-operator-one-node guarantee.
@@ -307,38 +299,40 @@ The registry maintains:
 - `activeCount`: the number $N$ of active nodes;
 - `leaves`: trie leaves containing owner, public-key commitment, and overlay;
 - `participants`: staking identity to active assignment;
-- `registrations`: request ID to registration record;
-- `registrationQueue` ($C_R$) and `departureQueue` ($C_D$): pending request IDs in commit order;
+- `registrations`: staking identity to registration record;
+- `registrationQueue` ($C_R$) and `departureQueue` ($C_D$): pending identities in commit order;
 - subtree counts for split-candidate and donor-pair selection;
-- `pendingDeparture`: the departure currently awaiting donor relocation, if any; and
+- `pendingDepartures`: for each departure awaiting donor relocation (recorded in $C_D$), the drawn donor and its relocation deadline; and
 - configuration parameters and references to the staking contract.
 
-Joins require no coordination state: registrations queue freely and activations validate against current state. Only donor relocation pends:
+Joins require no coordination state: registrations queue freely and activations validate against current state. Only donor relocations pend, and any number of them may be in flight at once, each independent of the others. The lifecycle of any one departure:
 
 | State | Meaning | Permitted terminal action |
 |---|---|---|
-| `Idle` | No pending rebalancing | Registrations, activations, and direct departures proceed freely |
-| `DonorPending` | Donor drawn, relocation in progress | Donor activates and the departure completes, or the deadline passes: stake forfeited, fresh donor drawn |
+| `Active` | No pending rebalancing | Registrations, activations, and direct departures proceed freely |
+| `DonorPending` | Donor drawn, relocation in progress | Donor activates and the departure completes; the deadline passing moves to `Expired` |
+| `Expired` | Donor missed its relocation deadline | `expireDereg` forfeits the donor's stake and draws a fresh donor |
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Idle
-    Idle --> Idle: register / activate / direct deregister
-    Idle --> DonorPending: deregister requiring rebalancing
-    DonorPending --> Idle: donor activates, departure completes
-    DonorPending --> DonorPending: deadline passed, stake forfeited, fresh donor drawn
+    [*] --> Active
+    Active --> Active: register / activate / direct deregister
+    Active --> DonorPending: deregister requiring rebalancing
+    DonorPending --> Active: donor activates, departure completes
+    DonorPending --> Expired: relocation deadline passes
+    Expired --> DonorPending: expireDereg — stake forfeited, fresh donor drawn
 ```
 
-Contract methods and Bee HTTP endpoints are distinct interfaces. A reference contract is expected to expose operations equivalent to:
+Contract methods and swarm client HTTP endpoints are distinct interfaces. A reference contract is expected to expose operations equivalent to:
 
 - `register(publicKeyCommitment)`;
-- `targetPrefix(identity)` (read-only);
-- `activate(requestID, nonce, authorization)`;
-- `expire()`;
+- `target(identity)` (read-only): the current target prefix of a live registration;
+- `activate(nonce, authorization)`;
+- `expireReg()`: clean the registration queue;
 - `deregister()`;
-- `expireDonor(leaveID)`;
-- `getAssignment(identity)`; and
-- `closestActiveNode(address)`.
+- `expireDereg(identity)`: forfeit a defaulted donor and redraw;
+- `getPrefix(identity)` (read-only): the assigned prefix of an active node; and
+- `nodeFor(address)` (read-only): the active node closest to an address.
 
 All state-changing methods MUST validate the expected state and deadline. External calls to staking or proof-verification contracts MUST follow checks-effects-interactions or an equivalent reentrancy-safe pattern.
 
@@ -443,7 +437,7 @@ selectDonor(r, s):                   # rank r over donor pairs, s one extra seed
     return leaf(j)                   # the moving donor
 ```
 
-The bit $s$ is taken from the same seed $\rho_q$ (e.g. the next bit after those consumed by rejection sampling), so the choice within the pair is as unpredictable as the pair itself. The donor's sibling $\operatorname{Sibling}(j)$ takes over the pair's parent prefix $i$, which is what makes the donor's removal a balanced one.
+The bit $s$ is taken from the same seed $\rho_a$ (e.g. the next bit after those consumed by rejection sampling), so the choice within the pair is as unpredictable as the pair itself. The donor's sibling $\operatorname{Sibling}(j)$ takes over the pair's parent prefix $i$, which is what makes the donor's removal a balanced one.
 
 #### Commit queues and expiry
 
@@ -460,9 +454,9 @@ expire(queue, maxSteps):
         steps = steps + 1
 ```
 
-This is $O(1)$ amortized and bounded per call by `maxSteps`. It SHOULD be invoked at the start of `activate` and `deregister` processing, so the queues are clean before any state transition; after `expire`, checking that a registration is live reduces to verifying that its entry sits at or beyond the head.
+This is $O(1)$ amortized and bounded per call by `maxSteps`. The public entry points `expireReg` and `expireDereg` apply it to $C_R$ and $C_D$ respectively, and it SHOULD also run at the start of `activate` and `deregister` processing, so the queues are clean before any state transition; afterwards, checking that a registration is live reduces to verifying that its entry sits at or beyond the head.
 
-A donor's re-entry is pushed with the block height recorded by the `deregister` call, so it expires on the same schedule as the departure that caused it. A defaulted donor's entry is passed over like any expired entry — its stake forfeited by `expireDonor`, which pushes the fresh donor's entry at the current height.
+A donor's re-entry is pushed with the block height recorded by the `deregister` call, so it expires on the same schedule as the departure that caused it. A defaulted donor's entry is passed over like any expired entry — its stake forfeited by `expireDereg`, which pushes the fresh donor's entry at the current height.
 
 For $N\geq1$, joining terminals are active leaves at depth $d$. Donor-selection terminals are depth-$d$ parents whose two children are active leaves. The contract MUST assert before selection that the root count equals the count implied by the invariant:
 
@@ -480,7 +474,7 @@ These assertions provide useful invariant checks in tests even if production cod
 
 ### Client integration
 
-Bee requires an operator-facing workflow for both initial assignment and relocation:
+The swarm node client software requires an operator-facing workflow for both initial assignment and relocation:
 
 1. create or load the node key;
 2. register its public-key commitment through the staking/registry integration;
@@ -491,11 +485,11 @@ Bee requires an operator-facing workflow for both initial assignment and relocat
 7. start or update the node with the activated overlay; and
 8. expose registration and relocation progress.
 
-The contract and Bee MUST use exactly the same overlay derivation function, field encoding, network ID, and bit ordering. These values MUST be fixed by test vectors before deployment.
+The contract and the swarm node client MUST use exactly the same overlay derivation function, field encoding, network ID, and bit ordering. These values MUST be fixed by test vectors before deployment.
 
-For relocation, Bee SHOULD support a staging mode in which the old overlay continues serving while the new overlay is mined and synchronized. What data moves, and how, is outside this SWIP (see [Data handover](#data-handover)).
+For relocation, the swarm node client SHOULD support a staging mode in which the old overlay continues serving while the new overlay is mined and synchronized. What data moves, and how, is outside this SWIP (see [Data handover](#data-handover)).
 
-Read-only Bee endpoints MAY expose registry state, but they MUST NOT be confused with contract methods. Suggested client operations are:
+Read-only client endpoints MAY expose registry state, but they MUST NOT be confused with contract methods. Suggested client operations are:
 
 - begin or inspect registration;
 - report the current target prefix and expiry;
@@ -513,7 +507,7 @@ The registry improves distribution only under explicit identity, randomness, and
 The adversary may:
 
 - create and fund multiple Ethereum identities;
-- operate multiple Bee nodes;
+- operate multiple Swarm nodes;
 - abandon an assignment after learning its prefix;
 - reorder, front-run, or censor transactions when it controls block production;
 - attempt to bias a future block hash;
@@ -789,4 +783,4 @@ and that every active overlay starts with its assigned prefix.
 
 The implementation SHOULD also generate random valid sequences of joins, direct departures, donor relocations, expiries, and redraws, comparing contract state against a simple off-chain model after each completed transition.
 
-The exact Solidity ABI, Bee API paths, economic parameters, and deployment addresses remain to be supplied before this SWIP can advance beyond Draft.
+The exact Solidity ABI, client API paths, economic parameters, and deployment addresses remain to be supplied before this SWIP can advance beyond Draft.
