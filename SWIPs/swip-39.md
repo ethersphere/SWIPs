@@ -186,7 +186,7 @@ For $N=0$, selection is omitted and the target is the empty prefix. There is no 
 The applicant mines a nonce $\nu_i$ such that Swarm's canonical overlay derivation:
 
 $$
-o_i=\operatorname{Overlay}(P_i,\operatorname{networkID},\nu_i)
+o_i=\mathrm{Overlay}(P_i,\mathrm{networkID},\nu_i)
 $$
 
 starts with the target prefix.
@@ -255,12 +255,12 @@ where $\Delta\geq1$ is a configured delay. The seed becomes computable only afte
 The seed is domain-separated:
 
 $$
-\rho_a=\operatorname{keccak256}(
+\rho_a=\mathrm{keccak256}(
 \texttt{"SWIP39"}\parallel
-\operatorname{chainID}\parallel
-\operatorname{contractAddress}\parallel
+\mathrm{chainID}\parallel
+\mathrm{contractAddress}\parallel
 a\parallel
-\operatorname{blockhash}(t_a)).
+\mathrm{blockhash}(t_a)).
 $$
 
 The deployment MUST specify $\Delta$, the confirmation delay, and the validity window. On an EVM deployment using the `BLOCKHASH` opcode, activation MUST occur before the referenced hash becomes unavailable.
@@ -346,15 +346,15 @@ An _implicit complete binary trie (ICBT)_ uses one-based heap indices; no pointe
 
 | Description | Notation | Definition |
 |---|---|---|
-| depth of $i$ | $\operatorname{Depth}(i)$ | $\lfloor\log_2 i\rfloor$ |
-| parent of $i$ | $\operatorname{Parent}(i)$ | $\lfloor i/2\rfloor$ |
-| left child of $i$ | $\operatorname{Left}(i)$ | $2i$ |
-| right child of $i$ | $\operatorname{Right}(i)$ | $2i+1$ |
-| sibling of $i$ | $\operatorname{Sibling}(i)$ | $i+1-2(i\bmod 2)$ |
-| position of $i$ within its level | $\operatorname{Position}(i)$ | $i-2^{\operatorname{Depth}(i)}$ |
-| index of prefix $p$ with $\lvert p\rvert=\ell$ | $\operatorname{Index}(p)$ | $2^\ell+\operatorname{uint}(p)$ |
+| depth of $i$ | $\mathrm{Depth}(i)$ | $\lfloor\log_2 i\rfloor$ |
+| parent of $i$ | $\mathrm{Parent}(i)$ | $\lfloor i/2\rfloor$ |
+| left child of $i$ | $\mathrm{Left}(i)$ | $2i$ |
+| right child of $i$ | $\mathrm{Right}(i)$ | $2i+1$ |
+| sibling of $i$ | $\mathrm{Sibling}(i)$ | $i+1-2(i\bmod 2)$ |
+| position of $i$ within its level | $\mathrm{Position}(i)$ | $i-2^{\mathrm{Depth}(i)}$ |
+| index of prefix $p$ with $\lvert p\rvert=\ell$ | $\mathrm{Index}(p)$ | $2^\ell+\mathrm{uint}(p)$ |
 
-The binary representation of $\operatorname{Position}(i)$, padded to $\operatorname{Depth}(i)$ bits, is exactly the prefix designated by index $i$ — so the constraint prefix handed to the miner can be read off the index alone, with no storage access. The first three levels:
+The binary representation of $\mathrm{Position}(i)$, padded to $\mathrm{Depth}(i)$ bits, is exactly the prefix designated by index $i$ — so the constraint prefix handed to the miner can be read off the index alone, with no storage access. The first three levels:
 
 ```mermaid
 graph TD
@@ -421,7 +421,7 @@ targetPrefix(r):
     return (c << 1) | (1 - b)        # applicant takes the sibling child
 ```
 
-Since the prefix equals the binary representation of $\operatorname{Position}(i)$, the accumulator `c` is redundant with the final index — it is shown for clarity; an implementation may just return $\operatorname{Position}$ of the selected child.
+Since the prefix equals the binary representation of $\mathrm{Position}(i)$, the accumulator `c` is redundant with the final index — it is shown for clarity; an implementation may just return $\mathrm{Position}$ of the selected child.
 
 Donor selection descends the same way over `donorCount`, terminating at a depth-$d$ parent whose two children are active leaves, and then consumes one further random bit to pick the moving donor from the pair:
 
@@ -437,7 +437,7 @@ selectDonor(r, s):                   # rank r over donor pairs, s one extra seed
     return leaf(j)                   # the moving donor
 ```
 
-The bit $s$ is taken from the same seed $\rho_a$ (e.g. the next bit after those consumed by rejection sampling), so the choice within the pair is as unpredictable as the pair itself. The donor's sibling $\operatorname{Sibling}(j)$ takes over the pair's parent prefix $i$, which is what makes the donor's removal a balanced one.
+The bit $s$ is taken from the same seed $\rho_a$ (e.g. the next bit after those consumed by rejection sampling), so the choice within the pair is as unpredictable as the pair itself. The donor's sibling $\mathrm{Sibling}(j)$ takes over the pair's parent prefix $i$, which is what makes the donor's removal a balanced one.
 
 #### Commit queues and expiry
 
@@ -461,11 +461,11 @@ A donor's re-entry is pushed with the block height recorded by the `deregister` 
 For $N\geq1$, joining terminals are active leaves at depth $d$. Donor-selection terminals are depth-$d$ parents whose two children are active leaves. The contract MUST assert before selection that the root count equals the count implied by the invariant:
 
 $$
-\operatorname{splitCount}(1)=2^{d+1}-N,
+\mathrm{splitCount}(1)=2^{d+1}-N,
 $$
 
 $$
-\operatorname{donorCount}(1)=N-2^d.
+\mathrm{donorCount}(1)=N-2^d.
 $$
 
 For $N=0$, the implementation uses the empty prefix as a single bootstrap slot and has no donor pair.
@@ -658,7 +658,7 @@ $$
 Thus:
 
 $$
-\operatorname{splitCount}(1)=2^{3}-5=3.
+\mathrm{splitCount}(1)=2^{3}-5=3.
 $$
 
 Suppose uniform selection yields leaf $10$, and the incumbent overlay starts with $100$. The incumbent keeps child $100$, while the applicant targets $101$. After activation:
