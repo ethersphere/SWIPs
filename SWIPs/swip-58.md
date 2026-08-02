@@ -290,7 +290,7 @@ The pattern is specified as PubSub Milestone 3 in
 [ethersphere/SWIPs PR #93](https://github.com/ethersphere/SWIPs/pull/93); implementation
 groundwork in [bee PR #5435](https://github.com/ethersphere/bee/pull/5435) (pubsub) and
 [bee PR #5486](https://github.com/ethersphere/bee/pull/5486) (MIC/MOC). A standalone MEX
-library API is TBD. Re dd
+library API is TBD.
 
 ## Copyright
 
