@@ -282,7 +282,7 @@ targeted delivery to closest node) are opt-in per service.
 - A forged Phase-2 SOC at the watched address is rejected (AEAD failure) and the genuine
   one still completes within `T_RESPONSE`.
 - Watch entries expire after `T_RESPONSE`; the pending-session cap is enforced.
-- Responder's locally stored response chunk is served on retrieval without a poQ                stage stamp.
+- Responder's locally stored response chunk is served on retrieval without a postage stamp.
 
 ## Implementation
 
