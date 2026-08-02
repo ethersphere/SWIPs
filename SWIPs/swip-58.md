@@ -67,7 +67,7 @@ primitive with well-defined parameters, instead of near-copies with drifting det
 - **Service ID** `SID` — a well-known 32-byte SOC identifier that scopes the exchange to a
   service, e.g. `SID = keccak256("PUBSUB-REQUEST")`. Each MEX-based protocol MUST define
   its own `SID`.
-- **Requester** — the initiating node. MUST be able to push-sync chunks and retrieve  chunks. MAY be a light node; MAY be non-reachable.
+- **Requester** — the initiating node. MUST be able to push-sync chunks and retrieve chunks. MAY be a light node; MAY be non-reachable.
 - **Responder** — a full node in the anchor's neighbourhood that provides the service:
   it watches incoming SOCs whose ID equals `SID` (a MIC subscription, SWIP-42).
 - **Session** — one request/response exchange, identified by the requester's ephemeral key.
