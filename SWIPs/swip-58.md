@@ -186,10 +186,11 @@ parties after Phase 1: the requester knows `sk_S` and `pk_B` (from the receipt);
 responder knows `sk_B` and `pk_S` (from the MOC).
 
 ```
-shared   = ECDH(sk_S, pk_B) = ECDH(sk_B, pk_S)
-req_key  = keccak256(shared ‖ 0x00)     // Phase-2 request payload
-res_key  = keccak256(shared ‖ 0x01)     // response payload
-nonce_*  = keccak256(key)[:12]          // deterministic per key
+shared    = ECDH(sk_S, pk_B) = ECDH(sk_B, pk_S)
+req_key   = keccak256(shared ‖ 0x00)     // Phase-2 request payload
+res_key   = keccak256(shared ‖ 0x01)     // response payload
+nonce_req = keccak256(req_key)[:12]      // deterministic per key (12 bytes)
+nonce_res = keccak256(res_key)[:12]      // deterministic per key (12 bytes)
 ```
 
 Separate directional keys avoid nonce reuse. Because `sk_S` is freshly mined per session,
