@@ -28,7 +28,7 @@ assets/swip-60/bps.proto. -->
 
 A real-time messaging protocol: WebSocket clients publish and subscribe to topic streams
 through Bee nodes. One full node per topic acts as **broker**, re-broadcasting each message
-over direct, long-lived p2p streams to at most **cap** connected peers. Messages are
+over direct, long-lived p2p streams to a capacity-bounded set of connected peers. Messages are
 single-owner chunks, so every subscriber verifies authorship end-to-end; the broker can
 withhold, never forge.
 
@@ -36,7 +36,7 @@ withhold, never forge.
 
 Swarm's event primitives (GSOC, PSS) require full-node operation; light clients can only
 poll storage. BPS singlehop is the smallest protocol that fixes this: one broker, direct
-streams, authenticated messages, an explicit connection cap. Everything larger — multihop
+streams, authenticated messages, an explicit capacity bound. Everything larger — multihop
 trees, adaptive reorganisation, incentives, discovery — is layered on top by later SWIPs
 without changing the semantics defined here.
 
