@@ -1,12 +1,21 @@
 // Broadcast Pub/Sub (BPS) — protocol messages and types.
 // Spec: SWIP-60 (../../swip-60.md).
 //
-// Deliberately incomplete as of 2026-08-02: the singlehop (depth = 1) subset is
-// concrete; multihop control-plane messages are named but reserved. The existing
-// implementation (bee PR #5435) uses hand-rolled byte framing with the same
-// semantics; this file is the normative description of the message structure,
-// and — bee protocols being protobuf-over-libp2p elsewhere — the candidate
-// replacement framing.
+// Revision 2 (2026-08-05), after review on PR #104: Connect split into
+// Open/Subscribe (subscribers carry no cohort metadata), broker capacity
+// removed from CohortSpec (it is broker-side policy, not a cohort parameter),
+// Ping dropped (liveness/RTT are transport concerns), and every frame carries
+// the full SOC (no handshake/data split). Field numbers renumbered — the
+// draft has no deployed compatibility surface.
+//
+// Enum zero values (*_UNSPECIFIED): proto3 requires a zero value; it is
+// deliberately NOT a legitimate wire value. It exists so that an unset field
+// is detectable and no implementation can silently rely on a default.
+// Receivers MUST reject messages carrying it.
+//
+// The singlehop (depth = 1) subset is concrete; multihop control-plane
+// messages are reserved. Implementation groundwork: bee PR #5435
+// (hand-rolled byte framing with the same semantics).
 
 syntax = "proto3";
 package bps;
@@ -17,50 +26,59 @@ option go_package = "github.com/ethersphere/bee/v2/pkg/bps/pb";
 // Cohort genesis — the primitive decisions whose combinations are the "modes"
 // ---------------------------------------------------------------------------
 
-// What the topic binds to (see epic: "What does the topic bind to?").
+// What the topic binds to (see SWIP-60: binding semantics).
 enum TopicBinding {
-  TOPIC_BINDING_UNSPECIFIED = 0;
+  TOPIC_BINDING_UNSPECIFIED = 0; // invalid on the wire (see header note)
   ANCHOR     = 1; // topic = full SOC/GSOC address; dedup on the wrapped CAC
   SOC_ID     = 2; // topic = SOC id; any owner with PO(addr, anchor) >= po_min
   OWNER      = 3; // topic = SOC owner; any id with PO(addr, anchor) >= po_min (MIC)
   FEED_TOPIC = 4; // id = keccak256(topic ‖ index); graffiti MIC / feed streams
 }
 
-// Who may author (see epic: genesis dimensions).
+// Who may author.
 enum PublisherRegime {
-  PUBLISHER_REGIME_UNSPECIFIED = 0;
-  EXPLICIT_SINGLE = 1; // opener is admin and sole publisher (live streaming)
-  EXPLICIT_LIST   = 2; // admin dictates who the other publishers are
+  PUBLISHER_REGIME_UNSPECIFIED = 0; // invalid on the wire (see header note)
+  EXPLICIT_SINGLE = 1; // opener is the sole publisher (live streaming)
+  EXPLICIT_LIST   = 2; // set fixed at genesis: admin + publisher_list
+                       // (dynamic grants/revocations: later revision)
   IMPLICIT        = 3; // authorship implied by the topic binding (PO constraint)
   ALL             = 4; // every peer publishes (gossipsub-equivalent cohort)
 }
 
-// The (partial) decisions fixed the moment the first full node is contacted.
+// Fixed by the cohort's opener; immutable for the cohort's lifetime.
+// NOTE: broker capacity is NOT a cohort parameter — a cohort cannot dictate a
+// remote node's connection count. Each broker enforces its own per-topic
+// stream limit and answers FULL when it is exhausted.
 message CohortSpec {
-  bytes           topic      = 1; // 32 bytes, meaning per binding
-  TopicBinding    binding    = 2;
-  PublisherRegime publishers = 3;
-  bool            history    = 4; // deliver matching chunks from the local store
-  bytes           admin      = 5; // 20-byte eth address; set iff EXPLICIT_*
-  uint32          po_min     = 6; // proximity order for implicit bindings (default 16)
-  uint32          cap        = 7; // max direct streams the broker accepts for this topic (0 = broker default)
-  bool            closed     = 8; // no audience: subscribers restricted to the publisher list
+  bytes           topic          = 1; // 32 bytes, meaning per binding
+  TopicBinding    binding        = 2;
+  PublisherRegime publishers     = 3;
+  bool            history        = 4; // deliver matching chunks from the local store
+  bytes           admin          = 5; // 20-byte eth address; set iff EXPLICIT_*
+  repeated bytes  publisher_list = 6; // 20-byte eth addresses, excl. admin;
+                                      // set iff EXPLICIT_LIST
+  uint32          po_min         = 7; // proximity order for implicit bindings (default 16)
+  bool            closed         = 8; // no audience: subscribers restricted to the publishers
 }
 
 // ---------------------------------------------------------------------------
-// Stream establishment (client -> broker), stream name "pubsub/1.0.0"
+// Stream establishment, stream name "pubsub/1.0.0" — one stream per (peer, topic).
+// The first message on a fresh stream is Open (fixes a new cohort) or
+// Subscribe (joins an existing one); the broker answers with Ack.
 // ---------------------------------------------------------------------------
 
-enum Role {
-  ROLE_UNSPECIFIED = 0;
-  SUBSCRIBER = 1;
-  PUBLISHER  = 2; // implies direct connection to the broker (necessary, not sufficient)
-}
-
-message Connect {
+// Opener -> broker: the one peer that fixes the cohort.
+message Open {
   CohortSpec    cohort = 1;
-  Role          role   = 2;
-  PublisherAuth auth   = 3; // present iff role == PUBLISHER
+  PublisherAuth auth   = 2; // present iff the opener publishes (explicit regimes)
+}
+
+// Joiner -> broker: names the topic — nothing more. Subscribers carry no
+// cohort metadata; auth is present iff the joiner publishes (publishers
+// connect directly to the broker).
+message Subscribe {
+  bytes         topic = 1; // 32 bytes
+  PublisherAuth auth  = 2; // present iff publisher
 }
 
 message PublisherAuth {
@@ -68,11 +86,30 @@ message PublisherAuth {
   bytes id    = 2; // 32-byte SOC id, when the binding fixes it
 }
 
+// Broker -> peer, answering Open or Subscribe. The echoed CohortSpec lets a
+// subscriber verify every message end-to-end against the topic binding.
+message Ack {
+  Status     status = 1;
+  CohortSpec cohort = 2; // set iff status == OK
+}
+
+enum Status {
+  STATUS_UNSPECIFIED = 0; // invalid on the wire (see header note)
+  OK                 = 1;
+  FULL               = 2; // broker at its per-topic capacity;
+                          // a singlehop broker refuses — nothing else
+  UNKNOWN_TOPIC      = 3; // Subscribe for a topic the broker does not serve
+  REJECTED           = 4; // e.g. publisher not on the list, invalid auth,
+                          // non-publisher Subscribe on a closed cohort
+}
+
 // ---------------------------------------------------------------------------
 // Messages — SOC-only is a protocol feature
 // ---------------------------------------------------------------------------
 
-// A full single-owner chunk in transit.
+// A full single-owner chunk in transit. Every frame is self-contained: no
+// per-stream handshake state, and no format change if the stream model
+// evolves (e.g. topic-muxed streams later).
 message Soc {
   bytes id        = 1; // 32 bytes
   bytes owner     = 2; // 20 bytes (recoverable from signature; explicit for cheap filtering)
@@ -81,33 +118,20 @@ message Soc {
   bytes payload   = 5; // wrapped-CAC data, <= 4096 bytes
 }
 
-// Publisher -> broker. No type prefix needed: the stream's role was declared at Connect.
+// Publisher -> broker.
 message Publish {
   Soc soc = 1;
 }
 
-// Broker -> subscriber: exactly one of the following per frame.
+// Broker -> subscriber.
 message Broadcast {
   oneof frame {
-    Soc       handshake = 1; // first frame on a stream: full SOC identity
-    DataFrame data      = 2; // subsequent frames: signature ‖ span ‖ payload only
-    Ping      ping      = 3; // keepalive; parent measures RTT off the echo
+    Soc soc = 1;
+    // 2–15 reserved: multihop control plane (Beacon, Reparent, Expect,
+    // DcutrSignal, SwapProposal) — named to fix intent, not final.
   }
 }
 
-message DataFrame {
-  bytes signature = 1;
-  bytes span      = 2;
-  bytes payload   = 3;
-}
-
-message Ping {}
-
-// ---------------------------------------------------------------------------
-// Multihop control plane — RESERVED, named to fix intent (not final for AFM)
-// ---------------------------------------------------------------------------
-// message Beacon        {}  // child -> parent capacity/score summary (0xFE)
-// message Reparent      {}  // parent -> child: REPARENT{to, gateway?}   (0xFD)
-// message Expect        {}  // parent -> relay: EXPECT{children}         (0xFC)
-// message DcutrSignal   {}  // via circuit relay                          (0xFB)
-// message SwapProposal  {}  // promotion swap propose/ack                 (0xFA)
+// Keepalive / RTT: none at the BPS level. Liveness is the transport's job
+// (libp2p), and latency metrics for reorganisation policies (SWATCH) are
+// sourced there as well.
