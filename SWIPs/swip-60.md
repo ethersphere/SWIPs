@@ -22,7 +22,7 @@ assets/swip-60/bps.proto. -->
   exists in bee [#5435](https://github.com/ethersphere/bee/pull/5435).
 - Bandwidth-incentive integration is a separate SWIP (bps-bw-incentives).
 - Broker discovery integration is from a separate SWIP (bps-broker-discovery, building on
-  [SWIP-58 MEX](https://github.com/ethersphere/SWIPs/pull/103)).
+  [SWIP-59 MEX](https://github.com/ethersphere/SWIPs/pull/103)).
 
 ## Simple Summary
 
@@ -219,7 +219,7 @@ only its topic's stream.
 
 Multihop relaying and referral (bps-multihop), reorganisation policies (SWATCH, SPORE —
 policy SWIPs over this protocol's events and actions, no new frames), bandwidth incentives
-(bps-bw-incentives), broker discovery (SWIP-58 MEX; early deployments hardcode brokers),
+(bps-bw-incentives), broker discovery (SWIP-59 MEX; early deployments hardcode brokers),
 history delivery mechanism (bps-history), implicit-publisher event sourcing
 (bps-implicit-publisher), and **dynamic publisher-list changes** — grants/revocations
 after genesis are deferred to a later revision; the `EXPLICIT_LIST` set is fixed at
@@ -247,7 +247,7 @@ frames mean a change of stream model needs no format change either.
 
 Wire: [bps.proto](assets/swip-60/bps.proto) · origin:
 [PR #93](https://github.com/ethersphere/SWIPs/pull/93) "Add: pubsub" · broker discovery:
-[SWIP-58 MEX, PR #103](https://github.com/ethersphere/SWIPs/pull/103) · implementation:
+[SWIP-59 MEX, PR #103](https://github.com/ethersphere/SWIPs/pull/103) · implementation:
 bee [#5435](https://github.com/ethersphere/bee/pull/5435), bee-js
 [#1151](https://github.com/ethersphere/bee-js/pull/1151)
 
