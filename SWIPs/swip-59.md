@@ -1,5 +1,5 @@
 ---
-SWIP: 58
+SWIP: 59
 title: MEX — anchored message exchange with a previously unknown node
 author: Viktor Trón (@zelig), Viktor Tóth (@nugaon)
 discussions-to: https://discord.gg/Q6BvSkCv
