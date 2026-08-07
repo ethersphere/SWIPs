@@ -62,8 +62,12 @@ no mode enum; **modes are combinations of these parameters**.
 | `publishers` | `EXPLICIT_SINGLE` / `EXPLICIT_LIST` / `IMPLICIT` / `ALL` | who may author |
 | `admin` + `publisher_list` | eth addresses | set iff explicit publishers; with `EXPLICIT_LIST` the full publisher set is **fixed at genesis** (dynamic grants/revocations are deferred to a later revision) |
 | `history` | bool | deliver matching chunks already in the local store (mechanism in bps-history; a singlehop broker MAY refuse) |
-| `po_min` | uint (default 16) | proximity constraint for implicit bindings: `PO(socAddr, anchor) ≥ po_min` |
 | `closed` | bool | no audience: subscribers are restricted to the publisher set (all and only publishers subscribe) |
+
+The proximity constraint for implicit bindings is a **protocol constant**, not a cohort
+parameter: `PO_MIN = 16`. (Making it a parameter invited proto3's unset-equals-0
+footgun — an omitted value silently disabling the constraint — and no use case varies
+it.)
 
 Broker **capacity is deliberately not a cohort parameter**: a cohort cannot dictate a
 remote node's connection count. Each broker enforces its own per-topic stream limit and
@@ -73,7 +77,7 @@ Binding semantics (dedup rule in parentheses):
 
 - **`ANCHOR`** — topic = full SOC/GSOC address; all messages share one address (dedup on
   the wrapped CAC).
-- **`SOC_ID`** — topic = SOC id; any owner with `PO(socAddr(id, owner), anchor) ≥ po_min`
+- **`SOC_ID`** — topic = SOC id; any owner with `PO(socAddr(id, owner), anchor) ≥ PO_MIN`
   qualifies (dedup on chunk address).
 - **`OWNER`** — topic = SOC owner; any id under the same PO constraint — MIC semantics
   (dedup on chunk address).
@@ -153,9 +157,51 @@ Messages are defined in [bps.proto](assets/swip-60/bps.proto). Framing notes:
 
 ### API (WebSocket bridge)
 
-WS clients see raw mode payloads only; all p2p framing is transparent. One p2p stream is
-muxed to N local WS sessions per topic. Endpoint shape per bee
-[#5435](https://github.com/ethersphere/bee/pull/5435).
+One endpoint pair on the Bee API. Endpoint shape follows bee
+[#5435](https://github.com/ethersphere/bee/pull/5435), generalised from its single
+hardcoded mode to the full parameter space; serialization conventions follow the SOC
+subscription family — GSOC/MIC/MOC (bee
+[#5486](https://github.com/ethersphere/bee/pull/5486),
+[#5497](https://github.com/ethersphere/bee/pull/5497)) — whose `/mic/subscribe/{owner}`
+and `/moc/subscribe/{id}` endpoints are the storage-fed counterparts of the `OWNER` and
+`SOC_ID` bindings, so a dApp switches between stored and live feeds without
+reformatting. All p2p framing is transparent to WS clients; one p2p stream is muxed to
+N local WS sessions per topic.
+
+**`GET /pubsub/{topic}`** — upgrades to a WebSocket session on the topic. `{topic}` is
+the 32-byte topic hex-encoded, or an arbitrary string hashed to 32 bytes (mnemonic
+topics). Query parameters:
+
+| parameter | maps to | meaning |
+|---|---|---|
+| `peer` | — | broker underlay multiaddr; required until broker discovery exists (bps-broker-discovery) — early deployments configure it |
+| `binding`, `publishers`, `admin`, `publisher-list`, `closed`, `history` | `CohortSpec` | **presence of cohort parameters makes the session the opener**: the node sends `Open` with the assembled spec; absence makes it a joiner: the node sends `Subscribe(topic)` and learns the spec from the `Ack` echo |
+| `owner` (+ `id` where the binding does not fix it) | `PublisherAuth` | **presence makes the session a publisher** (read–write); absence, a subscriber (read-only) |
+
+Headers:
+
+- `swarm-keep-alive` (seconds, default 60): ping period of the **local WS link only** —
+  not to be confused with the p2p layer, which has no keepalive.
+- `swarm-soc-fields` (per bee [#5497](https://github.com/ethersphere/bee/pull/5497)):
+  comma-separated SOC fields serialized per outbound message — `address`,
+  `recoveredPubKey`, `identifier`, `signature`, `wrappedAddress`, `span`, `payload`;
+  default `payload`. This is how dApps on implicit-binding streams (`OWNER`, `SOC_ID`,
+  feed) attribute messages — no BPS-specific frame format.
+- `swarm-cache-wrapped-chunk` (per bee
+  [#5497](https://github.com/ethersphere/bee/pull/5497)): when true, the wrapped chunk
+  of every incoming message is stored in the local cache, resolvable through the bytes
+  endpoint — for streams whose messages reference content larger than one chunk.
+
+**`GET /pubsub/`** — lists the node's active topics: topic address, cohort parameters,
+own role (broker / subscriber), connected peers.
+
+**Signing — the key-holding rule.** Message signing is the dApp's business: **the node
+never holds publisher keys**. Inbound (publisher → node): `sig ‖ span ‖ payload`,
+signed client-side (bee-js); where the binding does not fix the SOC id (e.g.
+`FEED_TOPIC` with a moving index), the frame is prefixed with the id:
+`id ‖ sig ‖ span ‖ payload` **(?)**. The node assembles the SOC, validates it exactly
+as a broker would, and publishes. End-to-end verification against the `Ack`-echoed
+`CohortSpec` is performed by the local node — node and dApp are one trust domain.
 
 ### Configurations (worked examples)
 
@@ -235,7 +281,9 @@ An implementation is conformant when:
    `CohortSpec`) and detects (only) liveness faults;
 3. the two worked configurations above interoperate across independent implementations
    against the frames in [bps.proto](assets/swip-60/bps.proto);
-4. a `FULL` refusal is issued at capacity — and nothing else is (no referral).
+4. a `FULL` refusal is issued at capacity — and nothing else is (no referral);
+5. the WS bridge round-trips both worked configurations end to end — open, publish,
+   subscribe — with all signing on the client side (the node holds no publisher keys).
 
 ## Backwards compatibility
 

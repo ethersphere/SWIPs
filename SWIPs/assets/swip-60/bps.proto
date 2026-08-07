@@ -30,8 +30,8 @@ option go_package = "github.com/ethersphere/bee/v2/pkg/bps/pb";
 enum TopicBinding {
   TOPIC_BINDING_UNSPECIFIED = 0; // invalid on the wire (see header note)
   ANCHOR     = 1; // topic = full SOC/GSOC address; dedup on the wrapped CAC
-  SOC_ID     = 2; // topic = SOC id; any owner with PO(addr, anchor) >= po_min
-  OWNER      = 3; // topic = SOC owner; any id with PO(addr, anchor) >= po_min (MIC)
+  SOC_ID     = 2; // topic = SOC id; any owner with PO(addr, anchor) >= PO_MIN
+  OWNER      = 3; // topic = SOC owner; any id with PO(addr, anchor) >= PO_MIN (MIC)
   FEED_TOPIC = 4; // id = keccak256(topic ‖ index); graffiti MIC / feed streams
 }
 
@@ -49,6 +49,10 @@ enum PublisherRegime {
 // NOTE: broker capacity is NOT a cohort parameter — a cohort cannot dictate a
 // remote node's connection count. Each broker enforces its own per-topic
 // stream limit and answers FULL when it is exhausted.
+// NOTE: the proximity constraint for implicit bindings is a protocol
+// constant, PO_MIN = 16 — not a cohort parameter (a proto3 unset uint32 is
+// indistinguishable from 0, which would silently disable the constraint;
+// and no use case varies it).
 message CohortSpec {
   bytes           topic          = 1; // 32 bytes, meaning per binding
   TopicBinding    binding        = 2;
@@ -57,7 +61,7 @@ message CohortSpec {
   bytes           admin          = 5; // 20-byte eth address; set iff EXPLICIT_*
   repeated bytes  publisher_list = 6; // 20-byte eth addresses, excl. admin;
                                       // set iff EXPLICIT_LIST
-  uint32          po_min         = 7; // proximity order for implicit bindings (default 16)
+  reserved 7;                         // was po_min — now protocol constant PO_MIN
   bool            closed         = 8; // no audience: subscribers restricted to the publishers
 }
 
