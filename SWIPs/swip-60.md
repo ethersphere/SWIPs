@@ -79,10 +79,19 @@ Binding semantics (dedup rule in parentheses):
   the wrapped CAC).
 - **`SOC_ID`** — topic = SOC id; any owner with `PO(socAddr(id, owner), anchor) ≥ PO_MIN`
   qualifies (dedup on chunk address).
-- **`OWNER`** — topic = SOC owner; any id under the same PO constraint — MIC semantics
-  (dedup on chunk address).
+- **`OWNER`** — topic = `keccak256(owner)`; any id under the same PO constraint — MIC
+  semantics (dedup on chunk address). The broker never inverts the hash: it recovers
+  the owner from the SOC signature and checks `keccak256(owner) == topic`; the topic
+  doubles as the PO anchor.
 - **`FEED_TOPIC`** — id = `keccak256(topic ‖ index)`; feed-update streams, graffiti MIC
   (dedup on chunk address).
+
+Under **explicit publisher regimes**, legitimacy is list membership, not proximity —
+the PO constraint does not apply — and where dedup is on the wrapped CAC (`ANCHOR`),
+the SOC id does no protocol work: it is **unconstrained**, and publishers MAY use it as
+a plain sequence number. The full sequential construction — signed as a feed update,
+carried as a bare index, making missed updates detectable and recoverable — is
+**self-indexed feeds, SWIP-65 (forthcoming)**.
 
 ### Roles and capacity
 
@@ -142,6 +151,10 @@ Messages are defined in [bps.proto](assets/swip-60/bps.proto). Framing notes:
   protobuf-over-libp2p as bee protocols elsewhere. The first message on a fresh stream is
   `Open` (fixes a new cohort) or `Subscribe` (joins one — topic only, no cohort
   metadata); the broker answers with `Ack`, echoing the `CohortSpec` to subscribers.
+- **`Open` is idempotent**: naming an already-open topic with an **identical** spec is
+  equivalent to `Subscribe`; with a mismatched spec it is answered `REJECTED`.
+  Implicit-publisher cohorts rely on this — the first subscriber is the opener, so a
+  client need not know whether it is first.
 - **Stream model rationale**: per-topic streams give per-cohort flow control, teardown
   and role typing, and match bee's protocol idiom. Because every frame carries the full
   SOC (self-contained, no per-stream handshake state), a later move to topic-muxed
@@ -197,11 +210,35 @@ own role (broker / subscriber), connected peers.
 
 **Signing — the key-holding rule.** Message signing is the dApp's business: **the node
 never holds publisher keys**. Inbound (publisher → node): `sig ‖ span ‖ payload`,
-signed client-side (bee-js); where the binding does not fix the SOC id (e.g.
-`FEED_TOPIC` with a moving index), the frame is prefixed with the id:
-`id ‖ sig ‖ span ‖ payload` **(?)**. The node assembles the SOC, validates it exactly
-as a broker would, and publishes. End-to-end verification against the `Ack`-echoed
-`CohortSpec` is performed by the local node — node and dApp are one trust domain.
+signed client-side (bee-js). Where the binding does not fix the SOC id, the frame is
+prefixed with it — for feed bindings the prefix is the bare index, the signed id being
+the feed id `keccak256(topic ‖ index)` (self-indexed feeds, SWIP-65 forthcoming);
+under explicit regimes with `ANCHOR` binding the id does no work and there is no
+prefix. The node assembles the SOC, validates it exactly as a broker would, and
+publishes. End-to-end verification against the `Ack`-echoed `CohortSpec` is performed
+by the local node — node and dApp are one trust domain.
+
+**Worked API calls — the jam cohort** (see Configurations below). Seat A opens — cohort
+parameters present ⇒ `Open`, `owner` present ⇒ read–write:
+
+```
+wss://node:1633/pubsub/jam-tuesday?peer=<broker-multiaddr>
+    &binding=anchor&publishers=list&closed=true
+    &admin=0xA…&publisher-list=0xB…,0xC…,0xD…&owner=0xA…
+```
+
+Seats B–D join — no cohort parameters ⇒ `Subscribe`, spec learned from the `Ack` echo:
+
+```
+wss://node:1633/pubsub/jam-tuesday?peer=<broker-multiaddr>&owner=0xB…
+```
+
+The join URL minus `owner` is the complete out-of-band invite (topic mnemonic + broker)
+until broker discovery exists. A fifth peer's `Subscribe` gets `REJECTED`. A live MIC —
+all SOCs of one owner, the light-client twin of `/mic/subscribe/{owner}` — is the
+implicit case: first subscriber opens with
+`?binding=owner&publishers=implicit` (idempotent `Open`), topic = `keccak256(owner)`,
+read-only, `swarm-soc-fields: identifier,payload`.
 
 ### Configurations (worked examples)
 
