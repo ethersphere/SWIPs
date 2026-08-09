@@ -21,8 +21,8 @@ requires: 60
   SOC assembly/validation rule — bare-index frames per SWIP-60's API
   ([#104](https://github.com/ethersphere/SWIPs/pull/104)), groundwork in bee
   [#5435](https://github.com/ethersphere/bee/pull/5435) — (2) publisher-side whirl-only
-  pot maintenance (bee-js **(?)**), (3) subscriber-side gap detection and feed recovery;
-  done per the conformance section.
+  pot maintenance (already exists in bee-js), (3) subscriber-side gap detection and
+  feed recovery; done per the conformance section.
 - **DISC: NO** — SOCs, feeds, postage, push-sync and retrieval are all used exactly as
   they are; this is a chunk-payload convention plus BPS client behaviour over SWIP-60.
   No storage-layer change, no new protocol.
@@ -129,8 +129,7 @@ time.
 
 The `PAYLOAD` of update `i` is the canonical serialization of `n_i`, the top node of
 the **whirl-only pot** (proximity order trie maintained exclusively by whirls, per
-[Trón & Verbin](https://github.com/ethersphere/SWIPs) **(?)** — reference to be pinned)
-over `{e_0, …, e_i}` keyed by `KEY`:
+Trón & Verbin — overleaf link to be inserted) over `{e_0, …, e_i}` keyed by `KEY`:
 
 - `n_i` **pins** the newest element: ⟨`KEY(e_i)`, `ref(e_i)`⟩;
 - its **forks** are Swarm references to earlier nodes `n_j`, `j < i`.
@@ -147,7 +146,7 @@ Three properties of pots carry the whole design:
    every node exactly once. Descending iteration from key `2^64 − 1` yields
    newest-first: the live window is its first `k` elements.
 3. **Random access.** Lookup of any key (a seek to a timestamp) is a descent from the
-   latest node: `O(log n)` chunk retrievals **(?)**.
+   latest node: `O(log n)` chunk retrievals.
 
 The sequence of updates and the index they weave (indices 0–4, `KEY = IDX`, 3-bit keys
 for legibility; every arrow is a fork — a Swarm reference to the wrapped chunk of an
@@ -228,9 +227,10 @@ Recoverability presupposes the updates reach storage. When persistence is on, th
 publisher's node uploads each update under a valid postage stamp, push-synced as usual.
 The **wrapped node chunk is the essential upload**: it is what pot descent — recovery,
 history, seeking — resolves against (the storage-side counterpart of
-`swarm-cache-wrapped-chunk` **(?)**). The SOC upload serves the feed identity: it makes
+`swarm-cache-wrapped-chunk`). The SOC upload serves the feed identity: it makes
 the stream followable as a plain sequential feed by clients with no BPS session, and
-carries the no-pot fallback recovery. A cohort without persistence still gets gap
+carries the no-pot fallback recovery; implementations MAY phase it in later — the
+wrapped chunk is the operative upload. A cohort without persistence still gets gap
 *detection* and dedup for free; it forgoes recovery and history, and SWIP-61's masking
 is then the only gap protection — the trade below.
 
@@ -263,15 +263,20 @@ being mandatory:
 
 SWIP-60's bridge already carries this SWIP's frame rule: for feed bindings the inbound
 and outbound frame prefix is the bare index, signed id `keccak256(topic ‖ index)`.
-Amendments **(?)**:
+Amendments:
 
 - `swarm-soc-fields` gains an `index` field — the bare uint64, so a dApp on a
   self-indexed stream reads its position without recomputing ids;
 - a postage batch supplied on the WS session (`swarm-postage-batch-id`) switches
   persistence on: the node uploads each published update (SOC + wrapped chunk) as it
-  publishes; absence means live-only;
+  publishes; absence means live-only. This one header is the pivotal switch of the
+  SWIP — publish-is-upload turns an ephemeral live stream into a persistent, seekable,
+  recoverable feed with no separate upload path;
 - recovered updates are injected into the session in index order; the bridge delivers
-  frames as they arrive and back-fills, it does not reorder the live stream **(?)**.
+  frames as they arrive and back-fills, it does not reorder the live stream. A
+  buffer-and-reorder mode is meaningful only where an ordering issue can actually
+  arise and no index enables back-fill — non-self-indexed cohorts over actual multihop
+  trees — and belongs to those SWIPs, not here.
 
 ### Worked example: HLS-style live video
 
@@ -333,8 +338,11 @@ publication order, so no separate ordering structure exists either.
 ## Out of scope (deliberately)
 
 Dynamic publisher lists (out of scope since SWIP-60); history *delivery* over BPS
-streams (bps-history — though this SWIP's pot descent is the obvious mechanism for it
-**(?)**); equivocation *response* policy (detection and error signalling are normative
+streams (bps-history) — for self-indexed cohorts the problem dissolves rather than
+transfers: the first live frame a joiner verifies already carries the pot over the
+entire history, so `history: true` collapses into client-side descent, the broker
+delivering nothing beyond the live stream; bps-history remains needed only for
+non-self-indexed bindings; equivocation *response* policy (detection and error signalling are normative
 above); multi-publisher cohorts need nothing here — one self-indexed feed has one
 owner, so a multi-publisher cohort is simply one feed per publisher; encryption of
 payloads and segments (orthogonal).
@@ -383,7 +391,7 @@ wrapped-address dedup is unsound.
 
 [SWIP-60](https://github.com/ethersphere/SWIPs/pull/104) (requires) ·
 [SWIP-61](https://github.com/ethersphere/SWIPs/pull/105) (consequences) · pots:
-Trón & Verbin, *Proximity Order Tries* (2026) **(?)** — pin a public link · origin:
+Trón & Verbin, *Proximity Order Tries* (2026) — overleaf link to be inserted · origin:
 [PR #93](https://github.com/ethersphere/SWIPs/pull/93) "Add: pubsub" · implementation:
 bee [#5435](https://github.com/ethersphere/bee/pull/5435),
 [#5486](https://github.com/ethersphere/bee/pull/5486),
