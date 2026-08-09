@@ -182,6 +182,12 @@ recovery path:
   recovery; the missed updates need no individual signature verification, because they
   are implicitly signed via the pot node that references them.
 
+Index association needs no extra data, whatever the key: a sequential feed index
+advances by exactly 1, and iteration enumerates elements in publication order, so the
+traversal assigns indices by **counting from a known anchor** — the `IDX` explicit in
+the frame whose payload roots the descent, or, for a plain-feed client, the index of
+the latest update it just constructed and looked up.
+
 Recovered elements MUST be indistinguishable to the dApp from live-delivered ones
 (same session, same serialization, delivered in index order). Recovery is silent
 self-healing, not an error path — and it doubles as **withholding evidence**: a parent
