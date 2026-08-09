@@ -34,11 +34,13 @@ SWIP gives it one: the publisher uses a plain sequence number, **signs each mess
 feed update** (signed id = `keccak256(topic ‖ index)`) **but carries only the bare
 index** — the topic is implicit in the channel, so any receiver reconstructs the signed
 id from channel topic + index. Each message is thereby simultaneously a live BPS message
-and a retrievable feed update: an index gap is detectable at the next frame and the
-missed update is fetched from storage by its feed address. On top of this, each update's
-payload is a node of a **whirl-only pot** over all previous updates — the feed carries
-its own index, so the latest update alone gives ordered playback, random access and
-range queries over the entire history, with zero auxiliary chunks.
+and a retrievable feed update, and an index gap is detectable at the next frame. On top
+of this, each update's payload is a node of a **whirl-only pot** over all previous
+updates — the feed carries its own index, so the latest update alone gives ordered
+playback, random access and range queries over the entire history, with zero auxiliary
+chunks. Recovery of missed updates rides the same structure: the frame that reveals the
+gap carries the pot that indexes everything missed, and the descent authenticates the
+recovered chunks by hash against the one signature already verified.
 
 ## Motivation
 
@@ -154,10 +156,11 @@ flowchart RL
 ```
 
 A fork reference names the earlier update's **wrapped CAC**, not its SOC address:
-integrity by content hash at every hop, and generic pot tooling works unmodified. The
-alternative — referencing update `j`'s (computable) SOC address, saving the double
-upload below — would put a signature check on every descent hop and tie the pot format
-to feeds; rejected **(?)**.
+integrity by content hash at every hop, generic pot tooling works unmodified, and it is
+what makes recovery implicitly authenticated (below) — one verified signature at the
+root covers every chunk the descent reaches. The alternative — referencing update `j`'s
+(computable) SOC address — would put a signature check on every descent hop and tie the
+pot format to feeds; rejected **(?)**.
 
 The pot layer is a **profile**: a cohort whose payloads need no history (pure signal)
 MAY run the bare construction above and skip it **(?)**.
@@ -165,22 +168,42 @@ MAY run the bare construction above and skip it **(?)**.
 ### Gap detection and recovery
 
 A subscriber tracks the highest contiguous index `w` it has verified. A frame with
-`IDX > w + 1` is evidence of `IDX − w − 1` missed updates, each individually
-addressable: update `j` lives at `H( H(TOPIC ‖ j) ‖ OWNER )`. The subscriber retrieves
-it from storage as an ordinary feed update; a recovered update passes the same
-verification as a live one and MUST be indistinguishable to the dApp (delivered through
-the same session, same serialization). Recovery is silent self-healing, not an error
-path — and it doubles as **withholding evidence**: a parent whose stream shows gaps its
-recovered chunks prove existed is caught without a second feed to compare against.
+`IDX > w + 1` is evidence of `IDX − w − 1` missed updates — and, with the pot profile,
+that same frame carries the means of recovery: its payload `n_IDX` is the pot over
+*all* elements so far, the missed ones included. The subscriber descends from `n_IDX`
+and retrieves the missing elements directly. Two properties make this the primary
+recovery path:
+
+- **the gap-revealing frame is the recovery index** — no id reconstruction, no feed
+  lookup; the fork references in a payload already in hand name everything missed;
+- **implicit authentication** — fork references are content addresses, so every
+  recovered chunk verifies by hash against a reference chain rooted in `n_IDX`, whose
+  signature was already checked on the live frame. One signature covers the whole
+  recovery; the missed updates need no individual signature verification, because they
+  are implicitly signed via the pot node that references them.
+
+Recovered elements MUST be indistinguishable to the dApp from live-delivered ones
+(same session, same serialization, delivered in index order). Recovery is silent
+self-healing, not an error path — and it doubles as **withholding evidence**: a parent
+whose stream shows gaps its recovered chunks prove existed is caught without a second
+feed to compare against.
+
+Without the pot profile, recovery falls back to feed retrieval: missed update `j` is
+individually addressable at `H( H(TOPIC ‖ j) ‖ OWNER )` and verified as an ordinary
+feed update — one retrieval *and one signature check* per missed update. This is also
+the path for clients that are not on BPS at all and follow the stream as a plain feed.
 
 ### Persistence: what recovery presupposes
 
 Recoverability presupposes the updates reach storage. When persistence is on, the
-publisher's node uploads each update under a valid postage stamp, push-synced as usual:
-the SOC (feed lookup resolves), and the wrapped node chunk (index descent resolves) —
-the storage-side counterpart of `swarm-cache-wrapped-chunk` **(?)**. A cohort without
-persistence still gets gap *detection* and dedup for free; it forgoes recovery and
-history, and SWIP-61's masking is then the only gap protection — the trade below.
+publisher's node uploads each update under a valid postage stamp, push-synced as usual.
+The **wrapped node chunk is the essential upload**: it is what pot descent — recovery,
+history, seeking — resolves against (the storage-side counterpart of
+`swarm-cache-wrapped-chunk` **(?)**). The SOC upload serves the feed identity: it makes
+the stream followable as a plain sequential feed by clients with no BPS session, and
+carries the no-pot fallback recovery. A cohort without persistence still gets gap
+*detection* and dedup for free; it forgoes recovery and history, and SWIP-61's masking
+is then the only gap protection — the trade below.
 
 ### Consequences for SWIP-61: masking becomes a choice
 
@@ -231,8 +254,9 @@ in ms, or `IDX` for fixed-duration segments. **The pot is the manifest**:
 - **join late / VOD** — the latest update alone is the complete recording:
   `Iter(n_latest, 0, ASC)` plays start to finish; when the stream ends, the final feed
   update is the permanent artifact;
-- **missed segment** — an index gap; fetched by feed address while playback continues
-  from buffer.
+- **missed segment** — an index gap; the next frame's manifest already references it,
+  so it is fetched by descent (hash-verified, no signature check) while playback
+  continues from buffer.
 
 Contrast the status quo: HLS on Swarm republishes a growing playlist on every segment —
 `O(n)` bytes a time, `O(n²)` cumulative — and players poll it. Here the manifest delta
@@ -260,9 +284,12 @@ the contract — it is a latency product some cohorts (live video) may still buy
 others (collaborative editing) should not have imposed on them.
 
 **Why recoverable rather than resent?** (nugaon's third argument.) The publisher
-already persisted the update as a feed chunk — recovery is a storage read, needs no
-publisher cooperation after the fact, no broker buffering, no retransmission protocol,
-and works for a subscriber who was offline for the whole outage, not just a blip.
+already persisted the update — recovery is a storage read, needs no publisher
+cooperation after the fact, no broker buffering, no retransmission protocol, and works
+for a subscriber that was offline for the whole outage, not just a blip. And with the
+pot profile it is a *cheap* read: the gap-revealing frame hands over the index to
+everything missed, and one already-verified signature authenticates the entire descent
+— recovery costs hash checks, not signature checks.
 
 **Why a whirl-only pot rather than a linked list or a republished manifest?** A
 back-pointer list gives ordered history at `O(n)` traversal and no random access; a
@@ -295,7 +322,9 @@ An implementation is conformant when:
    from the latest update enumerates the full history in publication order retrieving
    each node exactly once, and key lookup costs `O(log n)` retrievals;
 4. a subscriber detects any index gap at the next verified frame and (persistence on)
-   recovers each missed update from storage; recovered updates are indistinguishable
+   recovers every missed element by pot descent from that frame's payload, verifying
+   recovered chunks by hash only — no per-update signature checks; without the pot
+   profile, by feed retrieval per missed index; recovered updates are indistinguishable
    from live ones at the dApp boundary;
 5. with persistence on, both the feed lookup (SOC address) and the index descent
    (wrapped chunk address) of every update resolve from the network;
