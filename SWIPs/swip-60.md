@@ -76,7 +76,9 @@ answers `FULL` when it is exhausted.
 Binding semantics (dedup rule in parentheses):
 
 - **`ANCHOR`** — topic = full SOC/GSOC address; all messages share one address (dedup on
-  the wrapped CAC).
+  the wrapped CAC — the guard against unsolicited republication of old SOCs, sound only
+  under an application-level requirement: payloads are distinct, i.e. the application
+  includes some index in the payload).
 - **`SOC_ID`** — topic = SOC id; any owner with `PO(socAddr(id, owner), anchor) ≥ PO_MIN`
   qualifies (dedup on chunk address).
 - **`OWNER`** — topic = `keccak256(owner)`; any id under the same PO constraint — MIC
@@ -91,7 +93,7 @@ the PO constraint does not apply — and where dedup is on the wrapped CAC (`ANC
 the SOC id does no protocol work: it is **unconstrained**, and publishers MAY use it as
 a plain sequence number. The full sequential construction — signed as a feed update,
 carried as a bare index, making missed updates detectable and recoverable — is
-**self-indexed feeds, SWIP-65 (forthcoming)**.
+**self-indexed feeds, [SWIP-65](https://github.com/ethersphere/SWIPs/pull/106)**.
 
 ### Roles and capacity
 
@@ -212,7 +214,8 @@ own role (broker / subscriber), connected peers.
 never holds publisher keys**. Inbound (publisher → node): `sig ‖ span ‖ payload`,
 signed client-side (bee-js). Where the binding does not fix the SOC id, the frame is
 prefixed with it — for feed bindings the prefix is the bare index, the signed id being
-the feed id `keccak256(topic ‖ index)` (self-indexed feeds, SWIP-65 forthcoming);
+the feed id `keccak256(topic ‖ index)` (self-indexed feeds,
+[SWIP-65](https://github.com/ethersphere/SWIPs/pull/106));
 under explicit regimes with `ANCHOR` binding the id does no work and there is no
 prefix. The node assembles the SOC, validates it exactly as a broker would, and
 publishes. End-to-end verification against the `Ack`-echoed `CohortSpec` is performed
