@@ -154,6 +154,16 @@ and per-hop pricing (bps-bw-incentives) is what will price it; an active/standby
 variant (second parent connected but mute until asked) trades the gap-free guarantee
 for half the traffic and is deliberately **not** specified here.
 
+On cohorts running **self-indexed feeds
+([SWIP-65](https://github.com/ethersphere/SWIPs/pull/106))** a delivery gap is
+detectable at the next frame and recoverable from storage, so a second parent is **not
+required** — for a subscriber content with recovery latency it is pure extra cost, and
+forgoing it is a per-subscriber choice: single-parented nodes are already well-formed
+(SWIP-60 leaves), and a single-parented relay endangers only itself — its children
+hold their own second parents. Dual parenting remains the costlier-but-faster product
+for gap-intolerant subscribers (the live edge). Conformance items 5–6 read
+accordingly.
+
 ### Reparenting (`Reparent`) — make-before-break
 
 `Reparent{to}` is the parent→child instruction to move: the child `Subscribe`s to the
@@ -339,8 +349,10 @@ An implementation is conformant when:
    arrived;
 3. an accept carries the echoed `CohortSpec`;
 4. absent races, a join completes in two steps: one probe round, one (dual) attach;
-5. a node offered two distinct parents maintains both; duplicate deliveries never
-   surface past the binding's dedup rule;
+5. a node offered two distinct parents maintains both — except on self-indexed cohorts
+   ([SWIP-65](https://github.com/ethersphere/SWIPs/pull/106)), where the second parent
+   is optional per subscriber and items 5–6 bind only nodes that maintain one;
+   duplicate deliveries never surface past the binding's dedup rule;
 6. the failure of any single relay or link causes no delivery gap anywhere below it;
    the half-orphaned children re-acquire a second parent via the ordinary join;
 7. every reparent is make-before-break;
