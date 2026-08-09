@@ -90,8 +90,15 @@ subscriber's business (below).
 
 Two valid SOCs sharing an index but not a payload are an **equivocation**: both pass
 dedup (distinct addresses), and the pair is self-evidencing publisher misbehaviour —
-two signatures by one owner over one id. Detection is free; response policy is out of
-scope **(?)**.
+two signatures by one owner over one id. What to do about it is the application's
+decision; detecting and signalling it is the protocol's. Detection is an **anchor
+check**: the receiver validates that the SOC at its last known index wraps the very
+pot node it holds from the chain (see below) — one comparison that implicitly
+validates the integrity of the entire pot since the node joined. On mismatch the
+receiver MUST surface a protocol error to the application. The anchor check is not a
+history audit: recovery by pot descent does not retrieve the missed SOCs, so a fork at
+those indices — a divergent signed history — surfaces only if the application
+retrieves and compares them; how much of that to pay is its integrity/latency trade.
 
 ### The payload is the index: whirl-only pot
 
@@ -103,8 +110,12 @@ KEY : e ↦ uint64 (big-endian)
 ```
 
 be a key projection that is **strictly monotone over the sequence**: `KEY(e_i) <
-KEY(e_j)` for `i < j`. Media presentation timestamps qualify; so does `IDX` itself,
-which is the default **(?)**.
+KEY(e_j)` for `i < j`. The default is a **timestamp** (media presentation time, wall
+clock — whatever the domain orders by). Access by sequence index needs no pot key:
+the SOC addresses are already a secondary index by update index — index `i` resolves
+the SOC, which wraps `n_i`, which pins `e_i`, all in O(1) — so an `IDX`-keyed pot
+would duplicate what the feed provides; the timestamp key is what buys seeking by
+time.
 
 The `PAYLOAD` of update `i` is the canonical serialization of `n_i`, the top node of
 the **whirl-only pot** (proximity order trie maintained exclusively by whirls, per
@@ -159,11 +170,13 @@ A fork reference names the earlier update's **wrapped CAC**, not its SOC address
 integrity by content hash at every hop, generic pot tooling works unmodified, and it is
 what makes recovery implicitly authenticated (below) — one verified signature at the
 root covers every chunk the descent reaches. The alternative — referencing update `j`'s
-(computable) SOC address — would put a signature check on every descent hop and tie the
-pot format to feeds; rejected **(?)**.
+(computable) SOC address — would put a signature check on every descent hop, tie the
+pot format to feeds, and duplicate an index that already exists: the SOC addresses
+*are* the by-index access path, O(1) per index; rejected.
 
 The pot layer is a **profile**: a cohort whose payloads need no history (pure signal)
-MAY run the bare construction above and skip it **(?)**.
+MAY run the bare construction alone — it keeps gap detection, and recovers by
+retrieving every missed index as a feed update.
 
 ### Gap detection and recovery
 
@@ -251,7 +264,7 @@ Amendments **(?)**:
 ### Worked example: HLS-style live video
 
 `e_i` = the i-th media segment (CMAF fragment, 2–6 s); `KEY` = presentation timestamp
-in ms, or `IDX` for fixed-duration segments. **The pot is the manifest**:
+in ms — the default key. **The pot is the manifest**:
 
 - **live** — subscribe via BPS: each frame's payload pins the newest segment; the
   player's live window is the first `k` elements of descending iteration;
@@ -309,9 +322,10 @@ publication order, so no separate ordering structure exists either.
 
 Dynamic publisher lists (out of scope since SWIP-60); history *delivery* over BPS
 streams (bps-history — though this SWIP's pot descent is the obvious mechanism for it
-**(?)**); equivocation response policy; multi-publisher merge semantics — one
-self-indexed feed has one owner; a multi-publisher cohort is one feed per publisher,
-composition above **(?)**; encryption of payloads and segments (orthogonal).
+**(?)**); equivocation *response* policy (detection and error signalling are normative
+above); multi-publisher cohorts need nothing here — one self-indexed feed has one
+owner, so a multi-publisher cohort is simply one feed per publisher; encryption of
+payloads and segments (orthogonal).
 
 ## Conformance (definition of done)
 
@@ -332,9 +346,12 @@ An implementation is conformant when:
    recovered chunks by hash only — no per-update signature checks; without the pot
    profile, by feed retrieval per missed index; recovered updates are indistinguishable
    from live ones at the dApp boundary;
-5. with persistence on, both the feed lookup (SOC address) and the index descent
+5. a receiver performs the anchor check — the SOC at its last known index wraps the
+   pot node it holds — and surfaces a protocol error to the application on mismatch
+   (equivocation detected);
+6. with persistence on, both the feed lookup (SOC address) and the index descent
    (wrapped chunk address) of every update resolve from the network;
-6. an unmodified SWIP-60 `FEED_TOPIC` cohort interoperates: frames are byte-identical,
+7. an unmodified SWIP-60 `FEED_TOPIC` cohort interoperates: frames are byte-identical,
    and a SWIP-61 subscriber on a self-indexed cohort MAY hold one parent without
    breaking any tree invariant.
 
