@@ -4,7 +4,7 @@ title: Self-indexed feeds
 author: Viktor Trón (@zelig), Viktor Tóth (@nugaon)
 discussions-to: https://discord.gg/Q6BvSkCv
 status: Draft
-type: Standards Track (Interface)
+type: Standards Track (Interface, Networking)
 created: 2026-08-09
 requires: 60
 ---
