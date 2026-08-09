@@ -88,6 +88,16 @@ history replay all dedup through the one existing rule. The broker MUST NOT enfo
 index monotonicity or contiguity — frames may arrive reordered, and gap handling is the
 subscriber's business (below).
 
+The contrast case shows what the index buys. In an explicit-publisher cohort *without*
+a detectable order (`ANCHOR` binding: every message at one SOC address), the guard
+against unsolicited republication of old SOCs must be dedup on the **wrapped chunk
+address** — and for that dedup to be sound, the application must guarantee distinct
+payloads, i.e. include some index in the payload anyway. The sequence requirement does
+not disappear without self-indexing; it moves above the protocol, unspecified.
+Self-indexing moves it into the construction, where the same index also buys
+addresses, gap detection and recovery. (The application-level payload-index
+requirement is an amendment SWIP-60 owes; see Backwards compatibility.)
+
 Two valid SOCs sharing an index but not a payload are an **equivocation**: both pass
 dedup (distinct addresses), and the pair is self-evidencing publisher misbehaviour —
 two signatures by one owner over one id. What to do about it is the application's
@@ -235,17 +245,19 @@ being mandatory:
 1. For self-indexed cohorts, the SWIP-60 contract ("messages arrive at all
    subscribers") is satisfied by **deliver-or-recover**; dual parenting is no longer
    the only conformant means. SWIP-61's conformance items 5–6 are accordingly relaxed
-   for such cohorts: maintaining a second parent is RECOMMENDED, not required **(?)**.
+   for such cohorts: a second parent is **not required** — for a subscriber content
+   with recovery latency it is pure extra cost.
 2. The trade is real and stated: masking pays 2× continuously and closes the gap
    entirely; recovery pays nothing until a fault, then pays storage round-trip latency.
    Collaborative editing barely notices recovery latency; the live edge of a video
    stream might — a viewer at `latest` cannot wait out push-sync plus retrieval.
-3. Mechanically this is a **per-subscriber choice needing no protocol change**: SWIP-61
-   trees already seat single-parented nodes (SWIP-60 leaves), and a single-parented
-   relay endangers only itself — its children hold their own second parents. Whether a
-   cohort should also fix a default at genesis (a resilience flag in `CohortSpec`) is
-   left open; recommendation: leave it per-node, keeping `CohortSpec` untouched — the
-   cost is local, so the decision should be too **(?)**.
+3. The choice is **per-subscriber, and needs no protocol change**: SWIP-61 trees
+   already seat single-parented nodes (SWIP-60 leaves), and a single-parented relay
+   endangers only itself — its children hold their own second parents. A node-level
+   choice is coherent precisely because dual parenting is the costlier-but-*faster*
+   alternative: what 2× buys over recovery is latency, and latency tolerance is local
+   — the live-edge viewer and the archiver sit in the same cohort with different
+   needs. `CohortSpec` stays untouched; no resilience flag.
 
 ### API
 
@@ -360,9 +372,12 @@ An implementation is conformant when:
 No new frames, no proto change, no version bump: this SWIP realises semantics SWIP-60
 reserved for it (id unconstrained under explicit regimes; bare-index frame prefix for
 feed bindings). Storage-side artifacts are ordinary feeds — legacy feed clients
-interoperate by construction. SWIP-61 is amended, not broken: its dual-parent
-requirement (conformance items 5–6) is relaxed to RECOMMENDED for self-indexed cohorts
-**(?)**; trees mixing single- and dual-parented subscribers were already well-formed.
+interoperate by construction. Both parent SWIPs receive follow-up amendments once this
+SWIP settles: SWIP-61's dual-parent requirement (conformance items 5–6) is relaxed to
+not-required for self-indexed cohorts — trees mixing single- and dual-parented
+subscribers were already well-formed — and SWIP-60's `ANCHOR`-binding dedup note gains
+the application-level requirement that payloads carry an index, without which
+wrapped-address dedup is unsound.
 
 ## References
 
