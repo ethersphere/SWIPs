@@ -296,19 +296,38 @@ being mandatory:
 ### Worked example: HLS-style live video
 
 `e_i` = the i-th media segment (CMAF fragment, 2–6 s); `KEY` = presentation timestamp
-in ms — the default key. **The pot is the manifest**:
+in ms — the default key. **The pot is the manifest.** The generic player needs no BPS
+session — the pattern alone gives VOD, late join and seeking to any feed client:
 
-- **live** — subscribe via BPS: each frame's payload pins the newest segment; the
-  player's live window is the first `k` elements of descending iteration;
-- **seek** — to timestamp `t`: XOR-nearest descent from any recent node, `O(log n)`
-  retrievals;
-- **join late / VOD** — the latest update alone is the complete recording:
-  `Iter(n_latest, 0, ASC)` plays start to finish; when the stream ends, the final feed
-  update is the permanent artifact — playable by any feed client, no BPS session
-  needed;
-- **missed segment** — an index gap; the next frame's manifest already references it,
-  so it is fetched by descent (hash-verified, no signature check) while playback
-  continues from buffer.
+```
+# generic — any feed client
+watch(topic, owner):                          # VOD / late join
+    (w, n) ← feed_lookup_latest(topic, owner) # the SOC wraps the pot top
+    verify_sig(H(topic ‖ w), n)               # one signature — covers all below
+    for e in Iter(n, 0, ASC): render(e)       # full history, publication order
+
+seek(t):                                      # random access by timestamp
+    node ← descend(n_latest, t)               # XOR-nearest, O(log n) retrievals
+    render_from(node)
+```
+
+Carried over BPS, the same player gains the live edge — push latency and instant gap
+visibility; the backfill is the generic recovery mechanism verbatim:
+
+```
+# BPS-carried — the live loop
+on_frame(IDX, sig, n):                        # bare index on the wire
+    verify_sig(H(topic ‖ IDX), n)             # reconstruct id, check once
+    if IDX > w + 1:                           # gap — backfill by descent:
+        for j in w+1 .. IDX−1:                #   hash-verified via fork refs,
+            deliver(j, nth_newest(n, IDX−j))  #   indices by counting, no sig checks
+    deliver(IDX, pin(n)); w ← IDX
+    live_window ← first k of Iter(n, MAX, DESC)
+```
+
+Playback continues from buffer while a backfill runs — the missed segment was already
+referenced by the manifest in hand. When the stream ends, the final feed update is the
+permanent VOD artifact.
 
 Contrast the status quo: HLS on Swarm republishes a growing playlist on every segment —
 `O(n)` bytes a time, `O(n²)` cumulative — and players poll it. Here the manifest delta
