@@ -17,10 +17,11 @@ only as one of the write/read modes. -->
   and every entry has an accountable author. Headline application: **tag-based
   advertising** — announcing a videocast (`A`) on crypto-trading (`B`) on Monday the
   17th (`C`), the publisher puts an advert on the walls `H(A)`, `H(B)`, `H(C)`,
-  `H(A‖B)`, `H(B‖C)` and `H(A‖B‖C)`, and anyone following any of those tag
+  `H(A‖B)`, `H(A‖C)`, `H(B‖C)` and `H(A‖B‖C)`, and anyone following any of those tag
   combinations discovers it.
 - **Dev line**: no new wire frames and no proto change; implement (1) writer-side
-  mining helpers — ephemeral-owner (MOC, SWIP-42) and span-index — in bee-js **(?)**,
+  mining helpers — ephemeral-owner (MOC, SWIP-42) and span-index — in client
+  libraries (bee-js or other JS libs),
   (2) the wall-entry validation rule (span-index construction) wherever SOCs are
   validated for ANCHOR-bound delivery, (3) reader plumbing over the existing
   GSOC-style subscription, `/moc/subscribe`, and BPS ANCHOR cohorts (SWIP-60,
@@ -156,6 +157,8 @@ update `id = H( H(T) ‖ IDX )` can never clash with a wall entry `id = H( T ‖
 even when the mined SPAN happens to be a low integer. Note `H(T) = A`: the anchor
 doubles as the content-feed topic. A reader recovers `O` from the entry and follows
 the feed `(H(T), O)` — from index 0, or as a subscription — for the actual graffiti.
+When the entry's existence is itself the message (see the worked example), no content
+feed need exist.
 
 ### Reading the wall
 
@@ -183,7 +186,7 @@ contributor in arrival order, gives O(log n) seek, and authenticates the whole
 history against the broker's one signature. After-the-fact reading of a wall is thus
 a single feed lookup, and trust in the broker is bounded: the broker can withhold a
 contributor from its index, but cannot forge one — every indexed element is a wall
-entry carrying its writer's own signature **(?)**.
+entry carrying its writer's own signature.
 
 ### Worked example: tag-based advertising
 
@@ -191,16 +194,17 @@ A publisher announces a videocast (`A`) on crypto-trading (`B`) on Monday the 17
 (`C`). Each tag and tag combination is a wall:
 
 ```
-T ∈ { H(A), H(B), H(C), H(A‖B), H(B‖C), H(A‖B‖C) }
+T ∈ { H(A), H(B), H(C), H(A‖B), H(A‖C), H(B‖C), H(A‖B‖C) }
 ```
 
 For each wall the publisher writes one entry — mode 3, say: mine `SPAN` so that
-`H( H(T ‖ SPAN) ‖ O )` lands within `PO_MIN` of `H(T)` — and puts the advert itself
-on the content feed `(H(T), O)` **(?)**. A reader interested in crypto-trading
-follows the wall `H(B)`; one interested specifically in Monday's videocasts follows
-`H(A‖C)` if the publisher chose to serve that combination **(?)**. Live discovery is
-the ANCHOR cohort on each wall; after the fact, one lookup of a broker's contributor
-feed per wall.
+`H( H(T ‖ SPAN) ‖ O )` lands within `PO_MIN` of `H(T)`. **No content feed is
+needed**: this is an ad type where the entry's *existence* gives the information —
+the wall names the tags, the recovered owner names the advertiser, and anything more
+is discoverable through the writer's MIC and feeds. A reader interested in
+crypto-trading follows the wall `H(B)`; one interested specifically in Monday's
+videocasts follows `H(A‖C)`. Live discovery is the ANCHOR cohort on each wall; after
+the fact, one lookup of a broker's contributor feed per wall.
 
 ### Conformance
 
