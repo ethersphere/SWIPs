@@ -13,11 +13,12 @@ writers mining into an anchor neighbourhood. Freestanding pattern; BPS (SWIP-60)
 only as one of the write/read modes. -->
 
 - **Business line**: a permissionless public write-board — a **wall** — named by any
-  topic (a mnemonic string or a content reference): anyone can write an entry under
-  **their own signature**, everyone
-  can read, and every entry has an accountable author. Unlocks comments, annotations,
-  registrations and rendezvous on any content or identity without coordination with —
-  or permission from — whatever the reference points to **(?)**.
+  topic: anyone can write an entry under **their own signature**, everyone can read,
+  and every entry has an accountable author. Headline application: **tag-based
+  advertising** — announcing a videocast (`A`) on crypto-trading (`B`) on Monday the
+  17th (`C`), the publisher puts an advert on the walls `H(A)`, `H(B)`, `H(C)`,
+  `H(A‖B)`, `H(B‖C)` and `H(A‖B‖C)`, and anyone following any of those tag
+  combinations discovers it.
 - **Dev line**: no new wire frames and no proto change; implement (1) writer-side
   mining helpers — ephemeral-owner (MOC, SWIP-42) and span-index — in bee-js **(?)**,
   (2) the wall-entry validation rule (span-index construction) wherever SOCs are
@@ -32,9 +33,9 @@ only as one of the write/read modes. -->
 ## Simple Summary
 
 A **graffiti wall** is the set of single-owner chunks mined into the neighbourhood of
-an anchor derived from a public topic. The topic — typically a mnemonic string —
-serves both as the feed topic and to derive the **anchor**, exactly as in the original
-GSOC pattern. What changes is the writer's identity: instead of every writer signing
+an anchor derived from a public topic. The topic — usually a 32-byte reference, such
+as a content address or a tag hash — serves both to form entry ids and to derive the
+**anchor**, exactly as in the original GSOC pattern. What changes is the writer's identity: instead of every writer signing
 with one shared, publicly derivable owner key, each writer signs with **their own
 key** and spends mining effort to land their entry near the anchor — by mining an
 ephemeral owner (the MOC pattern), or by mining the feed **index** itself, carried in
@@ -82,11 +83,12 @@ byte string. `PO(x, y)` = proximity order; `PO_MIN = 16` (SWIP-60 protocol const
 
 ### The wall: topic and anchor
 
-A wall is named by its **topic** `T` — typically a mnemonic string, possibly a
-content reference **(?)**. Everything else is derived from it:
+A wall is named by its **topic** `T` — usually a 32-byte reference (a content
+address, or the hash of a tag or mnemonic string). Everything else is derived from
+it:
 
 ```
-A = H(T)               // the anchor
+A = H(T)               // the anchor — also the topic of the writers' content feeds
 ```
 
 An entry is **on the wall** iff it is a valid SOC whose address `addr` satisfies
@@ -109,8 +111,7 @@ mine O_e  until  PO( H(id ‖ O_e), A ) >= PO_MIN
 
 Content is unconstrained; the entry is a MOC and all MOC tooling applies. The
 ephemeral owner is still *an* owner — unique to this writer, never shared — but the
-entry is not linked to the writer's persistent identity unless the payload links it
-**(?)**.
+entry is not linked to the writer's persistent identity unless the payload links it.
 
 **Mode 2 — normal feed, bare index, brokered (no mining).** When writers connect in
 publisher role to a broker (BPS, SWIP-60), a normal feed on topic `T` is used and
@@ -149,18 +150,18 @@ valid  iff  PO( addr, A ) >= PO_MIN
 The mined SPAN thus places a member of the writer's **MIC** in the proximity of the
 anchor: the entry simultaneously belongs to the wall (by address) and to the writer's
 own SOC universe (by owner). The mode-3 entry itself carries no message — it
-*announces* a writer: the content lives on the **owner's feed with the same topic**
-`T`. A reader recovers `O` from the entry and follows the feed `(T, O)` — from index
-0, or as a subscription — for the actual graffiti. (The mined entry is formally an
-update of that same feed at the astronomical index `SPAN`; sequential readers never
-encounter it **(?)**.)
+*announces* a writer: the content lives on the **owner's content feed for the wall**,
+whose topic is `H(T)` — one hash deeper than the wall's own id preimage, so a content
+update `id = H( H(T) ‖ IDX )` can never clash with a wall entry `id = H( T ‖ SPAN )`
+even when the mined SPAN happens to be a low integer. Note `H(T) = A`: the anchor
+doubles as the content-feed topic. A reader recovers `O` from the entry and follows
+the feed `(H(T), O)` — from index 0, or as a subscription — for the actual graffiti.
 
 ### Reading the wall
 
 - **Full node in the anchor neighbourhood**: wall entries arrive with the reserve;
   filtering **zero-length payloads with a conforming address** yields the mode-3
-  entries directly, and the GSOC-style subscription surfaces entries as they land
-  **(?)**.
+  entries directly, and the GSOC-style subscription surfaces entries as they land.
 - **Light client, live**: a BPS cohort with ANCHOR binding and implicit publishers
   (SWIP-60) — the broker's implicit-publisher validation rule
   `PO(addr, anchor) >= PO_MIN` is exactly wall membership, so brokers need no new
@@ -170,16 +171,36 @@ encounter it **(?)**.)
 
 ### Aggregation: the broker as wall indexer
 
-The one piece that completes the pattern: a BPS broker serving the wall's cohort can
-act as the **aggregate feed indexer** for the wall. The broker sees every entry as it
-is published; each entry names a writer `O`, and each writer's content is a feed
-`(T, O)`. The broker therefore holds, as a by-product of relaying, the directory of
-all constituent feeds — and can serve a late joiner the aggregate: which writers have
-written, and where each writer's feed stands **(?)** (gloss: the aggregate index is
-broker-side state offered over the existing subscription — no new frames — with
-history semantics per bps-history or, per writer, per SWIP-65 self-indexing where the
-constituent feeds adopt it; slash if aggregation is meant more concretely, e.g. the
-broker publishing its own index feed).
+The one piece that completes the pattern: a BPS broker serving the wall's cohort acts
+as the **aggregate feed indexer** for the wall. The broker sees every entry as it is
+published; each entry names a writer `O`, and each writer's content is a feed
+`(H(T), O)`. The broker aggregates by **publishing its own feed of contributors for
+the topic** — owner the broker's key, topic `H(T)` **(?)**, one update per wall entry
+observed **(?)** — and making it **self-indexing** per SWIP-65
+([#106](https://github.com/ethersphere/SWIPs/pull/106)). A late joiner then needs
+only the broker feed's latest update: the whirl-only pot in its payload indexes every
+contributor in arrival order, gives O(log n) seek, and authenticates the whole
+history against the broker's one signature. After-the-fact reading of a wall is thus
+a single feed lookup, and trust in the broker is bounded: the broker can withhold a
+contributor from its index, but cannot forge one — every indexed element is a wall
+entry carrying its writer's own signature **(?)**.
+
+### Worked example: tag-based advertising
+
+A publisher announces a videocast (`A`) on crypto-trading (`B`) on Monday the 17th
+(`C`). Each tag and tag combination is a wall:
+
+```
+T ∈ { H(A), H(B), H(C), H(A‖B), H(B‖C), H(A‖B‖C) }
+```
+
+For each wall the publisher writes one entry — mode 3, say: mine `SPAN` so that
+`H( H(T ‖ SPAN) ‖ O )` lands within `PO_MIN` of `H(T)` — and puts the advert itself
+on the content feed `(H(T), O)` **(?)**. A reader interested in crypto-trading
+follows the wall `H(B)`; one interested specifically in Monday's videocasts follows
+`H(A‖C)` if the publisher chose to serve that combination **(?)**. Live discovery is
+the ANCHOR cohort on each wall; after the fact, one lookup of a broker's contributor
+feed per wall.
 
 ### Conformance
 
@@ -188,7 +209,7 @@ broker publishing its own index feed).
 2. A **mode-3 entry** is valid iff, additionally, `id = H(T ‖ SPAN)` for the SPAN
    carried in its wrapped chunk's span field and its payload is empty.
 3. Readers and brokers MUST ignore chunks in the anchor neighbourhood that fail the
-   applicable validity chain; ignoring is silent **(?)**.
+   applicable validity chain; ignoring is silent.
 4. A broker serving an ANCHOR-bound cohort MUST apply the implicit-publisher PO rule
    of SWIP-60 unchanged; this SWIP adds no broker-side rules.
 5. Storage nodes MUST NOT reject a wrapped chunk on account of an arbitrary span
