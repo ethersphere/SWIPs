@@ -12,8 +12,9 @@ created: 2026-08-11
 writers mining into an anchor neighbourhood. Freestanding pattern; BPS (SWIP-60) enters
 only as one of the write/read modes. -->
 
-- **Business line**: a permissionless public write-board — a **wall** — attached to any
-  32-byte reference: anyone can write an entry under **their own signature**, everyone
+- **Business line**: a permissionless public write-board — a **wall** — named by any
+  topic (a mnemonic string or a content reference): anyone can write an entry under
+  **their own signature**, everyone
   can read, and every entry has an accountable author. Unlocks comments, annotations,
   registrations and rendezvous on any content or identity without coordination with —
   or permission from — whatever the reference points to **(?)**.
@@ -24,21 +25,22 @@ only as one of the write/read modes. -->
   GSOC-style subscription, `/moc/subscribe`, and BPS ANCHOR cohorts (SWIP-60,
   [#104](https://github.com/ethersphere/SWIPs/pull/104)); done per the conformance
   section.
-- **DISC: NO (?)** — standard SOC validation and the existing implicit-binding rule
-  `PO(addr, anchor) >= PO_MIN = 16`; the only touchpoint is that storage MUST NOT
-  reject a wrapped chunk with an arbitrary span and empty payload **(?)** — if bee's
-  current chunk validity check does, this flips to DISC: ?.
+- **DISC: NO** — standard SOC validation and the existing implicit-binding rule
+  `PO(addr, anchor) >= PO_MIN = 16`; a wrapped chunk with an arbitrary span and empty
+  payload is already allowed by storage, so nothing changes below the pattern.
 
 ## Simple Summary
 
 A **graffiti wall** is the set of single-owner chunks mined into the neighbourhood of
-an anchor derived from a public reference. The reference serves as the feed **topic**
-and derives the **anchor** — exactly as in the original GSOC pattern. What changes is
-the writer's identity: instead of every writer signing with one shared, publicly
-derivable owner key, each writer signs with **their own key** and spends mining effort
-to land their entry near the anchor — by mining an ephemeral owner (the MOC pattern),
-or by mining the feed **index** itself, carried in the span field of the wrapped chunk.
-Anyone can write; everyone can read; no two writers ever share a key.
+an anchor derived from a public topic. The topic — typically a mnemonic string —
+serves both as the feed topic and to derive the **anchor**, exactly as in the original
+GSOC pattern. What changes is the writer's identity: instead of every writer signing
+with one shared, publicly derivable owner key, each writer signs with **their own
+key** and spends mining effort to land their entry near the anchor — by mining an
+ephemeral owner (the MOC pattern), or by mining the feed **index** itself, carried in
+the span field of the wrapped chunk. Anyone can write; everyone can read; no two
+writers ever share a key — and a BPS broker on the wall's cohort doubles as the
+**aggregate feed indexer** over all writers.
 
 ## Motivation
 
@@ -49,32 +51,28 @@ it follows from that. The arguments, enumerated:
    **integrity check**: because the secret key belongs to a *single* owner, no double
    signing on the same id is a reasonable requirement. A shared graffiti key voids the
    premise — anyone can sign anything on any id, so the attestation attests nothing
-   and content at a SOC address loses its uniqueness guarantee **(?)** (Claude's
-   gloss — slash if the consequence is drawn differently).
+   and content at a SOC address loses its uniqueness guarantee.
 2. **Pull sync.** Reconciling divergent versions at one address needs some digest on
-   the chunks — which exists to sync postage stamps, but not for the content
-   **(?)** (gloss: pull sync assumes one content per address; GSOC breaks the
-   assumption and forces content digests into the sync protocol — cf. the "chunk
-   checksum for divergent sync" draft,
-   [#101](https://github.com/ethersphere/SWIPs/pull/101)).
+   the chunks — which exists to sync postage stamps, but not for the content: pull
+   sync assumes one content per address; GSOC breaks the assumption and forces
+   content digests into the sync protocol — cf. the "chunk checksum for divergent
+   sync" draft ([#101](https://github.com/ethersphere/SWIPs/pull/101)).
 3. **Incentives.** The redistribution game had to mix the **wrapped address** into
-   the sample to motivate storage of multiple payloads at the same address **(?)** —
-   a storage-incentive complication existing solely to accommodate multi-version
-   SOCs.
+   the sample to motivate storage of multiple payloads at the same address — a
+   storage-incentive complication existing solely to accommodate multi-version SOCs.
 4. **Stamping.** Currently the stamp for any SOC can be used as the stamp on *any
-   version* of the same SOC address — unlimited versions ride a single payment
-   **(?)**.
+   version* of the same SOC address — unlimited versions ride a single payment.
 5. **Retrieval locality.** Retrieval of a multi-version SOC is only possible from
    the closest node; caching is problematic — a cache cannot know whether its copy
-   is the version wanted **(?)**.
+   is the version wanted.
 6. **Retrieval protocol.** A retrieve request has a single response; to exhaust the
    versions at an address one must resort to a wanted (matching) / not-wanted (not
-   matching) request pattern **(?)** — which the protocol does not offer.
+   matching) request pattern — which the protocol does not offer.
 7. **No censorship resistance.** The pattern does not solve the problem it is often
-   assumed to: it is not censorship resistant **(?)**.
+   assumed to: it is not censorship resistant.
 8. **Collision-prone even when honest.** The genuine happy path — all writers
-   well-intentioned — is already collision prone **(?)** (gloss: cooperating writers
-   race on the same id with no arbitration).
+   well-intentioned — is already collision prone: cooperating writers race on the
+   same id with no arbitration.
 
 ## Specification
 
@@ -82,14 +80,13 @@ Notation: `H` = keccak256, `H_BMT` = BMT hash, `‖` = concatenation, `ε` = the
 byte string. `PO(x, y)` = proximity order; `PO_MIN = 16` (SWIP-60 protocol constant).
 `SIG_O` = signature by owner key `O`; `ECRecover` recovers the signing address.
 
-### The wall: reference, topic, anchor
+### The wall: topic and anchor
 
-A wall is named by a 32-byte reference `R` — typically the Swarm address of the
-content or identity the wall is about **(?)**. The reference is used both ways:
+A wall is named by its **topic** `T` — typically a mnemonic string, possibly a
+content reference **(?)**. Everything else is derived from it:
 
 ```
-T = R                  // the feed topic          (?)
-A = R                  // the anchor              (?) — alternative: A = H(T)
+A = H(T)               // the anchor
 ```
 
 An entry is **on the wall** iff it is a valid SOC whose address `addr` satisfies
@@ -106,7 +103,7 @@ three ways.
 keypair until the SOC address lands on the wall:
 
 ```
-id   = T                                  // (?) — id is the topic directly
+id   = H(T)                               // note: id = A
 mine O_e  until  PO( H(id ‖ O_e), A ) >= PO_MIN
 ```
 
@@ -115,14 +112,14 @@ ephemeral owner is still *an* owner — unique to this writer, never shared — 
 entry is not linked to the writer's persistent identity unless the payload links it
 **(?)**.
 
-**Mode 2 — normal feed, bare index, brokered (no mining).** When writers are
-explicitly connected in publisher role to a broker (BPS, SWIP-60), a normal feed on
-topic `T` is used and frames carry the **bare 8-byte index in the 32-byte id field**
-— the carriage rule of SWIP-65
-([#106](https://github.com/ethersphere/SWIPs/pull/106)). Delivery is by the broker,
-so no anchoring — and hence no mining — is needed; the cohort *is* the wall's live
-face **(?)**. Every frame carries the full SOC, so the writer's own key signs as in
-any feed.
+**Mode 2 — normal feed, bare index, brokered (no mining).** When writers connect in
+publisher role to a broker (BPS, SWIP-60), a normal feed on topic `T` is used and
+frames carry the **bare 8-byte index in the 32-byte id field** — the carriage rule of
+SWIP-65 ([#106](https://github.com/ethersphere/SWIPs/pull/106)). Delivery is by the
+broker, so no anchoring — and hence no mining — is needed. The publisher
+parameterisation of the cohort is immaterial; the point is that both the topic
+(implicit in the channel) and the bare indexes are known, so subscribers can follow.
+Every frame carries the full SOC, so the writer's own key signs as in any feed.
 
 **Mode 3 — normal feed, mined index (the span-index construction).** The writer keeps
 their real identity `O` and mines the feed **index** so that the entry lands on the
@@ -151,36 +148,52 @@ valid  iff  PO( addr, A ) >= PO_MIN
 
 The mined SPAN thus places a member of the writer's **MIC** in the proximity of the
 anchor: the entry simultaneously belongs to the wall (by address) and to the writer's
-own SOC universe (by owner). Reading the wall yields writer identities; each entry is
-a standing invitation to subscribe to that writer's MIC or feeds for the actual
-content **(?)** — the empty payload means the mode-3 entry itself carries no message,
-it *announces* one **(?)**.
+own SOC universe (by owner). The mode-3 entry itself carries no message — it
+*announces* a writer: the content lives on the **owner's feed with the same topic**
+`T`. A reader recovers `O` from the entry and follows the feed `(T, O)` — from index
+0, or as a subscription — for the actual graffiti. (The mined entry is formally an
+update of that same feed at the astronomical index `SPAN`; sequential readers never
+encounter it **(?)**.)
 
 ### Reading the wall
 
 - **Full node in the anchor neighbourhood**: wall entries arrive with the reserve;
-  the GSOC-style subscription surfaces them as they land **(?)**.
+  filtering **zero-length payloads with a conforming address** yields the mode-3
+  entries directly, and the GSOC-style subscription surfaces entries as they land
+  **(?)**.
 - **Light client, live**: a BPS cohort with ANCHOR binding and implicit publishers
   (SWIP-60) — the broker's implicit-publisher validation rule
   `PO(addr, anchor) >= PO_MIN` is exactly wall membership, so brokers need no new
-  rules; mode-3 entries additionally validate by the span-index chain above **(?)**.
-- **After the fact**: entries are ordinary stored chunks, individually retrievable by
-  address; neighbourhood *enumeration* by a light client is out of scope for this
-  SWIP **(?) — open: is there any storage-fed wall enumeration story, or is
-  after-the-fact reading full-node/broker-mediated only?**
+  rules; mode-3 entries additionally validate by the span-index chain above.
+- **After the fact**: BPS mediated — see the aggregation section below. Individual
+  entries remain ordinary stored chunks, retrievable by address.
+
+### Aggregation: the broker as wall indexer
+
+The one piece that completes the pattern: a BPS broker serving the wall's cohort can
+act as the **aggregate feed indexer** for the wall. The broker sees every entry as it
+is published; each entry names a writer `O`, and each writer's content is a feed
+`(T, O)`. The broker therefore holds, as a by-product of relaying, the directory of
+all constituent feeds — and can serve a late joiner the aggregate: which writers have
+written, and where each writer's feed stands **(?)** (gloss: the aggregate index is
+broker-side state offered over the existing subscription — no new frames — with
+history semantics per bps-history or, per writer, per SWIP-65 self-indexing where the
+constituent feeds adopt it; slash if aggregation is meant more concretely, e.g. the
+broker publishing its own index feed).
 
 ### Conformance
 
 1. A **wall entry** is valid iff it is a valid SOC and `PO(addr, A) >= PO_MIN`, with
-   `A` derived from the wall reference as specified above.
+   `A = H(T)` derived from the wall topic as specified above.
 2. A **mode-3 entry** is valid iff, additionally, `id = H(T ‖ SPAN)` for the SPAN
-   carried in its wrapped chunk's span field and its payload is empty **(?)**.
+   carried in its wrapped chunk's span field and its payload is empty.
 3. Readers and brokers MUST ignore chunks in the anchor neighbourhood that fail the
    applicable validity chain; ignoring is silent **(?)**.
 4. A broker serving an ANCHOR-bound cohort MUST apply the implicit-publisher PO rule
-   of SWIP-60 unchanged; this SWIP adds no broker-side rules **(?)**.
+   of SWIP-60 unchanged; this SWIP adds no broker-side rules.
 5. Storage nodes MUST NOT reject a wrapped chunk on account of an arbitrary span
-   value with an empty payload **(?)**.
+   value with an empty payload (already the case — codified here so the pattern's
+   floor cannot regress).
 
 ## Copyright
 
