@@ -95,7 +95,8 @@ time.
 
 The `PAYLOAD` of update `i` is the canonical serialization of `n_i`, the top node of
 the **whirl-only pot** (proximity order trie maintained exclusively by whirls, per
-Trón & Verbin — overleaf link to be inserted) over `{e_0, …, e_i}` keyed by `KEY`:
+[Trón & Verbin](https://www.overleaf.com/3974341362rnrspbywdqgr)) over `{e_0, …, e_i}`
+keyed by `KEY`:
 
 - `n_i` **pins** the newest element: ⟨`KEY(e_i)`, `ref(e_i)`⟩;
 - its **forks** are Swarm references to earlier nodes `n_j`, `j < i`.
@@ -414,7 +415,7 @@ wrapped-address dedup is unsound.
 
 [SWIP-60](https://github.com/ethersphere/SWIPs/pull/104) (carriage) ·
 [SWIP-61](https://github.com/ethersphere/SWIPs/pull/105) (consequences) · pots:
-Trón & Verbin, *Proximity Order Tries* (2026) — overleaf link to be inserted · origin:
+[Trón & Verbin, *Proximity Order Tries* (2026)](https://www.overleaf.com/3974341362rnrspbywdqgr) · origin:
 [PR #93](https://github.com/ethersphere/SWIPs/pull/93) "Add: pubsub" · implementation:
 bee [#5435](https://github.com/ethersphere/bee/pull/5435),
 [#5486](https://github.com/ethersphere/bee/pull/5486),
