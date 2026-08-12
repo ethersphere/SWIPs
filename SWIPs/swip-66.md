@@ -178,8 +178,10 @@ The one piece that completes the pattern: a BPS broker serving the wall's cohort
 as the **aggregate feed indexer** for the wall. The broker sees every entry as it is
 published; each entry names a writer `O`, and each writer's content is a feed
 `(H(T), O)`. The broker aggregates by **publishing its own feed of contributors for
-the topic** — owner the broker's key, topic `H(T)`, one update per wall entry
-observed **(?)** — and making it **self-indexing** per SWIP-65
+the topic** — owner the broker's key, topic `H(T)`, **one update per wall entry
+observed**, the granularity most compatible with the self-indexed pot's default
+timestamp key (a broker MAY instead dedup to one update per contributor) — and
+making it **self-indexing** per SWIP-65
 ([#106](https://github.com/ethersphere/SWIPs/pull/106)). A late joiner then needs
 only the broker feed's latest update: the whirl-only pot in its payload indexes every
 contributor in arrival order, gives O(log n) seek, and authenticates the whole
