@@ -148,7 +148,7 @@ The broker–subscriber stream is a metered channel: the subscriber pays the bro
 
 ### Milestone 3 — Decentralised broker discovery
 
-Make the broker underlay address parameter optional. Instead of the client hardcoding a broker, it discovers an eligible broker node through a two-phase handshake using MOC and GSOC chunks (see [SWIP-42](https://github.com/ethersphere/SWIPs/pull/80)) targeting the topic's neighbourhood. No on-chain registry is required — broker public keys are discovered in-band via storage receipts. The protocol requires targeted chunk delivery and retrieval to/from the closest responsible node (see e.g. [bee#5081](https://github.com/ethersphere/bee/pull/5081)).
+Make the broker underlay address parameter optional. Instead of the client hardcoding a broker, it discovers an eligible broker node through a two-phase MOC handshake (see [SWIP-42](https://github.com/ethersphere/SWIPs/pull/80)) targeting the topic's neighbourhood. No on-chain registry is required — broker public keys are discovered in-band via storage receipts. The protocol requires targeted chunk delivery and retrieval to/from the closest responsible node (see e.g. [bee#5081](https://github.com/ethersphere/bee/pull/5081)).
 
 #### Protocol constants
 
@@ -186,72 +186,68 @@ sequenceDiagram
     S->>B: libp2p connect(underlay_B)
 ```
 
+> **Note:** `req_key = keccak256(ECDH(sk_Q, pk_B))` — the ECDH shared secret between the subscriber's Phase 2 request keypair and the broker's public key. Both the Phase 2 request payload and the response payload are encrypted with this same key (see [Encryption](#encryption--ecdh--aes-256-gcm) below).
+
 #### Phase 1 — Discovery request (MOC)
 
-1. The subscriber generates a random 32-byte `id_S`.
-2. The subscriber mines a keypair `(sk_S, pk_S)` such that `soc.CreateAddress(DISCOVERY_ID, ETH(pk_S))` falls within the topic's neighbourhood (PO ≥ 16 relative to topic address).
-3. The subscriber uploads a MOC with `id = DISCOVERY_ID`, `owner = ETH(pk_S)`, and `id_S` as payload. Push-sync routes the chunk to the topic neighbourhood.
-4. A broker node in the topic neighbourhood detects the incoming SOC (`id == DISCOVERY_ID`), stores it, extracts `id_S`, and associates `pk_S` with the request.
-5. The broker returns a **storage receipt**. The subscriber extracts `pk_B` and the broker's overlay address from the receipt signature.
-6. The broker subscribes to GSOC events on address `soc.CreateAddress(id_S, ETH(pk_S))`. This subscription times out after 30 seconds if no matching SOC arrives.
+1. The subscriber generates a random 32-byte `id_Q` — this doubles as the SOC ID for the Phase 2 upload.
+2. The subscriber mines a **discovery keypair** `(sk_D, pk_D)` such that `soc.CreateAddress(DISCOVERY_ID, ETH(pk_D))` falls within the topic's neighbourhood (PO ≥ 16 relative to topic address).
+3. The subscriber uploads a MOC with `id = DISCOVERY_ID`, `owner = ETH(pk_D)`, and `id_Q` as payload. Push-sync routes the chunk to the topic neighbourhood.
+4. A broker node in the topic neighbourhood detects the incoming MOC (`id == DISCOVERY_ID`), stores it, and extracts `id_Q`.
+5. The broker returns a **storage receipt**. The subscriber extracts `pk_B` and the broker's overlay address (`overlay_B`) from the receipt.
+6. The broker subscribes to MOC events matching `id == id_Q`, independent of owner — the subscriber's Phase 2 keypair does not exist yet at this point. This subscription times out after 30 seconds if no matching SOC arrives.
 
-#### Phase 2 — Encrypted handshake (GSOC)
+#### Phase 2 — Encrypted request/response (MOC)
 
-7. The subscriber mines a SOC ID `id_B` such that `soc.CreateAddress(id_B, ETH(pk_B))` is closest to the broker's overlay (PO ≥ 16).
-8. The subscriber uploads a SOC with `id = id_S`, `owner = ETH(pk_S)`. The payload is encrypted with the ECDH-derived key:
+7. The subscriber generates a random 32-byte `id_R` for the response, and mines a **request keypair** `(sk_Q, pk_Q)` — distinct from `(sk_D, pk_D)` — such that `soc.CreateAddress(id_Q, ETH(pk_Q))` is closest to the broker's overlay `overlay_B` (PO ≥ 16). Mining a fresh keypair here, rather than reusing `pk_D`, decouples the topic-neighbourhood constraint of Phase 1 from the broker-proximity constraint of Phase 2, so no single address has to satisfy both at once.
+8. The subscriber uploads a SOC with `id = id_Q`, `owner = ETH(pk_Q)`. The payload is encrypted with the ECDH-derived key:
    ```
-   shared  = ECDH(sk_S, pk_B)
-   req_key = keccak256(shared ‖ 0x00)
+   shared  = ECDH(sk_Q, pk_B)
+   req_key = keccak256(shared)
    nonce   = keccak256(req_key) [:12]
-   payload = AES-256-GCM(req_key, nonce, { topic, id_B, chequebook_addr, ... })
+   payload = AES-256-GCM(req_key, nonce, { id_R, topic, channelMode, ... })
    ```
-9. The broker (subscribed to GSOC at `soc.CreateAddress(id_S, ETH(pk_S))`) receives the SOC, decrypts the payload, and extracts `topic` and `id_B`.
-10. The broker verifies that `soc.CreateAddress(id_B, ETH(pk_B))` falls within the topic neighbourhood (PO ≥ 16).
-11. The broker builds response `R = { overlay, underlay, incentive_params, hive_conn_list }`, encrypts it symmetrically:
+9. The broker, subscribed to MOC events on `id_Q`, receives the SOC (matching on ID regardless of owner), decrypts the payload with `req_key = keccak256(ECDH(sk_B, pk_Q))`, and extracts `id_R`, `topic`, and `channelMode`.
+10. The broker verifies that the response address `soc.CreateAddress(id_R, ETH(pk_B))` falls within the topic neighbourhood (PO ≥ 16).
+11. The broker builds response `R = { overlay, underlay, incentive_params, hive_conn_list }`, encrypts it with the same `req_key`:
     ```
-    shared  = ECDH(sk_B, pk_S)
-    res_key = keccak256(shared ‖ 0x01)
-    nonce   = keccak256(res_key) [:12]
-    C_res   = AES-256-GCM(res_key, nonce, R)
+    C_res = AES-256-GCM(req_key, nonce, R)
     ```
-12. The broker creates a SOC signed with `sk_B` at address `soc.CreateAddress(id_B, ETH(pk_B))` and stores it locally.
-13. The subscriber fetches the response SOC via Kademlia lookup (routed to the broker as the closest responsible node), decrypts with `res_key` derived from the same ECDH shared secret, and connects to the broker via libp2p.
+12. The broker creates a SOC signed with `sk_B` at address `soc.CreateAddress(id_R, ETH(pk_B))` and stores it locally.
+13. The subscriber fetches the response SOC via Kademlia lookup (routed to the broker as the closest responsible node), decrypts with `req_key`, and connects to the broker via libp2p.
 
 #### Encryption — ECDH + AES-256-GCM
 
-Both the Phase 2 SOC payload and the response SOC payload use AES-256-GCM keyed by an ECDH shared secret. Both parties can compute the shared secret independently: `ECDH(sk_S, pk_B) = ECDH(sk_B, pk_S)` — the subscriber knows `sk_S` (mined in Phase 1) and `pk_B` (from the storage receipt); the broker knows `sk_B` and `pk_S` (from the Phase 1 MOC).
-
-Request and response derive separate keys to avoid nonce reuse:
+The Phase 2 request payload and the response SOC payload both use AES-256-GCM keyed by the same ECDH-derived `req_key`. Both parties can compute it independently: `ECDH(sk_Q, pk_B) = ECDH(sk_B, pk_Q)` — the subscriber knows `sk_Q` (mined in Phase 2) and `pk_B` (from the Phase 1 storage receipt); the broker knows `sk_B` and `pk_Q` (from the owner field of the Phase 2 SOC).
 
 ```
-shared  = ECDH(sk_S, pk_B)          // = ECDH(sk_B, pk_S)
-req_key = keccak256(shared ‖ 0x00)  // Phase 2 payload encryption
-res_key = keccak256(shared ‖ 0x01)  // response SOC encryption
-nonce_* = keccak256(key) [:12]      // deterministic per key
+shared  = ECDH(sk_Q, pk_B)   // = ECDH(sk_B, pk_Q)
+req_key = keccak256(shared)
+nonce   = keccak256(req_key) [:12]   // deterministic, reused for both directions
 ```
 
-AES-256-GCM provides authenticated encryption. Because `sk_S` is unique per discovery session (freshly mined), the derived keys and nonces are never reused, satisfying GCM's uniqueness requirement. Forward secrecy is provided by the ephemeral nature of `sk_S`.
+AES-256-GCM provides authenticated encryption. Because `sk_Q` is unique per discovery session (freshly mined in Phase 2), `req_key` — and therefore the nonce — is never reused across sessions, satisfying GCM's uniqueness requirement. Forward secrecy is provided by the ephemeral nature of `sk_Q`.
 
 #### Postage stamps
 
-The subscriber needs a postage stamp for the SOC uploads. The broker does not need a stamp for the response SOC — it is stored locally and served directly on fetch. Once [SWIP-36](https://github.com/ethersphere/SWIPs/pull/70) (free uploads) is adopted, the subscriber's stamp requirements can be lifted.
+The subscriber needs a postage stamp for the MOC/SOC uploads. The broker does not need a stamp for the response SOC — it is stored locally and served directly on fetch. Once [SWIP-36](https://github.com/ethersphere/SWIPs/pull/70) (free uploads) is adopted, the subscriber's stamp requirements can be lifted.
 
 #### Rationale
 
-The two-phase MOC/GSOC handshake avoids several problems that a simpler single-round or registry-based discovery would face:
+The two-phase MOC handshake avoids several problems that a simpler single-round or registry-based discovery would face:
 
 - **No on-chain registry** — the broker's public key and overlay are discovered in-band via the storage receipt, removing any blockchain dependency for discovery.
 - **No concurrent requester collision** — the response is a separate SOC at a unique mined address per session; multiple subscribers never interfere with each other.
 - **No caching problem** — the response SOC is a new chunk stored locally by the broker, not an overwrite of the request chunk, so stale cached copies are not an issue.
 - **No single-node targeting** — any broker in the topic neighbourhood can respond to the MOC; if one is offline, another picks it up.
-- **Address-level filtering over owner-level filtering** — GSOC subscription matches on the exact SOC address `soc.CreateAddress(id_S, ETH(pk_S))` rather than on `owner` alone (as MIC subscription would), so the broker processes only the specific chunk it expects and ignores any unrelated SOCs that happen to share the same owner key.
+- **Decoupled key mining** — Phase 1 mines an owner key (`pk_D`) for topic-neighbourhood membership; Phase 2 mines a separate owner key (`pk_Q`) for proximity to the broker's overlay, while `id_Q` stays constant across both. This lets the broker's Phase 1 subscription match on `id` alone, without needing to know the subscriber's Phase 2 key in advance.
 
 #### Security considerations
 
 1. **MOC flooding (DoS on Phase 1)** — An attacker can flood MOC chunks with `id = DISCOVERY_ID` to a topic neighbourhood. Each MOC only causes the broker to create a lightweight subscription hook (30s timeout), so the cost to the broker is minimal (memory for pending subscriptions). The attacker must also mine a keypair per chunk targeting the topic neighbourhood. Bandwidth incentives provide a baseline rate limit: the attacker pays per chunk forwarded. Brokers can cap the number of concurrent pending subscriptions.
-2. **Phase 2 flooding (DoS on GSOC)** — An attacker observing the Phase 1 MOC learns `ETH(pk_S)` and `id_S`, but the GSOC subscription matches on the full SOC address `soc.CreateAddress(id_S, ETH(pk_S))`, so the attacker must forge a SOC at that exact address. Even then, the payload must be encrypted with the ECDH-derived key — a garbage SOC will fail decryption and be discarded. The attacker cannot produce a valid encrypted payload without `pk_B` (obtained only via storage receipt to the original requester).
-3. **Response SOC mining cost** — The subscriber must mine `id_B` such that `soc.CreateAddress(id_B, ETH(pk_B))` is close to the broker overlay.
-4. **Timing window** — The broker's GSOC subscription on `soc.CreateAddress(id_S, ETH(pk_S))` has a 30s timeout. The subscriber must complete Phase 2 (mine `id_B` + upload SOC) within this window. Mining at depth 16 is fast, so this is not a practical concern.
+2. **Phase 2 flooding (DoS on subscription)** — An attacker observing the Phase 1 MOC learns `id_Q`, but not `pk_B` (only the intended subscriber learns it, via the storage receipt) or the subscriber's `sk_Q`. The broker's MOC subscription matches any SOC with `id == id_Q` regardless of owner, so an attacker could forge such a SOC, but without `pk_B` it cannot produce a payload that decrypts under `req_key` — a garbage SOC fails decryption and is discarded.
+3. **Response SOC mining cost** — The subscriber must mine `pk_Q` such that `soc.CreateAddress(id_Q, ETH(pk_Q))` is close to the broker's overlay.
+4. **Timing window** — The broker's MOC subscription on `id_Q` has a 30s timeout. The subscriber must complete Phase 2 (mine `pk_Q` + upload SOC) within this window. Mining at depth 16 is fast, so this is not a practical concern.
 
 New API endpoint: `GET /pubsub/discover/{topic}?mode=<id>` — returns broker connection data for the given topic.
 
