@@ -166,22 +166,23 @@ sequenceDiagram
     participant N as Topic Neighbourhood
     participant B as Broker
 
-    Note over S: Mine MOC OWNER keypair (sk_S, pk_S), so that SOC addr<br/>a_1=SOC_ADDR(id=DISCOVERY_ID, owner=ETH(pk_S))<br/> ∈ topic neighbourhood (depth ≥ 16)
-    S->>N: Upload MOC(id=DISCOVERY_ID, owner=ETH(pk_S), payload=id_S)
+    Note over S: mine discovery MOC OWNER keypair (sk_D, pk_D), so that SOC addr <br>a_1=SOC_ADDR(id=DISCOVERY_ID, owner=ETH(pk_D))<br/> ∈ topic neighbourhood (depth ≥ 16)
+    S->>N: Upload MOC(id=DISCOVERY_ID, owner=ETH(pk_D), payload=id_Q)
     N->>B: (sync delivers to closest broker)
-    Note over B: Detect: id == DISCOVERY_ID<br/>extract id_S, associate pk_S with request
+    Note over B: Detect: id == DISCOVERY_ID<br/>extract id_Q
     B-->>S: storage receipt (extract pk_B from signature, and overlay_B from the receipt payload)
-    Note over B: subscribe to GSOC at SOC_ADDR(id_S, ETH(pk_S)) (timeout 30s)
+    Note over B: subscribe to MOC at id_Q (timeout 30s)
 
-    Note over S: mine response SOC ID id_B<br/>so that SOC_ADDR(id_B, ETH(pk_B))<br/>is closest to overlay_B (depth ≥ 16)
-    S->>N: Upload SOC(id=id_S, owner=ETH(pk_S), payload=AES-GCM(req_key, {topic, id_B, ...}))
+    Note over S: mine request MOC OWNER keypair (sk_Q, pk_Q), so that SOC addr <br>a_2 = SOC_ADDR(id_Q, ETH(pk_Q))<br/>is closest to overlay_B (depth ≥ 16)
+    S->>N: Upload SOC(id=id_Q, owner=ETH(pk_Q), payload=AES-GCM(req_key, {id_R, topic, channelMode, ...}))
     N->>B: (sync delivers to closest broker)
-    Note over B: SOC address matches GSOC subscription<br/>decrypt payload → extract topic, id_B<br/>Check response addr a_2=SOC_ADDR(id_B,eth_B)<br/> ∈ topic neighbourhood (depth ≥ 16)
-    Note over B: build response R={overlay, underlay, ...}<br/>encrypt with res_key<br/>store SOC(id=id_B, owner=ETH(pk_B)) locally
-    S->>N: fetch SOC_ADDR(id_B, ETH(pk_B)) via Kademlia
+    Note over B: SOC address matches MOC subscription<br/>decrypt payload → extract id_R, topic, channelMode <br>Check response addr a_2 ∈ topic neighbourhood (depth ≥ 16)<br/>
+
+    Note over B: build response R={overlay, underlay, ...}<br/>encrypt with req_key<br/>store SOC(id=id_R, owner=ETH(pk_B)) locally
+    S->>N: fetch SOC_ADDR(id_R, ETH(pk_B)) via Kademlia
     N-->>B: lookup routed to broker (closest node)
     B-->>S: response SOC R
-    Note over S: decrypt R with res_key<br/>extract broker connection info
+    Note over S: decrypt R with req_key<br/>extract broker connection info
     S->>B: libp2p connect(underlay_B)
 ```
 
