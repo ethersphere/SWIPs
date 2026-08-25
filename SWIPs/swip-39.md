@@ -472,6 +472,20 @@ For $N=0$, the implementation uses the empty prefix as a single bootstrap slot a
 
 These assertions provide useful invariant checks in tests even if production code omits them for gas reasons.
 
+#### Comparison with alternative layouts
+
+The ICBT was chosen over two natural alternatives. The decisive requirements are (a) uniform random selection among the $2^{d+1}-N$ split candidates and $N-2^d$ donor pairs in $O(\log N)$, and (b) surviving depth transitions without state migration.
+
+**Sorted ring with sparse buckets.** Keep all active nodes in a doubly-linked list sorted by overlay, plus a mapping from each depth-$d$ prefix to the pair $\langle$first node in the neighbourhood, node count$\rangle$. This layout excels at what rings excel at — $O(1)$-write insertion and removal once the position is known, $O(1)$ neighbourhood membership queries, cheap in-order iteration — and is weak exactly where this registry lives:
+
+- _Uniform selection._ Picking uniformly among eligible neighbourhoods requires either scanning the buckets — $O(2^d)$ — or maintaining hierarchical counts over them to support ranked descent. Adding that counts hierarchy reconstructs the ICBT: the trie _is_ the counting structure, and the ring's ordering information is implicit in it (in-order traversal of leaves yields overlay order).
+- _Depth transitions._ Buckets keyed by "prefix at depth $d$" must be re-keyed whenever $d$ changes: at $N=2^{d+1}$ every key in the mapping is invalidated, forcing an $O(N)$ migration or a lazy-migration scheme with its own bookkeeping and gas spikes. The ICBT never re-keys — $d$ is derived from $N$, indexes are stable, and a depth transition costs zero writes.
+- _Write cost._ ICBT: $O(\log N)$ counter updates per structural change (the leaf-to-root path — about 30 slots at a million nodes). Ring: $O(1)$ link writes plus $O(\log N)$ for whatever auxiliary structure supports selection. Asymptotically a wash; the migration cliff above is the real differentiator.
+
+What the ring genuinely wins — ordered iteration over a neighbourhood's members, and successor lookup for an arbitrary address in $O(1)$ expected — the registry does not need: the invariant puts exactly one node per leaf, and `nodeFor` at $O(\log N)$ is a read-only view function where the cost is immaterial.
+
+**Compacted (path-compressed) binary trie.** Path compression pays when keys are sparse and clustered, skipping runs of one-child internal nodes. The balanced leaf set is the opposite regime: the invariant keeps the tree _dense by construction_ — complete to within one level at all times — so there are no one-child runs to skip. Compression would save zero levels while adding skip-pointer maintenance to every split and collapse, and would forfeit the implicit layout's principal economy: with heap indexing, parent, children, and sibling are arithmetic on the index, no pointers are stored at all, and a trie node is nothing but its counter slots. Compaction is a tool for arbitrary key sets; balanced assignment is precisely the case where it cannot help.
+
 ### Client integration
 
 The swarm node client software requires an operator-facing workflow for both initial assignment and relocation:
