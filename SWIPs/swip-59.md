@@ -140,7 +140,7 @@ sequenceDiagram
     Note over S: mine id_B: SOC_ADDR(id_B, ETH(pk_B)) closest to overlay_B
     S->>N: push-sync SOC(id=id_S, owner=ETH(pk_S), payload=ENC(req_key, Q ‖ id_B))
     N->>B: sync delivers
-    Note over B: decrypt → Q, id_B; store SOC(id_B, ETH(pk_B), ENC(res_key, R)) locally
+    Note over B: decrypt → Q, id_B — store SOC(id_B, ETH(pk_B), ENC(res_key, R)) locally
     S->>N: retrieve SOC_ADDR(id_B, ETH(pk_B))
     N-->>B: routed to closest node
     B-->>S: response chunk
