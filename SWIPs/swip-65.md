@@ -4,7 +4,8 @@ title: Self-indexed feeds
 author: Viktor Trón (@zelig), Viktor Tóth (@nugaon)
 discussions-to: https://discord.gg/Q6BvSkCv
 status: Draft
-type: Standards Track (Interface, Networking)
+type: Standards Track
+category: Interface
 created: 2026-08-09
 ---
 
@@ -57,17 +58,19 @@ but nothing in it requires BPS.
 
 ## Specification
 
-Notation: `H` = keccak256, `H_BMT` = BMT hash, `‖` = concatenation. `IDX` is a uint64,
-big-endian, starting at 0, incremented by 1 per update.
+Notation: `H` = keccak256, `H_BMT` = BMT hash, `‖` = concatenation. `OWNER` is the
+owner's 20-byte address and `SIG_OWNER` a signature by its key. `i` is the update index,
+counting from 0 and incremented by 1 per update; `IDX` is that same index encoded as a
+big-endian uint64, which is the form that appears inside hashes.
 
 ### The construction: an ordinary sequential feed
 
-Update `i` by owner `O` on topic `TOPIC` is the SOC ⟨`a`, `c`⟩:
+Update `i` by `OWNER` on topic `TOPIC` is the SOC ⟨`a`, `c`⟩:
 
 ```
 id  = H(TOPIC ‖ IDX)                                  // the signed id
 a   = H(id ‖ OWNER)                                   // SOC address in storage
-sig = SIG_O( H( id ‖ H_BMT(SPAN ‖ PAYLOAD) ) )
+sig = SIG_OWNER( H( id ‖ H_BMT(SPAN ‖ PAYLOAD) ) )
 c   = id ‖ sig ‖ SPAN ‖ PAYLOAD
 ```
 
@@ -110,7 +113,7 @@ Three properties of pots carry the whole design:
 2. **Iteration is history.** XOR distance from key 0 is the key's numeric value, so
    ascending iteration from 0 enumerates the elements in `KEY` order — which by
    monotonicity is publication order: `Iter(n_i, 0, ASC) = e_0, …, e_i`, retrieving
-   every node exactly once. Descending iteration from key `2^64 − 1` yields
+   every node exactly once. Descending iteration from key `2^64 - 1` yields
    newest-first: the live window is its first `k` elements.
 3. **Random access.** Lookup of any key (a seek to a timestamp) is a descent from the
    latest node: `O(log n)` chunk retrievals.
@@ -158,7 +161,7 @@ retrieving every missed index as a feed update.
 
 A follower tracks the highest contiguous index `w` it has verified. Learning of an
 update with `IDX > w + 1` — from a live frame, or from a feed lookup that lands on a
-later index — is evidence of `IDX − w − 1` missed updates, and, with the pot profile,
+later index — is evidence of `IDX - w - 1` missed updates, and, with the pot profile,
 that same update carries the means of recovery: its payload `n_IDX` is the pot over
 *all* elements so far, the missed ones included. The follower descends from `n_IDX`
 and retrieves the missing elements directly. Two properties make this the primary
@@ -319,8 +322,8 @@ visibility; the backfill is the generic recovery mechanism verbatim:
 on_frame(IDX, sig, n):                        # bare index on the wire
     verify_sig(H(topic ‖ IDX), n)             # reconstruct id, check once
     if IDX > w + 1:                           # gap — backfill by descent:
-        for j in w+1 .. IDX−1:                #   hash-verified via fork refs,
-            deliver(j, nth_newest(n, IDX−j))  #   indices by counting, no sig checks
+        for j in w+1 .. IDX-1:                #   hash-verified via fork refs,
+            deliver(j, nth_newest(n, IDX-j))  #   indices by counting, no sig checks
     deliver(IDX, pin(n)); w ← IDX
     live_window ← first k of Iter(n, MAX, DESC)
 ```
@@ -384,10 +387,10 @@ streams (bps-history) — for self-indexed cohorts the problem dissolves rather 
 transfers: the first live frame a joiner verifies already carries the pot over the
 entire history, so `history: true` collapses into client-side descent, the broker
 delivering nothing beyond the live stream; bps-history remains needed only for
-non-self-indexed bindings; equivocation *response* policy (detection and error signalling are normative
-above); multi-publisher cohorts need nothing here — one self-indexed feed has one
-owner, so a multi-publisher cohort is simply one feed per publisher; encryption of
-payloads and segments (orthogonal).
+non-self-indexed bindings; equivocation *response* policy (detection and error
+signalling are normative above); multi-publisher cohorts need nothing here — one
+self-indexed feed has one owner, so a multi-publisher cohort is simply one feed per
+publisher; encryption of payloads and segments (orthogonal).
 
 ## Conformance (definition of done)
 
