@@ -4,7 +4,8 @@ title: Graffiti wall pattern
 author: Viktor Trón (@zelig)
 discussions-to: https://discord.gg/Q6BvSkCv
 status: Draft
-type: Standards Track (Interface)
+type: Standards Track
+category: Interface
 created: 2026-08-11
 ---
 
