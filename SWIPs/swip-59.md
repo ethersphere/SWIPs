@@ -4,7 +4,8 @@ title: MEX — anchored message exchange with a previously unknown node
 author: Viktor Trón (@zelig), Viktor Tóth (@nugaon)
 discussions-to: https://discord.gg/Q6BvSkCv
 status: Draft
-type: Standards Track (Networking)
+type: Standards Track
+category: Networking
 created: 2026-07-31
 ---
 
