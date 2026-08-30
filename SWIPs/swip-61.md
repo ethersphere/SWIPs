@@ -1,10 +1,11 @@
 ---
 SWIP: 61
 title: BPS multihop — FCFS multicast tree
-author: Viktor Trón (@zelig), Viktor Tóth (@nugaon) 
+author: Viktor Trón (@zelig), Viktor Tóth (@nugaon)
 discussions-to: https://discord.gg/Q6BvSkCv
 status: Draft
-type: Standards Track (Networking)
+type: Standards Track
+category: Networking
 created: 2026-08-04
 requires: 60
 ---
@@ -15,10 +16,10 @@ requires: 60
   survive relay churn without interruption.
 - **Dev line**: fill three reserved `Broadcast` control-plane fields of
   [bps.proto](assets/swip-61/bps.proto) (`Reparent`, `Probe`, `Candidates`), extend `Ack` with
-  attachment candidates, and implement three behaviours — subtree probing, dual-parent
-  maintenance, make-before-break reparenting; done when a cohort scales past a single
-  node's capacity, masks a single relay failure with no delivery gap, and unmodified
-  SWIP-60 clients attach as leaves.
+  attachment candidates, forward `Publish` rootward, and implement three behaviours —
+  subtree probing, dual-parent maintenance, make-before-break reparenting; done when a
+  cohort scales past a single node's capacity in **both** directions, masks a single relay
+  failure with no delivery gap, and unmodified SWIP-60 clients attach as leaves.
 - DISC: the first time proper **forwarding by consumers** (subscribers as
   relays) is implemented; a wire-protocol change (reserved frames become normative),
   no storage or Bee-API change.
@@ -55,31 +56,49 @@ broken, so churn tolerance is built into the topology, not patched on.
 ### The seam from SWIP-60
 
 Everything in SWIP-60 stands — cohort genesis (`CohortSpec` untouched), bindings and
-dedup rules, publisher legitimacy, the `Open`/`Subscribe`/`Ack` establishment,
-self-contained SOC frames, end-to-end verification — with exactly one amendment:
+dedup rules, publisher legitimacy, the admin's service feed, the `Hello`/`Ack`
+establishment, self-contained SOC frames, end-to-end verification — with **two**
+amendments:
 
-**The capacity rule.** A relaying node at capacity answering a `Subscribe` MUST NOT
+**1. The capacity rule.** A relaying node at capacity answering a `Subscribe` MUST NOT
 bare-refuse; it probes its subtree and answers `Ack(FULL)` **with the two shallowest
-attachment points found** (new `candidates` field). A SWIP-60-only client ignores the
-unknown field and reads a plain refusal.
+attachment points found** (new `candidates` field, number 6 — 3–5 are SWIP-60's service
+SOCs). A SWIP-60-only client ignores the unknown field and reads a plain refusal.
 
-There is **no depth bound**: the tree grows as deep as joins take it. Depth is
-self-limiting — per-hop pricing (bps-bw-incentives) charges upstream by depth, so
-joiners are economically steered toward the root; a protocol bound would only duplicate
-the price signal. And the one configuration that genuinely needs depth = 1 — the closed
-cohort, where all and only publishers subscribe — is **structurally** singlehop already:
-publishers connect directly to the root.
+**2. Publishing is no longer confined to the root.** SWIP-60's publishers attach directly
+to the broker, but that is a consequence of depth = 1 rather than an invariant: `Publish`
+now travels **rootward**, forwarded hop by hop to the broker, which validates, dedups and
+broadcasts it back down. Multihop therefore restructures **both** directions, not the
+audience side only — which is what an everyone-publishes cohort (SWIP-60's `ALL`, and any
+`GRANTED` cohort larger than one node's capacity) needs in order to exist at all.
 
-Invariant: **publishers (and the opener) still connect directly to the root.** Multihop
-restructures the audience side only.
+`Open` still goes to the broker, because opening a cohort *is* contacting the root. Its
+admin is thereafter an ordinary publisher and may sit at any depth like any other.
+
+There is **no depth bound**: the tree grows as deep as joins take it, and depth is
+self-limiting because it is priced — see the Rationale.
+
+**What a relay owes a joiner.** SWIP-60's `Ack` carries the echoed `CohortSpec`, the
+admin-signed genesis SOC and the latest service SOC with its index. A relay answering a
+`Subscribe` MUST pass on all three, unchanged — it holds them from its own join, and
+keeps the service SOC current from the broadcasts it already receives. **Depth must cost a
+subscriber nothing in what it can verify**: a leaf ten hops out checks the cohort and the
+roster against the admin's key exactly as the broker's own child does, so the extra
+intermediaries add withholding points and no forging points. A relay that serves a stale
+service SOC is withholding, which its subscriber detects as an index gap.
+
+Cohorts with `spectators: false` are unchanged in kind: any node answering a `Subscribe`
+applies the same roster check, and it can, because it holds the roster.
 
 ### Roles
 
-- **Broker** — as in SWIP-60: root of the tree, target of `Open`, sole entry point for
-  publishers, default entry point for joins.
+- **Broker** — as in SWIP-60: root of the tree, target of `Open`, default entry point for
+  joins, and the point at which every `Publish` is validated and deduped, wherever it
+  originated. It is no longer the *attachment* point for publishers.
 - **Relay** — a subscriber with children: re-broadcasts every SOC frame down its own
-  direct streams, answers `Subscribe` like any parent, and forwards and aggregates
-  probes. There is no promotion step: **accepting your first child is what becoming a
+  direct streams, forwards its children's `Publish` frames up its own, answers `Subscribe`
+  like any parent (passing on the `CohortSpec` and the two service SOCs it holds), and
+  forwards and aggregates probes. There is no promotion step: **accepting your first child is what becoming a
   relay means.** Relay capability is latent in every subscriber — the `Ack`-echoed
   `CohortSpec` from its own join is exactly what it echoes to children of its own. Any
   full-node subscriber is relay-eligible; NAT'd and light-client relays are reachable
@@ -123,6 +142,45 @@ breadth-first, keeping delivery paths short — and it agrees with the incentive
 (upstream pricing is depth-scaled), so the protocol default and the economics point the
 same way. It is still FCFS, not optimality: candidates race, replies are best-effort
 within the wait bound, and the first slot won wins.
+
+### Publishing from depth
+
+A publisher no longer needs a stream to the broker. `Publish` rides the same (peer, topic)
+stream as everything else, in the **opposite direction** to `Broadcast`: a node accepts a
+`Publish` from a child and forwards it to its own parent, hop by hop, until it reaches the
+root. The broker validates it against the `CohortSpec` and the current roster, applies the
+binding's dedup rule, and broadcasts it back down — so it returns to the publisher along
+with everyone else, and a publisher's own message reaching it is its delivery receipt.
+
+- **Where validation happens.** Authoritatively at the broker, which is the single point
+  every publish passes through and therefore the only place dedup is well defined. Any
+  relay MAY drop a `Publish` it can already tell is invalid — it holds the `CohortSpec` and
+  the roster, so it can check the signature, the binding and the authorship — and SHOULD,
+  since carrying a doomed frame up d hops wastes every one of them. This is an
+  optimisation, never a substitute: a relay that forwards everything is conformant, and
+  one that drops a *valid* frame is withholding.
+- **Publish up both parents.** A node with two parents sends each `Publish` up both. The
+  dedup rule absorbs the double at the first node that sees both — usually the sisters'
+  shared parent — and the redundancy buys upstream exactly what the two feeds buy
+  downstream: **a single relay cannot silently swallow a publish.** Where a subscriber has
+  chosen to be single-parented (see below), its publishes inherit that choice's exposure.
+- **Depth is priced, not bounded.** Upstream pricing (bps-bw-incentives) is depth-scaled,
+  so a publisher d hops out pays for d hops. A publisher that cares about its own latency
+  or cost buys a shallower attachment; nothing in the protocol needs to stop it.
+
+The contract is unchanged in substance — messages come from publishers only and arrive at
+all subscribers — but its enforcement point is now explicit: **authorship is decided at the
+root, and verified again by every subscriber.** Relays in between are conveniences, and a
+dishonest one can delay a message or drop it, never author one.
+
+**Revocation across a tree.** SWIP-60's two-phase revocation is unchanged in rule and
+lands one hop out: the roster update is an ordinary broadcast, so it reaches every node,
+and the revoked publisher's **parents** are where enforcement happens — they are the nodes
+accepting its `Publish` frames. Before the update reaches them they drop those frames and
+tolerate them, exactly as a singlehop broker would; after it arrives, a further publish is
+a protocol violation and the parent breaks the stream. The revokee learns of its own
+revocation from the same broadcast, at the same time, which is what makes the second phase
+fair at any depth.
 
 ### Resilience: two parents
 
@@ -172,9 +230,12 @@ the old stream. During the overlap the dedup rule absorbs doubles, as everywhere
 
 Two cases:
 
-- **graceful leave** — a departing relay `Reparent`s each child toward a replacement
-  (its own parents, or spread over its children **(?)**) before closing; the child's
-  flow continues on its other parent throughout the move;
+- **graceful leave** — a departing relay `Reparent`s each child toward **its own parents**
+  before closing; the child's flow continues on its other parent throughout the move. Its
+  parents are the right target because they are known-live, known-compatible and at the
+  departing node's own depth minus one, so the subtree gets shallower rather than deeper;
+  handing children to one another would deepen the tree and has no answer for the first
+  child;
 - **churn repair** — is the *absence* case: BPS has no keepalive, so a parent's death
   surfaces as a transport-level stream reset or connection loss; no `Reparent` arrives,
   the surviving parent carries the stream, and the node re-runs the join for a
@@ -187,7 +248,7 @@ the gap itself (a resumed subscriber is in the same position as a fresh one).
 ### NAT'd relays
 
 Reaching a NAT'd relay is the transport's business, not this protocol's: libp2p circuit
-relay + DCUtR hole punching (the dcutr work item, bee
+relay + DCUtR hole punching (the DCUtR work item, bee
 [#5355](https://github.com/ethersphere/bee/issues/5355)). BPS carries no signalling for
 it — the only tree-relevant observation is that a NAT'd child's **parent is its natural
 circuit relay**, so a candidate a probe returns can be handed out under an address the
@@ -253,10 +314,20 @@ frame type and direction disambiguate. On submission the amended file goes to
 
 ```proto
 message Ack {
-  Status     status = 1;
-  CohortSpec cohort = 2; // set iff status == OK
-  repeated Candidate candidates = 3; // set iff FULL at a relaying node: the two
-                                     // shallowest attachment points the probe found
+  Status     status  = 1;
+  CohortSpec cohort  = 2; // set iff status == OK
+  Soc        genesis = 3; // SWIP-60: service feed index 0
+  Soc        service = 4; // SWIP-60: latest service SOC
+  uint64     index   = 5; // SWIP-60: its feed index
+  repeated Candidate candidates = 6; // set iff FULL at a relaying node: the two
+                                     // shallowest attachment points the probe found.
+                                     // Field 6, not 3 — 3–5 are SWIP-60's service SOCs
+}
+
+// unchanged from SWIP-60, but no longer publisher -> broker: a node forwards a
+// child's Publish to its own parent(s) until it reaches the root
+message Publish {
+  Soc soc = 1;
 }
 
 message Broadcast {
@@ -312,12 +383,26 @@ the transport's job, and transport-level detection has latency. Two always-on fe
 close that window structurally, cost 2×, and come with a side effect no standby offers:
 withholding is caught by comparing the feeds.
 
-**Why no depth bound?** Because depth already has a price. Per-hop publish pricing
-(bps-bw-incentives) is depth-scaled upstream, so joiners are economically steered
-toward the root and deep chains cost their occupants; a protocol-level `max_depth`
-would duplicate that signal with a blunter instrument — and give the tree a notion of
-"full" it doesn't otherwise need. The closed cohort, the one shape that must stay
-depth 1, is structurally singlehop: publishers connect directly to the root.
+**Why no depth bound?** Because depth already has a price, and now on both sides. Per-hop
+pricing (bps-bw-incentives) is depth-scaled upstream, so joiners are economically steered
+toward the root and deep chains cost their occupants; with `Publish` travelling rootward
+the same gradient bills a *publisher* for its depth, which is the case where the incentive
+bites hardest. A protocol-level `max_depth` would duplicate that signal with a blunter
+instrument, and give the tree a notion of "full" it does not otherwise need.
+
+An earlier draft anchored this argument on the closed cohort — the one shape that had to
+stay at depth 1 because its publishers attached directly to the root. That anchor is gone
+twice over: `closed` no longer exists in SWIP-60, and publishers no longer attach to the
+root. **No configuration requires depth 1.** The argument stands on the price alone, which
+is where it belonged.
+
+**Why is a publish validated at the root rather than at the edge?** Because dedup needs a
+single vantage point. The binding's dedup rule is a statement about what a cohort has
+already seen, and only the broker sees everything; a relay applying it locally would
+suppress a message some sibling subtree never received. Signature and authorship checks, by
+contrast, are local and stateless, so relays may and should run those early — dropping a
+frame that could never be accepted costs nothing and saves d hops. The split is the usual
+one: **stateless checks anywhere, stateful ones where the state is.**
 
 **Why do relays get nothing here?** They do — later. Metered per-hop pricing is
 bps-bw-incentives' business; this SWIP keeps the edges it will price. Until then,
@@ -334,8 +419,10 @@ self-healing path.
 
 Paying for forwarded messages (bps-bw-incentives); message history — delivery of
 messages from before the subscription (bps-history); broker discovery (SWIP-59 MEX);
-NAT traversal — circuit relay and hole punching are transport business (dcutr item);
-dynamic publisher-list changes (out of scope in SWIP-60, unaffected here).
+NAT traversal — circuit relay and hole punching are transport business (the DCUtR item);
+and the admin's control plane itself — grants, revocations and end-of-stream are SWIP-60's
+service feed, and reach every depth as ordinary broadcasts, so this SWIP adds nothing to
+them.
 
 ## Conformance (definition of done)
 
@@ -347,7 +434,10 @@ An implementation is conformant when:
 2. a probe wave terminates: nodes with a free slot reply and do not forward, and
    forwarding nodes answer within the wait bound with the min-2-by-depth filter of what
    arrived;
-3. an accept carries the echoed `CohortSpec`;
+3. an accept carries the echoed `CohortSpec` **and** the genesis and latest service SOCs
+   with the service index, unchanged, from whatever depth it is issued — a subscriber ten
+   hops out verifies the cohort and the roster against the admin exactly as the broker's
+   own child does;
 4. absent races, a join completes in two steps: one probe round, one (dual) attach;
 5. a node offered two distinct parents maintains both — except on self-indexed cohorts
    ([SWIP-65](https://github.com/ethersphere/SWIPs/pull/106)), where the second parent
@@ -359,7 +449,15 @@ An implementation is conformant when:
 8. an unmodified SWIP-60 client attaches as a leaf anywhere in the tree and cannot
    distinguish its parent from a singlehop broker;
 9. a subscriber at any depth re-verifies every message end-to-end; loss of both
-   parents is a liveness fault repaired by rejoin.
+   parents is a liveness fault repaired by rejoin;
+10. a `Publish` from any depth reaches the root, is validated and deduped there, and is
+    broadcast back down to the whole cohort including its own publisher; a node with two
+    parents publishes up both, and the dedup rule absorbs the double;
+11. a relay MAY drop a `Publish` that fails a stateless check (signature, binding,
+    authorship) but MUST NOT apply the binding's dedup rule locally, and one that forwards
+    everything is conformant;
+12. a revoked publisher's frames are dropped and tolerated by its parents until the
+    reduced roster reaches them, and the stream is broken only on a publish after that.
 
 ## Backwards compatibility
 
@@ -369,8 +467,10 @@ is invisible to old implementations — an old client ignores `Ack.candidates` a
 a plain `FULL`. A SWIP-60 leaf that receives a `Probe` ignores the unknown frame and
 never replies — exactly the empty answer the bounded wait absorbs, which is why old
 leaves are compatible by construction (single-parented, without the resilience).
-`CohortSpec` is untouched. SWIP-60's conformance item 4 ("`FULL` — and nothing else")
-is superseded for nodes implementing this SWIP.
+`CohortSpec` is untouched, and `Ack.candidates` takes field 6 so that SWIP-60's service
+SOCs keep 3–5. SWIP-60's conformance item 4 ("`FULL` — and nothing else") is superseded for
+nodes implementing this SWIP, as is its statement that a publisher is attached to the
+broker — true at depth 1, and a consequence of it rather than a rule.
 
 ## References
 
@@ -378,7 +478,7 @@ is superseded for nodes implementing this SWIP.
 [#104](https://github.com/ethersphere/SWIPs/pull/104) · wire: [bps.proto](assets/swip-61/bps.proto) ·
 origin: [PR #93](https://github.com/ethersphere/SWIPs/pull/93) "Add: pubsub" ·
 implementation groundwork: bee [#5435](https://github.com/ethersphere/bee/pull/5435) ·
-dCUTr: [bee#5355](https://github.com/ethersphere/bee/issues/5355)
+DCUtR: [bee#5355](https://github.com/ethersphere/bee/issues/5355)
 
 ## Copyright
 
