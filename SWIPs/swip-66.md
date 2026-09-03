@@ -45,6 +45,10 @@ the span field of the wrapped chunk. Anyone can write; everyone can read; no two
 writers ever share a key — and a BPS broker on the wall's cohort doubles as the
 **aggregate feed indexer** over all writers.
 
+## Abstract
+
+This SWIP specifies a “graffiti wall”: a permissionless public write-board keyed by a topic `T` where writers publish signed entries under their own keys and prove wall membership by mining proximity to the anchor `A = H(T)` (via MOC mining or by mining a self-describing span-index entry). Readers discover writers from wall entries and then follow per-writer content feeds under topic `H(T)`.
+
 ## Motivation
 
 The original GSOC pattern hands one secret key to the world, and everything wrong with
