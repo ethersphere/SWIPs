@@ -119,14 +119,17 @@ Content is unconstrained; the entry is a MOC and all MOC tooling applies. The
 ephemeral owner is still *an* owner — unique to this writer, never shared — but the
 entry is not linked to the writer's persistent identity unless the payload links it.
 
-**Mode 2 — normal feed, bare index, brokered (no mining).** When writers connect in
-publisher role to a broker (BPS, SWIP-60), a normal feed on topic `T` is used and
-frames carry the **bare 8-byte index in the 32-byte id field** — the carriage rule of
-SWIP-65 ([#106](https://github.com/ethersphere/SWIPs/pull/106)). Delivery is by the
-broker, so no anchoring — and hence no mining — is needed. The publisher
-parameterisation of the cohort is immaterial; the point is that both the topic
-(implicit in the channel) and the bare indexes are known, so subscribers can follow.
-Every frame carries the full SOC, so the writer's own key signs as in any feed.
+**Mode 2 — content feed, bare index, brokered (no mining).** When writers connect in
+publisher role to a broker (BPS, SWIP-60), they can publish updates on their **content
+feed** under topic `H(T)` (i.e. `A`), and frames carry the **bare 8-byte sequential
+index in the 32-byte id field** — the carriage rule of SWIP-65
+([#106](https://github.com/ethersphere/SWIPs/pull/106)).
+
+This mode does **not** create a wall entry by itself (it does not buy wall membership
+via `PO(addr, A) >= PO_MIN`); discoverability on the wall still requires a mode-1 or
+mode-3 anchored wall entry that allows readers to recover the writer and follow the
+content feed. Every frame carries the full SOC, so the writer's own key signs as in any
+feed.
 
 **Mode 3 — normal feed, mined index (the span-index construction).** The writer keeps
 their real identity `O` and mines the feed **index** so that the entry lands on the
