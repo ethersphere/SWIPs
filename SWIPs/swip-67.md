@@ -192,7 +192,7 @@ Each fund-holding contract is split into two deployed contracts.
 
 | Core (frozen, no admin, holds BZZ) | Policy (replaceable, holds no BZZ) |
 |---|---|
-| `PostageAccounting` — batch ownership, per-batch balance, pot, total deposited, total paid out | `PostagePolicy` — batch admissibility, depth and bucket rules, minimum balances, price ingestion, expiry ordering |
+| `PostageAccounting` — batch ownership, per-batch normalised balance, the outpayment accumulator, pot, total deposited, total paid out | `PostagePolicy` — batch admissibility, depth and bucket rules, minimum balances, price submission, expiry ordering |
 | `StakingCore` — per-address deposit, withdrawal accounting | `StakingPolicy` — overlay derivation, height, committed stake, effective stake, freeze and slash rules |
 
 `Redistribution` and `PriceOracle` are policy-class contracts: they hold no user funds and
@@ -228,6 +228,9 @@ total paid out, and MUST maintain, checked at the end of every state-changing ca
 sum(recorded claims) + pot <= token.balanceOf(core)
 ```
 
+The invariant MUST be maintained incrementally on each call, not recomputed by iterating
+balances, and MUST be the subject of the fuzz coverage required by [Test cases](#test-cases).
+
 The core MUST own exactly enough arithmetic to police this and no more. In particular, pot
 growth MUST be bounded by the core independently of policy's accounting: policy may *assert*
 an accrual, but the core MUST reject any accrual that would breach the inequality above.
@@ -246,7 +249,8 @@ rate-limited by the core:
 |---|---|
 | `claimPot()` | at most `MAX_POT_FRACTION_PER_ROUND` of `pot` per `ROUND_LENGTH` window |
 | `slash(node, amount)` | at most `MAX_SLASH_PER_EPOCH` per node and in aggregate per epoch |
-| pot accrual | bounded by C2.2, and by `MAX_PRICE` on the ingested price |
+| `setPrice(price)` | `price <= MAX_PRICE`, and the step from `lastPrice` at most `MAX_PRICE_CHANGE_PER_UPDATE` |
+| pot accrual | not a policy primitive at all — see C4 |
 
 Suggested initial values are given in [Open questions](#open-questions); they are
 parameters of the deployment, immutable in the core once set. The purpose of the bounds is
@@ -290,11 +294,33 @@ This is an economic parameter, not a security one, and is listed as an open ques
 takes on, and it MUST be managed by keeping cores minimal. A core with a bug and no admin is
 worse than an upgradeable contract. Therefore:
 
-- Cores hold balances, ownership, monotone accumulators, and the conservation check. Nothing
-  else.
+- Cores hold balances, ownership, monotone accumulators, the outpayment accumulator, and
+  the conservation check. Nothing else.
 - Everything with interesting edge cases — the expiry ordering structure, batch selection,
   depth and bucket rules, effective-stake curves, commitment maths — lives in policy, where
   it can be fixed.
+
+The outpayment accumulator is the one piece of pricing arithmetic that cannot live in the
+replaceable half, and the reason is worth stating precisely. A batch's `normalisedBalance`
+is denominated *in the accumulator of the contract that issued it*:
+
+```
+currentTotalOutPayment() = totalOutPayment + lastPrice * (block.number - lastUpdatedBlock)
+remainingBalance(id)     = normalisedBalance[id] - currentTotalOutPayment()
+```
+
+A fresh contract starts the accumulator at zero, so every balance must be *rebased*, not
+re-pointed — which is exactly what today's `copyBatch` does when it recomputes
+`normalisedBalance = currentTotalOutPayment() + remainingBalance`. If the accumulator lived
+in policy, every policy replacement would rebase every batch, turning a once-per-migration
+hazard into a once-per-upgrade one: wrong expiry and premature reserve eviction. That would
+be strictly worse than the status quo.
+
+The cost of putting it in the core is that **the outpayment model itself is frozen**: linear
+per-block accrual against a per-chunk normalised balance. Moving to a different model —
+non-linear pricing, per-neighbourhood pricing, a different unit of account — is not a policy
+change and would still require a migration. This is the largest single thing the proposal
+gives up, and it is deliberate.
 - Cores MUST be formally specified and MUST have full invariant and fuzz coverage before
   deployment (see [Test cases](#test-cases)).
 
@@ -345,6 +371,37 @@ participation; inheriting predecessor state avoids re-triggering that delay, whe
 fresh declaration would cost operators roughly two rounds (~25 minutes at
 `ROUND_LENGTH = 152` on Gnosis).
 
+**C3.1 — Eligibility clock.** `StakingPolicy` MUST compute participation eligibility from
+`min(depositBlock, preRegistrationBlock)`, where pre-registration is a zero-value
+transaction an operator MAY send in advance of a deposit or a cutover.
+
+`Redistribution` requires a stake record older than `2 * ROUND_LENGTH` before a node may
+participate. Without a pre-registration clock, any event that causes many operators to
+establish a stake record at similar times produces a **rolling participation trough**: for
+the duration of the spread, effective participation is a fraction of normal, and with few
+participants a single dissenter's chance of being leader rises sharply — which is the
+v2.8.0 failure mode, self-inflicted. Note that staggering such an event to avoid a gas
+spike makes the trough *worse*, not better, by lengthening it. Pre-registration lets the
+settling period elapse before the event, so no operator waits at cutover and no trough is
+created.
+
+**C3.2 — Accounts and nodes.** `StakingCore` MUST record deposits per *account* and MUST NOT
+assume a one-to-one relationship between an account and a node identity. Mapping an account
+to one or more node overlays is `StakingPolicy`'s responsibility, since overlay derivation
+is already policy-side.
+
+This is close to free once overlay lives in policy, and it has three consequences worth
+naming: fleet operations become proportional to accounts rather than nodes, so a large
+operator can fund or exit an entire fleet in one transaction; withdrawal authority is
+separated from the node's operational signer, so a compromised node key cannot move funds;
+and the cost of the one final stake migration falls sharply.
+
+It introduces one question the policy MUST answer explicitly: if several nodes are backed by
+one account, a slash earned by one node reduces the stake backing the others. Acceptable
+answers include per-node sub-allocations within an account, or requiring an account's
+deposit to cover the sum of its nodes' committed stakes. This SWIP does not pick one; see
+[Open questions](#open-questions).
+
 #### C4. `PostageAccounting` interface
 
 ```solidity
@@ -360,10 +417,15 @@ interface IPostageAccounting {
     ///         May forfeit a fixed fraction to the pot (see C2.6).
     function refundBatch(bytes32 batchId) external;
 
+    /// @notice Credit the pot with the residual value of expired batches.
+    ///         Permissionless. For each id the core verifies remainingBalance(id) == 0
+    ///         for itself; ordering hints from policy are not trusted.
+    function expire(bytes32[] calldata batchIds) external;
+
     // ---- policy, bounded (C2.4) ----
-    /// @notice Debit a batch and credit the pot. Reverts if the conservation
-    ///         invariant (C2.2) or MAX_PRICE would be breached.
-    function accrue(bytes32 batchId, uint256 amount) external;
+    /// @notice Submit a new price. The core folds it into its own accumulator.
+    ///         Bounded by MAX_PRICE and MAX_PRICE_CHANGE_PER_UPDATE.
+    function setPrice(uint256 price) external;
 
     /// @notice Pay out to the single authorised redistributor. Capped per round (C2.4).
     ///         Destination is not a parameter.
@@ -374,22 +436,32 @@ interface IPostageAccounting {
     function executeRedistributor() external;
 
     // ---- views ----
-    function balanceOf(bytes32 batchId) external view returns (uint256);
+    function remainingBalance(bytes32 batchId) external view returns (uint256);
+    function normalisedBalanceOf(bytes32 batchId) external view returns (uint256);
+    function currentTotalOutPayment() external view returns (uint256);
     function ownerOf(bytes32 batchId) external view returns (address);
     function pot() external view returns (uint256);
     function redistributor() external view returns (address);
 }
 ```
 
-`claimPot` takes an amount but not a destination. There is no `withdraw(address)`. The
-redistributor pointer is singleton by construction rather than by role hygiene, which is
-the direct fix for the v0.9.3 double-redistributor race.
+There is no `withdraw(address)`. The redistributor pointer is singleton by construction
+rather than by role hygiene, which is the direct fix for the v0.9.3 double-redistributor
+race.
+
+`claimPot` takes an amount but not a destination, and there is no `accrue` primitive: pot
+growth is not something policy can assert. The core derives every batch's remaining balance
+from its own accumulator, and `expire` is permissionless and self-verifying — a caller
+supplies candidate batch ids, and the core credits the pot only for ids it independently
+confirms have reached zero. Policy therefore has no pot-accrual authority whatsoever, which
+is a strict reduction in policy authority relative to the first draft of this SWIP.
 
 Batch *identity and semantics* — bucket depth validity, immutability flags, minimum initial
-balance, depth-increase rules — live in `PostagePolicy`. `PostageAccounting` records only
-that a batch id is owned by an address and holds a balance. The expiry ordering structure
-(today `HitchensOrderStatisticsTreeLib`) lives in policy; the core does not need it, because
-under C2.2 it bounds pot growth by conservation rather than by recomputing expiry.
+balance, depth-increase rules — live in `PostagePolicy`. The expiry *ordering* structure
+(today `HitchensOrderStatisticsTreeLib`) also lives in policy: it is a search index over
+core state, rebuildable from events, and it is the single most edge-case-heavy component in
+the current contract, so it belongs in the half that can be fixed. Ordering is a hint;
+`expire` verifies.
 
 #### C5. Residual trust after Part 1
 
@@ -546,7 +618,40 @@ A conforming client:
 5. SHOULD expose the pending cutover in its status API and log a warning when it is running a
    version whose cutover has passed.
 
-#### F7. Relationship between the parts
+#### F7. Cutover types and dual-ABI scope
+
+Two kinds of cutover exist and they carry different client obligations. Conflating them is
+what makes the dual-ABI burden look unbounded.
+
+**Type A — wire-breaking.** The release changes the p2p protocol version, so vN and vN+1
+nodes cannot peer at all. The client ships a *single* game ABI. A node that has not upgraded
+by `activationBlock` stops earning, which is intended and is the entire content of F1. No
+dual-mode code is required, because a non-upgraded node is on the other branch and must not
+be paid from this branch's pot.
+
+**Type B — contract-only.** The wire protocol is unchanged: a `Redistribution` bugfix, a
+policy parameter change, a new `PostagePolicy`. Continuity is expected — operators who have
+not restarted MUST keep earning across `activationBlock` — so the client MUST carry both
+contract bindings and switch at `activationBlock`. The legacy binding MAY be removed in the
+first release after the cutover.
+
+**F7.1 — Consensus-path rule.** A cutover that would require a runtime branch in
+consensus-critical computation — reserve sampling, commitment hashing, overlay derivation,
+depth or eligibility determination — MUST be Type A. It MUST NOT be shipped as Type B with a
+runtime branch.
+
+The reason is that a dual-mode sampler is itself a source of dissent: two nodes that
+disagree about which mode they are in produce divergent reserve commitments, which is
+precisely the failure mode F1 exists to prevent. F7.1 confines Type B's dual-mode surface to
+contract call sites, where it is cheap, and pushes anything deeper into Type A, where the
+network partition already does the separating. It converts "supporting two ABIs is
+unbounded maintenance" from an objection into a design constraint that stops the expensive
+case from arising.
+
+Under Part 1 the frozen cores never acquire a second ABI, so deposits, withdrawals and
+balance reads never branch in either type. Only policy and `Redistribution` bindings do.
+
+#### F8. Relationship between the parts
 
 Part 2 alone still requires stake migration at every fork, which is the ten-day outage. Part
 1 alone leaves the fork boundary undefined, so wire-only forks keep commingling incentives.
@@ -667,10 +772,26 @@ cutover proposed off-boundary MUST revert; the old redistributor MUST reject com
 final round and MUST still accept reveals and claims for the round already committed; a
 `manifest` mismatch MUST cause client hard-failure.
 
+**Accumulator continuity tests.** A policy replacement MUST NOT change
+`currentTotalOutPayment()`, `normalisedBalanceOf()` or `remainingBalance()` for any batch.
+This MUST be tested across a policy change with a pending price update, and across a policy
+change that occurs mid-expiry.
+
+**Expiry self-verification tests.** `expire()` MUST credit the pot only for batch ids whose
+`remainingBalance()` the core independently computes as zero, and MUST be safe when passed
+arbitrary, duplicated, non-existent or not-yet-expired ids by an untrusted caller.
+
+**Price bound tests.** `setPrice` MUST reject a price above `MAX_PRICE` or a step above
+`MAX_PRICE_CHANGE_PER_UPDATE`, from an honest and a malicious policy alike.
+
+**Eligibility clock tests.** A pre-registered operator MUST be eligible at
+`activationBlock` without a settling delay (C3.1); a non-pre-registered operator MUST NOT
+be.
+
 **Fuzz and differential.** Fuzz the conservation invariant across randomised sequences of
-deposit, top-up, accrue, claim, slash, withdraw and exit. Differentially test
-`PostagePolicy` accrual against the current `PostageStamp` expiry logic over historical
-batch data, to confirm the split preserves today's accounting.
+deposit, top-up, price update, expire, claim, slash, withdraw and exit. Differentially test
+core accounting against the current `PostageStamp` over historical batch data, to confirm
+the split preserves today's remaining-balance and expiry results exactly.
 
 ## Implementation
 
@@ -680,7 +801,7 @@ Staged so that each stage is independently valuable and independently revertible
 |---|---|---|
 | 1 | Surgical `Redistribution` redeployment with security fixes; round-aligned atomic cutover; single redistributor; stake and batches untouched | — |
 | 2 | F1 adopted as standing practice: new `Redistribution` on every breaking wire release | — |
-| 3 | `Cutover` contract and client support (F2, F3, F6). `storage-incentives#310` reduced to a plain release registry; guarded proxy and `pinnedExecute` dropped | 2 |
+| 3 | `Cutover` contract and client support (F2, F3, F6, F7). `storage-incentives#310` reduced to a plain release registry; guarded proxy and `pinnedExecute` dropped | 2 |
 | 4 | `StakingCore` + `StakingPolicy`. Final stake migration | 3 |
 | 5 | `PostageAccounting` + `PostagePolicy`. Final batch migration. `copyBatch` retired | 4 |
 | 6 | `POLICY_TIMELOCK` extended; governing multisig scope reduced to policy pointers only | 5 |
@@ -694,8 +815,8 @@ two things currently treated as mutually exclusive.
 
 1. **Parameter values.** `POLICY_TIMELOCK` (suggested: 14 days in blocks), `EXIT_DELAY`
    (suggested: aligned with the current freeze horizon), `MAX_SLASH_PER_EPOCH`,
-   `MAX_POT_FRACTION_PER_ROUND`, `MAX_PRICE`, `CUTOVER_NOTICE`. These are immutable once
-   deployed and so need their own analysis.
+   `MAX_POT_FRACTION_PER_ROUND`, `MAX_PRICE`, `MAX_PRICE_CHANGE_PER_UPDATE`,
+   `CUTOVER_NOTICE`. These are immutable once deployed and so need their own analysis.
 2. **Postage exit economics.** What forfeit fraction or minimum batch age makes
    `refundBatch` non-abusable without making it useless as an escape hatch?
 3. **Stranded pot.** Where does the residual pot in a retired core go, given that by
@@ -707,6 +828,12 @@ two things currently treated as mutually exclusive.
    the cost of abandoning some batches?
 6. **Multi-client discipline.** F1–F3 assume every client implements cutover identically.
    What is the conformance mechanism if a second client exists?
+7. **Shared-account slashing.** Under C3.2, how is a slash apportioned when one account
+   backs several nodes — per-node sub-allocations, or a coverage requirement on the
+   account's deposit?
+8. **Frozen outpayment model.** The accumulator in the core freezes linear per-block
+   accrual (C2.7). Is that the model we want to commit to indefinitely, and if not, what
+   is the minimal generalisation worth freezing instead?
 
 ## References
 
@@ -731,6 +858,16 @@ measurements and the v0.9.3/v0.9.4 case study; the assessment that upgradeable s
 strict increase in attack surface, from burn to steal; and the observation that the interval
 between a client release and the pausing of the old stake registry is dead time for
 upgraded operators.
+
+Review of the first draft materially changed Part 1. Mark Bliss identified that a batch's
+remaining balance and expiry are computed against the issuing contract's outpayment
+accumulator, so switching contracts requires derived state to be rebased rather than
+re-pointed — which establishes that the accumulator cannot live in the replaceable half
+(C2.7, C4), and that a policy-side accumulator would have been strictly worse than the
+status quo. The same review supplied the partial-batch-set data-loss window, the
+observation that a half-completed migration and a precompiled fork height are in direct
+contradiction, and the dual-ABI maintenance argument that F7.1 answers. (GitHub handle to
+be added.)
 
 Note that this SWIP departs from *Forking Swarm* on one conclusion: that document argues
 that phasing out admin powers makes surgical redeployment impossible and therefore requires
