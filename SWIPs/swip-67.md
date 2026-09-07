@@ -9,11 +9,8 @@ category: Core
 created: 2026-09-07
 ---
 
-<!-- Two halves of one problem. Storage-incentive contracts today put user funds and
-mutable logic in the same contract, so every logic change is a fund migration, and every
-shortcut around a fund migration is an admin power over funds. This SWIP separates
-custody from policy so that logic can be replaced without moving funds, and specifies
-the fork-migration protocol that replacement runs under. -->
+<!-- Separates custody from policy so contract logic can be replaced without moving user
+funds, and specifies the fork-migration protocol that replacement runs under. -->
 
 ## Contents
 
@@ -21,7 +18,7 @@ the fork-migration protocol that replacement runs under. -->
 - [Motivation](#motivation) — why the security and migration problems are one problem, and
   where the custody surface is in today's deployed code
 - [Specification](#specification)
-  - [Normative requirements at a glance](#normative-requirements-at-a-glance)
+  - [Key normative requirements at a glance](#key-normative-requirements-at-a-glance)
   - [Part 1 — Custody separation](#part-1--custody-separation) (C1–C5)
   - [Part 2 — Fork migration](#part-2--fork-migration) (F0–F8)
 - [Rationale](#rationale) — design choices and rejected alternatives
@@ -38,12 +35,10 @@ place. That single fact causes both of our recurring problems:
   gave admins powers over money. The redistributor role can send the entire postage pot
   to any address; the admin role can mint batch state that no one paid for.
 - **Migrations.** When we refuse to use those powers, we must instead move everyone's
-  money. Every logic change becomes a fund movement for every user and every operator,
-  which is why we keep avoiding it, and why no batch migration has ever been completed
-  without admin-driven cloning.
+  money — a fund movement for every user and every operator, every time the rules change.
 
-This SWIP splits each contract in two. A **core** holds the money, has no admin, is never
-upgraded, and enforces its own accounting invariants. A **policy** holds the rules, is
+This SWIP splits each contract in two. A **core** holds the money, has no admin power over
+it, is never upgraded, and enforces its own accounting invariants. A **policy** holds the rules, is
 freely replaceable, and can never name a payment destination. It then specifies the
 **fork-migration protocol** — how a new policy and a new Redistribution contract are cut
 over atomically at a round boundary, so that a protocol upgrade stops being a fund
@@ -68,9 +63,9 @@ submission, overlay derivation, commitment and effective-stake maths, and slashi
 new `Redistribution` deployment, even when its code is unchanged, so that the two branches
 of the resulting network fork do not play the same redistribution game. Cutover is
 signalled on chain by a `Cutover` contract that publishes *timing only*; contract addresses
-are carried in the client binary. Cutover MUST land on a round boundary, with the outgoing
-redistributor refusing new commits one round early so the game drains rather than stops.
-`PostageAccounting` enforces at most one authorised redistributor at any block.
+are carried in the client binary. Cutover MUST land on a round boundary, so no node is
+mid-game when authority changes. `PostageAccounting` enforces at most one authorised
+redistributor at any block.
 
 Together the parts remove admin custody of deposits, bound admin influence over future
 rewards, and reduce a protocol upgrade from "everyone moves their money" to "clients point
@@ -99,42 +94,39 @@ with batch and stake migration — is true of the *current* architecture but is 
 architecturally necessary. It is a consequence of the coupling, not of the threat model.
 Break the coupling and both options improve at once.
 
-### Where the custody surface actually is, in code
+### Where the custody surface is, in code
 
 The following are properties of the deployed contracts as of writing, not hypotheticals.
 
 **`PostageStamp.withdraw(address beneficiary)`** is gated on `REDISTRIBUTOR_ROLE` and
-transfers the whole of `totalPot()` to a caller-supplied address. One call, entire pot, any
-destination.
+transfers the whole of `totalPot()` to a caller-supplied address.
 
 **`REDISTRIBUTOR_ROLE` is an OpenZeppelin `AccessControl` role**, so any number of addresses
-can hold it simultaneously and `DEFAULT_ADMIN_ROLE` can grant it. This is not a theoretical
-concern: during the v0.9.3/v0.9.4 rollout two live redistributors were authorised on the
-same `PostageStamp` at once, and the resulting race bled roughly 15 BZZ from operators on
-the production branch over three weeks (*Forking Swarm*, case study 2).
+can hold it simultaneously and `DEFAULT_ADMIN_ROLE` can grant it. Two were in fact
+authorised at once during the v0.9.3/v0.9.4 rollout (see below).
 
 **`PostageStamp.copyBatch` and `copyBatchBulk`** are gated on `DEFAULT_ADMIN_ROLE` and
 create batch state — owner, depth, `normalisedBalance` — while incrementing
 `validChunkCount`, **without transferring any BZZ into the contract**. `totalPot()` returns
-`min(pot, balance)`, so this cannot directly over-transfer; but unbacked chunks accrue pot
-at the same rate as paid ones, so the admin can accelerate pot accrual against the deposits
-of real batch owners. Any honest accounting of admin attack surface must include these
-functions alongside redistributor assignment. They exist to facilitate exactly the batch
+`min(pot, balance)`, so unbacked state cannot directly over-transfer; but unbacked chunks
+accrue pot at the same rate as paid ones, so the admin can accelerate pot accrual against
+the deposits of real batch owners. These functions exist to facilitate exactly the batch
 migrations this SWIP aims to make unnecessary.
 
-**`StakeRegistry` is, by contrast, genuinely rug-resistant today.** No code path sends BZZ
+**`StakeRegistry` is, by contrast, rug-resistant today.** No code path sends BZZ
 anywhere except back to `msg.sender` (`withdrawFromStake`, `migrateStake`), and
 `slashDeposit` only decrements the record without transferring, so slashed BZZ is burnt in
-place rather than stolen. This property is worth stating precisely because it is the
-property any change must preserve: making `StakeRegistry` upgradeable in the ordinary sense
-would be a strict increase in attack surface, from "burn" to "steal".
+place rather than stolen. This is the property any change must preserve: making
+`StakeRegistry` upgradeable in the ordinary sense would be a strict increase in attack
+surface, from "burn" to "steal".
 
 **The existing escape hatch does not survive its own threat model.**
-`StakeRegistry.migrateStake()` is `whenPaused`, and `pause()` requires `PAUSER_ROLE`. In
-the scenario the hatch exists for — the admin is the adversary — the hatch is closed by the
-adversary. An escape hatch gated on a privileged role is not an escape hatch.
+`StakeRegistry.migrateStake()` is `whenPaused`, and `pause()` requires `DEFAULT_ADMIN_ROLE`
+(the contract declares no `PAUSER_ROLE`; the `OnlyPauser()` error name is misleading). In
+the scenario the hatch exists for — the admin is the adversary — the hatch stays shut unless
+the adversary opens it.
 
-### What has actually gone wrong
+### What has gone wrong
 
 From *Forking Swarm*:
 
@@ -142,8 +134,8 @@ From *Forking Swarm*:
   a new `Redistribution`. Rounds with a dissenting reveal went from approximately zero per
   week to approximately twenty; 2.8% of rounds in the first week; 44 distinct dissenting
   identities; nine rounds in three weeks (0.38%) in which a dissenter was leader. In round
-  306865 a dissenter revealed depth 10, so every node was frozen for twice as long and the
-  depth floor blocked all nodes from the following round.
+  306865 a dissenter revealed depth 10, so nodes were frozen for longer and the depth floor
+  blocked all nodes from the following round.
 - **Staggered surgical redeployment, v0.9.3/v0.9.4 (2025).** Two redistributors were
   authorised on the same `PostageStamp` at once for three weeks, and the resulting race
   bled roughly 15 BZZ from operators on the production branch. Separately, the pausing of
@@ -152,15 +144,14 @@ From *Forking Swarm*:
 
 Neither of these is evidence that migration is inherently slow or expensive. Both are
 scheduling failures: overlapping authority that should have been singleton, and a cutover
-that was staggered when it should have been atomic. They are cited here because F3 and F4
-remove both by construction, not to argue that migrations cost weeks.
+that was staggered when it should have been atomic. F3 and F4 remove both by construction.
 
 The structural point worth keeping from *Forking Swarm* is that **the interval between a
 new client release and the pausing of the old stake registry is dead time for everyone who
 has upgraded**. Its length in any given rollout is a matter of scheduling; the remedy is to
 make the interval zero by construction rather than to try to keep it short.
 
-### Why not simply put everything behind proxies
+### Why not put everything behind proxies
 
 [`storage-incentives#310`][pr310] proposes upgradeable proxies for all core contracts plus
 an on-chain versioned registry, a registry-guarded proxy, and a `pinnedExecute` path that
@@ -168,23 +159,21 @@ lets a client pin an expected implementation atomically. The objections raised i
 that approach hold, and this SWIP is the alternative:
 
 - A proxy over a fund-holding contract hands the proxy admin the ability to steal those
-  funds. For `StakeRegistry` this converts today's "admin can burn stake" into "admin can
-  steal stake".
+  funds.
 - Verifying the registry inside the proxy fallback taxes every user call and introduces a
   liveness hazard: a mistaken deprecation or a codehash mismatch reverts *all* user calls,
   including withdrawals. That layers an availability risk on top of the custody risk it is
   trying to mitigate.
 - `pinnedExecute` imposes a permanent selector-collision constraint on every future
   implementation ABI and adds a second delegatecall path parallel to the fallback.
-- Most importantly, the machinery solves "the admin swapped the implementation under me".
+- The machinery solves "the admin swapped the implementation under me".
   If user funds live in a contract that cannot be swapped, that event is no longer a
   fund-loss event, and the machinery is not needed.
 
-The on-chain registry does have real value, but it is coordination and observability
-value, not security value: the trust root for which contracts a node talks to is the client
-release process either way. This SWIP therefore keeps a registry-like contract and gives it
-the job it is actually good at — signalling cutover timing (F2) — and drops the guarded
-proxy and `pinnedExecute`.
+This SWIP therefore keeps a registry-like contract for the job it is good at — signalling
+cutover timing (F2) — and drops the guarded proxy and `pinnedExecute`. See
+[Rationale](#rationale) for why the registry is a coordination tool rather than a security
+one.
 
 ### What this SWIP does not claim
 
@@ -200,7 +189,7 @@ forks expensive enough to avoid.
 The key words MUST, MUST NOT, SHOULD, SHOULD NOT and MAY are to be interpreted as in
 RFC 2119.
 
-### Normative requirements at a glance
+### Key normative requirements at a glance
 
 | | Requirement |
 |---|---|
@@ -208,20 +197,20 @@ RFC 2119.
 | **C2.1** | No core function transfers to a caller-supplied address. Every destination derives from core state. |
 | **C2.2** | The core enforces `recorded claims + pot <= token balance` itself, incrementally, on every call. |
 | **C2.3** | Calls go policy → core only. No callbacks, no core reads of policy, no dependence of core correctness on policy code. |
-| **C2.4** | Every value-moving primitive policy can trigger is rate-limited by the core. |
+| **C2.4** | The core rate-limits every value-moving primitive policy can trigger. |
 | **C2.5** | The policy pointer changes only after a timelock the core enforces with an immutable constant. |
 | **C2.6** | Each core offers an exit with no role check, no pause, and no dependence on policy state. |
-| **C2.7** | Cores have no upgrade path, so they stay minimal. The outpayment accumulator lives in the core, which freezes the outpayment model. |
+| **C2.7** | Cores have no upgrade path, so they MUST stay minimal. The outpayment accumulator lives in the core, which freezes the outpayment model. |
 | **C3.1** | Participation eligibility counts from `min(depositBlock, preRegistrationBlock)`. |
 | **C3.2** | Deposits are recorded per account, not per node. Overlay mapping is policy-side. |
 | **C4** | `claimPot` takes no destination; there is no `accrue`; `expire` is permissionless and self-verifying; `setPrice` is bounded. |
 | **F1** | Every breaking wire release deploys a new `Redistribution`, even if the bytecode is unchanged. |
 | **F2.1** | The chain signal carries timing. Contract addresses are compiled into the client. |
 | **F2.2** | Clients determine activation by observing `Cutover` state, never by a height baked into the binary. |
-| **F3** | `activationBlock` falls on a round boundary, and the outgoing redistributor stops accepting commits one round early. |
+| **F3** | `activationBlock` falls on a round boundary, so no node is mid-game when authority changes. |
 | **F4** | At most one redistributor is authorised at any block, enforced by type rather than by role hygiene. |
 | **F6** | Clients read timing from chain, addresses from the binary, and send no fund-moving transaction in response to a chain signal. |
-| **F7.1** | A cutover needing a runtime branch in consensus-critical computation is wire-breaking (Type A) and ships a single game ABI. |
+| **F7.1** | A cutover needing a runtime branch in consensus-critical computation is wire-breaking, and ships a single game ABI. |
 
 ### Part 1 — Custody separation
 
@@ -244,21 +233,20 @@ to be simpler in practice.
 
 #### C2. Core invariants
 
-These are the substance of the proposal. A split that does not satisfy them buys nothing:
-it relocates the trust boundary by one hop and leaves it exactly as wide. Note that the
-current architecture already has the shape "frozen ledger, swappable policy" — a
-`PostageStamp` that never changes, with a replaceable `Redistribution` authorised on it —
-and it leaks full custody, because `withdraw(beneficiary)` is an unconstrained primitive.
-The shape is not the property. The invariants are.
+A split that does not satisfy them buys nothing: it relocates the trust boundary by one hop
+and leaves it exactly as wide. The current architecture already has the shape "frozen
+ledger, swappable policy" — a `PostageStamp` that never changes, with a replaceable
+`Redistribution` authorised on it — and it leaks full custody anyway, because
+`withdraw(beneficiary)` is an unconstrained primitive.
 
-**C2.1 — No caller-supplied destinations.** No function on a core MAY transfer tokens to an
-address supplied by the caller or by policy. Every destination MUST be derived from the
-core's own recorded state:
+**C2.1 — No caller-supplied destinations.** A core MUST NOT transfer tokens to an address
+supplied by the caller or by policy. Every destination MUST be derived from the core's own
+recorded state:
 
-- `PostageAccounting.refundBatch(batchId)` pays `batches[batchId].owner`.
-- `StakingCore.withdraw()` pays `msg.sender`.
-- `PostageAccounting.claimPot()` pays the single authorised redistributor address, which is
-  itself set only via C2.5.
+- `PostageAccounting.refundBatch(batchId)` pays `ownerOf(batchId)`.
+- `StakingCore.withdraw(amount)` pays `msg.sender`.
+- `PostageAccounting.claimPot(amount)` pays the single authorised redistributor address,
+  which is itself set only via C2.5.
 
 **C2.2 — Conservation, enforced by the core.** Each core MUST track total deposited and
 total paid out, and MUST maintain, checked at the end of every state-changing call:
@@ -270,11 +258,9 @@ sum(recorded claims) + pot <= token.balanceOf(core)
 The invariant MUST be maintained incrementally on each call, not recomputed by iterating
 balances, and MUST be the subject of the fuzz coverage required by [Test cases](#test-cases).
 
-The core MUST own exactly enough arithmetic to police this and no more. In particular, pot
-growth MUST be bounded by the core independently of policy's accounting: policy may *assert*
-an accrual, but the core MUST reject any accrual that would breach the inequality above.
-This matters because unbacked-batch creation (`copyBatch`) is precisely a breach of it, and
-under C2.2 no policy — honest, buggy, or malicious — can reproduce that behaviour.
+The core MUST own exactly enough arithmetic to police this and no more. Unbacked-batch
+creation (`copyBatch`) is precisely a breach of the inequality above, and under C2.2 no
+policy — honest, buggy, or malicious — can reproduce it.
 
 **C2.3 — One-way calls.** Calls MUST go policy → core only. A core MUST NOT call, delegate
 to, or read from its policy, and MUST NOT expose callbacks or hooks. Core correctness MUST
@@ -286,18 +272,18 @@ rate-limited by the core:
 
 | Primitive | Bound |
 |---|---|
-| `claimPot()` | at most `MAX_POT_FRACTION_PER_ROUND` of `pot` per `ROUND_LENGTH` window |
-| `slash(node, amount)` | at most `MAX_SLASH_PER_EPOCH` per node and in aggregate per epoch |
+| `claimPot(amount)` | at most `MAX_POT_FRACTION_PER_WINDOW` of `pot` per `CLAIM_WINDOW` blocks |
+| `slash(account, amount)` | at most `MAX_SLASH_PER_WINDOW` in aggregate per `SLASH_WINDOW` blocks |
 | `setPrice(price)` | `price <= MAX_PRICE`, and the step from `lastPrice` at most `MAX_PRICE_CHANGE_PER_UPDATE` |
-| pot accrual | not a policy primitive at all — see C4 |
 
-Suggested initial values are given in [Open questions](#open-questions); they are
-parameters of the deployment, immutable in the core once set. The purpose of the bounds is
-not to make theft impossible in the limit — it is to make it *slow and visible*, so that the
-exit in C2.6 has a usable window.
+The windows are core-owned block counts, not the redistribution game's round length, which
+is per-branch and replaceable (F1). These are deployment parameters, immutable in the core
+once set; their values are an open question. The bounds are not meant to make theft
+impossible in the limit — they make it *slow and visible*, so the exit in C2.6 has a usable
+window.
 
-**C2.5 — Timelocked policy pointer, enforced by the core.** A core MAY allow its policy
-pointer to change, and if it does:
+**C2.5 — Timelocked pointers, enforced by the core.** A core MAY allow its policy pointer
+or its redistributor pointer to change, and if it does:
 
 - the change MUST be proposed and then executed no earlier than `POLICY_TIMELOCK` blocks
   later, with both proposal and execution emitting events;
@@ -305,24 +291,23 @@ pointer to change, and if it does:
   that a role could replace;
 - `POLICY_TIMELOCK` MUST be immutable.
 
-To be precise about what this is: a core with a timelocked policy pointer **has a privileged
-operation**, and is not literally admin-free. The claim is narrower and checkable — *no
-privileged operation can move a user's deposit, and every privileged operation is announced
-in advance with a guaranteed exit window*. Descriptions of this design as "no admins" should
-be corrected to that formulation.
+A core with a timelocked pointer **has a privileged operation** and is not admin-free. The
+claim is narrower and checkable: *no privileged operation can move a user's deposit, and
+every privileged operation is announced in advance with a guaranteed exit window*.
 
 **C2.6 — Permissionless exit.** Each core MUST provide an exit that:
 
 - any principal can call for their own funds, with no role check;
 - has no pause modifier and cannot be disabled by any role;
 - does not route through any replaceable contract;
-- ignores policy-supplied state (commitments, freezes, height) when computing the exit
-  amount, using only core-recorded claims.
+- ignores any lock set by policy when computing the exit amount, using only core-recorded
+  claims.
 
 Concretely: `StakingCore.exit()` returns the caller's recorded deposit, and
 `PostageAccounting.refundBatch(batchId)` returns the batch's remaining balance to its owner.
-`StakingCore.exit()` SHOULD be subject to an `EXIT_DELAY` (a fixed unbonding period, not a
-role-gated pause) so that it cannot be used to dodge in-flight slashing.
+`exit()` MUST be preceded by `requestExit()` and callable `EXIT_DELAY` blocks later — a
+fixed unbonding period, not a role-gated pause — so it cannot be used to dodge in-flight
+slashing.
 
 The postage exit needs an economic guard, because a batch owner could otherwise top up,
 upload, and immediately refund, obtaining storage for free. `refundBatch` SHOULD forfeit a
@@ -333,8 +318,8 @@ This is an economic parameter, not a security one, and is listed as an open ques
 takes on, and it MUST be managed by keeping cores minimal. A core with a bug and no admin is
 worse than an upgradeable contract. Therefore:
 
-- Cores hold balances, ownership, monotone accumulators, the outpayment accumulator, and
-  the conservation check. Nothing else.
+- Cores hold balances, ownership, the outpayment accumulator, the pointers and bounds their
+  own invariants need, and the conservation check.
 - Everything with interesting edge cases — the expiry ordering structure, batch selection,
   depth and bucket rules, effective-stake curves, commitment maths — lives in policy, where
   it can be fixed.
@@ -342,12 +327,12 @@ worse than an upgradeable contract. Therefore:
   deployment (see [Test cases](#test-cases)).
 
 The outpayment accumulator is the one piece of pricing arithmetic that cannot live in the
-replaceable half, and the reason is worth stating precisely. A batch's `normalisedBalance`
-is denominated *in the accumulator of the contract that issued it*:
+replaceable half. A batch's `normalisedBalance` is denominated *in the accumulator of the
+contract that issued it*:
 
 ```
 currentTotalOutPayment() = totalOutPayment + lastPrice * (block.number - lastUpdatedBlock)
-remainingBalance(id)     = normalisedBalance[id] - currentTotalOutPayment()
+remainingBalance(id)     = max(0, normalisedBalance[id] - currentTotalOutPayment())
 ```
 
 A fresh contract starts the accumulator at zero, so every balance must be *rebased*, not
@@ -361,7 +346,7 @@ The cost of putting it in the core is that **the outpayment model itself is froz
 per-block accrual against a per-chunk normalised balance. Moving to a different model —
 non-linear pricing, per-neighbourhood pricing, a different unit of account — is not a policy
 change and would still require a migration. This is the largest single thing the proposal
-gives up, and it is deliberate.
+gives up.
 
 #### C3. `StakingCore` interface
 
@@ -385,29 +370,27 @@ interface IStakingCore {
 
     // ---- policy, bounded (C2.4) ----
     /// @notice Reduce a deposit. Burnt in place; never transferred out.
-    ///         Reverts if per-node or per-epoch slash caps are exceeded.
-    function slash(address node, uint256 amount) external;
+    ///         Reverts if the aggregate slash cap for the window is exceeded.
+    function slash(address account, uint256 amount) external;
 
+    // ---- policy, unbounded but exit-safe ----
     /// @notice Prevent withdraw() (but never exit()) for `until`.
-    function lock(address node, uint64 until) external;
+    function lock(address account, uint64 until) external;
 
     // ---- views ----
-    function depositOf(address node) external view returns (uint256);
+    function depositOf(address account) external view returns (uint256);
     function totalDeposited() external view returns (uint256);
 }
 ```
 
 `StakingCore` MUST NOT store overlays, heights, committed stake, or effective stake, and
 MUST NOT read `PriceOracle`. Those are per-branch, consensus-critical values, and belong in
-`StakingPolicy` for a reason that matters at fork time: **overlay derivation is bound to the
-wire protocol** (it mixes `NetworkId`), so it is exactly the kind of value that should be
-redeployed with a fork, while deposits are exactly the kind that should not.
+`StakingPolicy`. Overlay derivation is network-scoped — it mixes `NetworkId` — so it should
+be redeployed with a fork, while deposits should not.
 
 `StakingPolicy` SHOULD accept an immutable `predecessor` address and lazily inherit overlay
-and height from it on first use, so that a fork requires no operator transaction at all.
-Note that `Redistribution` requires a stake record older than `2 * ROUND_LENGTH` before
-participation; inheriting predecessor state avoids re-triggering that delay, whereas a
-fresh declaration would cost operators roughly two rounds (~25 minutes at
+and height from it on first use, so that a fork requires no operator transaction and no
+eligibility delay. A fresh declaration would instead cost roughly two rounds (~25 minutes at
 `ROUND_LENGTH = 152` on Gnosis).
 
 **C3.1 — Eligibility clock.** `StakingPolicy` MUST compute participation eligibility from
@@ -415,25 +398,26 @@ fresh declaration would cost operators roughly two rounds (~25 minutes at
 transaction an operator MAY send in advance of a deposit or a cutover.
 
 `Redistribution` requires a stake record older than `2 * ROUND_LENGTH` before a node may
-participate. Without a pre-registration clock, any event that causes many operators to
-establish a stake record at similar times produces a **rolling participation trough**: for
-the duration of the spread, effective participation is a fraction of normal, and with few
-participants a single dissenter's chance of being leader rises sharply — which is the
-v2.8.0 failure mode, self-inflicted. Note that staggering such an event to avoid a gas
-spike makes the trough *worse*, not better, by lengthening it. Pre-registration lets the
-settling period elapse before the event, so no operator waits at cutover and no trough is
-created.
+participate. Without a pre-registration clock, any event that makes many operators
+establish a stake record at similar times produces a **rolling participation trough**.
+While the spread lasts, effective participation is a fraction of normal, and with few
+participants a single dissenter's chance of being leader rises sharply — the v2.8.0 failure
+mode, self-inflicted. Staggering the event to avoid a gas spike lengthens the trough rather
+than fixing it. Pre-registration lets the settling period elapse beforehand, so no operator
+waits at cutover.
 
 **C3.2 — Accounts and nodes.** `StakingCore` MUST record deposits per *account* and MUST NOT
 assume a one-to-one relationship between an account and a node identity. Mapping an account
 to one or more node overlays is `StakingPolicy`'s responsibility, since overlay derivation
 is already policy-side.
 
-This is close to free once overlay lives in policy, and it has three consequences worth
-naming: fleet operations become proportional to accounts rather than nodes, so a large
-operator can fund or exit an entire fleet in one transaction; withdrawal authority is
-separated from the node's operational signer, so a compromised node key cannot move funds;
-and the cost of the one final stake migration falls sharply.
+This is close to free once overlay lives in policy, and it has three consequences:
+
+- fleet operations become proportional to accounts rather than nodes, so a large operator
+  can fund or exit an entire fleet in one transaction;
+- withdrawal authority is separated from the node's operational signer, so a compromised
+  node key cannot move funds;
+- the cost of the one final stake migration falls sharply.
 
 It introduces one question the policy MUST answer explicitly: if several nodes are backed by
 one account, a slash earned by one node reduces the stake backing the others. Acceptable
@@ -452,13 +436,13 @@ interface IPostageAccounting {
     /// @notice Add funds to an existing batch. Owner unchanged.
     function topUp(bytes32 batchId, uint256 amount) external;
 
-    /// @notice Permissionless exit (C2.6). Pays batches[batchId].owner only.
+    /// @notice Owner-only exit, no role check (C2.6). Pays ownerOf(batchId).
     ///         May forfeit a fixed fraction to the pot (see C2.6).
     function refundBatch(bytes32 batchId) external;
 
-    /// @notice Credit the pot with the residual value of expired batches.
+    /// @notice Credit the pot for batches that have reached zero balance.
     ///         Permissionless. For each id the core verifies remainingBalance(id) == 0
-    ///         for itself; ordering hints from policy are not trusted.
+    ///         for itself; ordering hints are not trusted.
     function expire(bytes32[] calldata batchIds) external;
 
     // ---- policy, bounded (C2.4) ----
@@ -488,40 +472,34 @@ There is no `withdraw(address)`. The redistributor pointer is singleton by const
 rather than by role hygiene, which is the direct fix for the v0.9.3 double-redistributor
 race.
 
-`claimPot` takes an amount but not a destination, and there is no `accrue` primitive: pot
-growth is not something policy can assert. The core derives every batch's remaining balance
-from its own accumulator, and `expire` is permissionless and self-verifying — a caller
-supplies candidate batch ids, and the core credits the pot only for ids it independently
-confirms have reached zero. Policy therefore has no pot-accrual authority whatsoever, which
-is a strict reduction in policy authority relative to the first draft of this SWIP.
+`claimPot` takes an amount but not a destination, and there is no `accrue` primitive: the
+core derives every batch's remaining balance from its own accumulator. Policy therefore has
+no pot-accrual authority.
 
 Batch *identity and semantics* — bucket depth validity, immutability flags, minimum initial
 balance, depth-increase rules — live in `PostagePolicy`. The expiry *ordering* structure
 (today `HitchensOrderStatisticsTreeLib`) also lives in policy: it is a search index over
-core state, rebuildable from events, and it is the single most edge-case-heavy component in
-the current contract, so it belongs in the half that can be fixed. Ordering is a hint;
-`expire` verifies.
+core state, rebuildable from events, and the single most edge-case-heavy component in the
+current contract, so it belongs in the half that can be fixed. Ordering is only a hint —
+`expire` verifies each id against the core's own balance.
 
 #### C5. Residual trust after Part 1
-
-Stated explicitly so it can be argued with:
 
 | Capability | Today | After Part 1 |
 |---|---|---|
 | Steal all staked BZZ | No (burn only) | No |
-| Burn all staked BZZ | Yes (redistributor role) | No — capped per epoch (C2.4) |
+| Burn all staked BZZ | Yes (redistributor role) | No — capped per window (C2.4) |
 | Steal the entire pot in one call | Yes (`withdraw(beneficiary)`) | No — no such primitive (C2.1) |
 | Drain the pot over time | Yes | Bounded, visible, timelocked (C2.4, C2.5) |
 | Create unbacked batch state | Yes (`copyBatch`) | No (C2.2) |
 | Misdirect *future* rewards | Yes | Yes, after `POLICY_TIMELOCK`, announced |
-| Close the user escape hatch | Yes (`PAUSER_ROLE`) | No (C2.6) |
+| Close the user escape hatch | Yes (`DEFAULT_ADMIN_ROLE`) | No (C2.6) |
 
-The row that does not go away is the last-but-one: whoever controls policy can still bias
-who wins the pot, which is an indirect claim on future revenue. **Custody separation protects
-deposits, not rewards.** Bounding reward direction further would require freezing
-redistribution verification itself, which conflicts directly with F1's requirement that
-`Redistribution` be redeployed per fork. The trade is deliberate, and named here rather than
-left implicit.
+Two capabilities survive: draining the pot slowly within the C2.4 bounds, and misdirecting
+future rewards after `POLICY_TIMELOCK`. **Custody separation protects deposits, not
+rewards.** Bounding reward direction further would require freezing redistribution
+verification itself, which conflicts with F1's requirement that `Redistribution` be
+redeployed per fork.
 
 ### Part 2 — Fork migration
 
@@ -533,9 +511,8 @@ which the old branch is intended to be wound down. Every breaking change to the 
 protocol to date has been a fork-migration (*Forking Swarm*).
 
 A **breaking wire release** is a client release whose peer-negotiated protocol version
-differs from its predecessor's, such that a version mismatch causes disconnection. Because
-mismatch causes disconnection, a breaking wire release always produces at least two disjoint
-p2p networks.
+differs from its predecessor's, so that mismatched peers disconnect. A breaking wire release
+therefore always produces at least two disjoint p2p networks.
 
 #### F1. A new `Redistribution` per breaking wire release
 
@@ -602,12 +579,11 @@ reveal window and may be frozen for a phase violation they did not cause.
 
 Therefore:
 
-- The outgoing `Redistribution` MUST stop accepting new commits from the start of the round
-  preceding `activationBlock`, so the final round drains through reveal and claim normally.
 - The incoming `Redistribution` MUST accept commits from `activationBlock` onward.
 - The authority change on `PostageAccounting` (F4) MUST execute at `activationBlock`.
 
-"No gap" and "no orphaned round" are distinct properties. This SWIP requires both.
+A gap in redistributor coverage and an orphaned round are distinct failures; the rules
+above prevent both.
 
 #### F4. Exactly one redistributor, by construction
 
@@ -617,28 +593,26 @@ pointer changes only through `proposeRedistributor` / `executeRedistributor` und
 pointer.
 
 This replaces `REDISTRIBUTOR_ROLE` as an `AccessControl` role, under which multiple holders
-are representable and were in fact simultaneously authorised in 2025. Singleton-ness becomes
-a property of the type, not of operational discipline.
+are representable and were in fact simultaneously authorised in 2025. Here it is a property
+of the type, not of operational discipline.
 
 Cutover execution is therefore: `executeRedistributor()` on `PostageAccounting`, plus the
 policy pointer update if policy changed, in a single transaction from the governing
-multisig. It MUST be a single transaction. "Atomic" is not satisfied by several transactions
-sent close together — the v0.9.3 incident is what several transactions close together looks
-like.
+multisig. It MUST be a single transaction: "atomic" is not satisfied by several transactions
+sent close together, as the v0.9.3 incident shows.
 
 #### F5. Old-branch wind-down
 
 Immediately zeroing rewards on the old branch is correct for incentive alignment and wrong
-for data availability: old-branch data remains retrievable only while old-branch nodes stay
-online, which is precisely when they have stopped being paid.
+for data availability: old-branch data stays retrievable only while old-branch nodes stay
+online, and zeroing rewards is what takes them offline.
 
 Where a fork requires user-side action with a tail — a wire-protocol change, since batches
 themselves now carry across — the schedule SHOULD include a wind-down window during which
 the old `Redistribution` continues to pay at a reduced rate, decaying to zero. This is a
-deliberate exception to "no overlap", and it is safe under F4 in a way it was not in 2025:
-the two redistributors are authorised against *different* postage cores only if a postage
-migration is happening at all, and in the normal case there is one core, one pointer, and
-the wind-down is paid from a fixed, pre-funded allocation rather than from the live pot.
+payment overlap, not an authority overlap: the retired `Redistribution` is never the core's
+authorised pointer during the wind-down, so F4 is not relaxed. How the window is funded is
+an open question.
 
 The residual pot in any retired core MUST have a defined destination. This SWIP does not
 fix one; see [Open questions](#open-questions).
@@ -653,7 +627,7 @@ A conforming client:
 3. MUST switch the `Redistribution` address it uses at `activationBlock`, not when the
    operator restarts.
 4. MUST NOT send any fund-moving transaction as an automated consequence of a chain signal.
-   Under Part 1 no such transaction is required at cutover, which is the point.
+   Under Part 1 no such transaction is required at cutover.
 5. SHOULD expose the pending cutover in its status API and log a warning when it is running a
    version whose cutover has passed.
 
@@ -669,9 +643,9 @@ dual-mode code is required, because a non-upgraded node is on the other branch a
 be paid from this branch's pot.
 
 **Type B — contract-only.** The wire protocol is unchanged: a `Redistribution` bugfix, a
-policy parameter change, a new `PostagePolicy`. Continuity is expected — operators who have
-not restarted MUST keep earning across `activationBlock` — so the client MUST carry both
-contract bindings and switch at `activationBlock`. The legacy binding MAY be removed in the
+policy parameter change, a new `PostagePolicy`. Continuity is expected — operators running a
+release that carries both bindings MUST keep earning across `activationBlock` — so the
+client MUST carry both and switch at `activationBlock`. The legacy binding MAY be removed in the
 first release after the cutover.
 
 **F7.1 — Consensus-path rule.** A cutover that would require a runtime branch in
@@ -683,9 +657,7 @@ The reason is that a dual-mode sampler is itself a source of dissent: two nodes 
 disagree about which mode they are in produce divergent reserve commitments, which is
 precisely the failure mode F1 exists to prevent. F7.1 confines Type B's dual-mode surface to
 contract call sites, where it is cheap, and pushes anything deeper into Type A, where the
-network partition already does the separating. It converts "supporting two ABIs is
-unbounded maintenance" from an objection into a design constraint that stops the expensive
-case from arising.
+network partition already does the separating.
 
 Under Part 1 the frozen cores never acquire a second ABI, so deposits, withdrawals and
 balance reads never branch in either type. Only policy and `Redistribution` bindings do.
@@ -704,31 +676,23 @@ wire-only forks keep commingling incentives. Together:
 
 ## Rationale
 
-**Why not proxies over the fund-holding contracts.** Covered in [Motivation](#motivation).
-Briefly: a proxy over a vault is a custody grant; per-call registry verification is an
-availability risk; and if the vault cannot be swapped, the anti-swap machinery is
-unnecessary.
-
 **Why not "always full redeploy".** *Forking Swarm*'s proposal is coherent but
 expensive, and its cost is not bounded in the document. It requires a batch migration at
 every breaking wire release, and it leaves batch migration undesigned. It also relies on an
-incentive asymmetry that does not hold: operators follow money and will migrate stake to
-keep earning, but a user who fails to migrate a batch loses availability they may not notice
-until they need the data. Operators follow money; users follow nothing. Part 1 removes the
-requirement rather than solving the coordination problem.
+incentive asymmetry that does not hold: operators will migrate stake to keep earning, but a
+user who fails to migrate a batch loses availability they may not notice until they need the
+data. Part 1 removes the requirement rather than solving the coordination problem.
 
 **Why the registry survives as a cutover signal.** The question raised on
 [`storage-incentives#310`][pr310] — who benefits from an on-chain registry, and how does it
-compare to publishing under ENS or on GitHub — has a straight answer: for *security* it adds
-nothing, because the trust root is the client release process either way. For *coordination*
-it adds something real, because it lets every client switch at the same block regardless of
-when its operator restarted. F2 keeps the coordination and F2.1 removes the security
-temptation.
+compare to publishing under ENS or on GitHub — has a straight answer. For *security* it adds
+nothing: the trust root is the client release process either way. For *coordination* it adds
+something real: it lets every client switch at the same block regardless of when its
+operator restarted. F2 keeps the coordination and F2.1 removes the security temptation.
 
-**Why staking first.** It is the case where the target property is cleanest (funds already
-only flow to `msg.sender`), it is the case where the objection to upgradeability was
-strongest, and demonstrating a frozen core there earns the standing to freeze the postage
-ledger afterwards.
+**Why staking first.** Demonstrating a frozen core on the easy case — where funds already
+only flow to `msg.sender`, and where the objection to upgradeability was strongest — earns
+the standing to freeze the postage ledger afterwards.
 
 **Why bounds rather than prohibitions.** A design in which policy has no authority at all
 over funds cannot slash, cannot pay winners, and is therefore not an incentive system. The
@@ -739,9 +703,8 @@ usable exit. C2.4 through C2.6 are that goal made concrete.
 
 - *Immutable policy pointer in the core.* Strictly stronger, but then changing policy means
   a new core, which reintroduces migration and defeats the purpose.
-- *External timelock contract owning the pointer.* Weaker than C2.5, because whoever can
-  replace the timelock's owner can shorten the window. Self-enforcement in the core with an
-  immutable constant is the point.
+- *External timelock contract owning the pointer.* Weaker than C2.5: whoever can replace the
+  timelock's owner can shorten the window.
 - *Governance vote on policy changes.* Orthogonal and compatible; this SWIP specifies the
   contract-level constraints that hold regardless of how the governing address is
   constituted.
@@ -758,17 +721,13 @@ also, by design, intended to be the **last** such change that moves user funds.
 1. *Final stake migration.* Operators move deposits from `StakeRegistry` to `StakingCore`.
    This is the last time. It SHOULD be run under the F2/F3 protocol, and — unlike 2025 — the
    old registry MUST be paused at `activationBlock` rather than at an unrelated later date,
-   so that no window exists in which an upgraded operator cannot earn.
+   so that the interval between the client release and the pause is zero.
 2. *Final batch migration.* Batches move from `PostageStamp` to `PostageAccounting`. This is
-   the last time. It is the harder of the two and SHOULD be user-driven wherever possible; if
-   an admin-assisted path is used for the tail, that path MUST be time-limited by an
-   immutable deadline in `PostageAccounting` after which it cannot be called, and MUST require
-   a matching BZZ transfer so that C2.2 holds during migration. That last requirement is the
-   specific defect in today's `copyBatch`.
-
-**Retirement of `copyBatch`.** `PostageAccounting` MUST NOT include an unbacked
-batch-creation function. After migration, `copyBatch` and `copyBatchBulk` cease to exist as
-a capability.
+   the last time. It is the harder of the two and SHOULD be user-driven wherever possible;
+   any assisted path for the tail MUST go through the ordinary `fund()` call, so migration is
+   deposit-matched and needs no privileged function in the core. `PostageAccounting` MUST NOT
+   include an unbacked batch-creation function, which is the specific defect in today's
+   `copyBatch`.
 
 **Client ABI.** Clients must learn a two-contract layout per subsystem: reads that are
 consensus-critical (overlay, effective stake, batch validity) come from policy; balances and
@@ -788,28 +747,28 @@ contract tests. The following are mandatory before any core deployment.
 **Invariant tests (must hold after every call, under all orderings).**
 
 - `sum(recorded claims) + pot <= token.balanceOf(core)` (C2.2).
-- `totalDeposited - totalWithdrawn - totalSlashed == token.balanceOf(StakingCore)`.
+- `totalDeposited - totalWithdrawn <= token.balanceOf(StakingCore)` (slashed BZZ is burnt
+  in place, so the balance exceeds the claims).
 - No execution path transfers to an address not derived from core state (C2.1) — enforced by
   a static check over the core's bytecode as well as by tests.
 - No core function reaches an external call into the policy address (C2.3).
 
 **Adversarial-policy tests.** Instantiate each core with a deliberately malicious policy
-that attempts, at minimum: draining the pot in one call; slashing every node to zero;
+that attempts, at minimum: draining the pot in one call; slashing every account to zero;
 claiming more than the per-round cap; accruing pot beyond conservation; blocking a user's
 exit; setting a price above `MAX_PRICE`. Each MUST revert, and `exit()` MUST succeed
 throughout.
 
 **Exit tests.** `exit()` and `refundBatch()` MUST succeed while the policy is malicious,
 while the policy address is zero, while a policy change is pending in the timelock, and — for
-`StakingCore` — while the node is locked or frozen by policy.
+`StakingCore` — while the account is locked by policy.
 
 **Timelock tests.** A policy or redistributor change MUST NOT take effect before
 `POLICY_TIMELOCK`; the pending change MUST be readable throughout the window.
 
 **Cutover tests.** A cutover at a round boundary MUST NOT orphan a committed node (F3); a
-cutover proposed off-boundary MUST revert; the old redistributor MUST reject commits in the
-final round and MUST still accept reveals and claims for the round already committed; a
-`manifest` mismatch MUST cause client hard-failure.
+cutover proposed off-boundary MUST revert; a `manifest` mismatch MUST cause client
+hard-failure.
 
 **Accumulator continuity tests.** A policy replacement MUST NOT change
 `currentTotalOutPayment()`, `normalisedBalanceOf()` or `remainingBalance()` for any batch.
@@ -843,19 +802,19 @@ Staged so that each stage is independently valuable and independently revertible
 | 3 | `Cutover` contract and client support (F2, F3, F6, F7). `storage-incentives#310` reduced to a plain release registry; guarded proxy and `pinnedExecute` dropped | 2 |
 | 4 | `StakingCore` + `StakingPolicy`. Final stake migration | 3 |
 | 5 | `PostageAccounting` + `PostagePolicy`. Final batch migration. `copyBatch` retired | 4 |
-| 6 | `POLICY_TIMELOCK` extended; governing multisig scope reduced to policy pointers only | 5 |
+| 6 | Governing multisig scope reduced to policy pointers only | 5 |
 
 Stage 1 addresses measured harm and is the immediate next upgrade. Stage 2 is a process
 decision available today at no cost. Stages 4 and 5 are where the custody property lands.
-After stage 5, surgical redeployment and the absence of custody admin powers coexist — the
-two things currently treated as mutually exclusive.
+After stage 5, surgical redeployment and the absence of admin power over deposits coexist —
+the two things currently treated as mutually exclusive.
 
 ## Open questions
 
 1. **Parameter values.** `POLICY_TIMELOCK` (suggested: 14 days in blocks), `EXIT_DELAY`
-   (suggested: aligned with the current freeze horizon), `MAX_SLASH_PER_EPOCH`,
-   `MAX_POT_FRACTION_PER_ROUND`, `MAX_PRICE`, `MAX_PRICE_CHANGE_PER_UPDATE`,
-   `CUTOVER_NOTICE`. These are immutable once deployed and so need their own analysis.
+   (suggested: aligned with the current freeze horizon), `MAX_SLASH_PER_WINDOW`,
+   `SLASH_WINDOW`, `MAX_POT_FRACTION_PER_WINDOW`, `CLAIM_WINDOW`, `MAX_PRICE`,
+   `MAX_PRICE_CHANGE_PER_UPDATE`, `CUTOVER_NOTICE`. These are immutable once deployed and so need their own analysis.
 2. **Postage exit economics.** What forfeit fraction or minimum batch age makes
    `refundBatch` non-abusable without making it useless as an escape hatch?
 3. **Stranded pot.** Where does the residual pot in a retired core go, given that by
@@ -865,7 +824,8 @@ two things currently treated as mutually exclusive.
 5. **Tail of the final batch migration.** Is a deadline-limited, deposit-matched
    admin-assisted path acceptable, or must the final migration be fully user-driven even at
    the cost of abandoning some batches?
-6. **Multi-client discipline.** F1–F3 assume every client implements cutover identically.
+6. **Multi-client discipline.** F2, F3 and F6 assume every client implements cutover
+   identically.
    What is the conformance mechanism if a second client exists?
 7. **Shared-account slashing.** Under C3.2, how is a slash apportioned when one account
    backs several nodes — per-node sub-allocations, or a coverage requirement on the
@@ -879,8 +839,7 @@ two things currently treated as mutually exclusive.
 - [`ethersphere/storage-incentives#310`][pr310] — Versioned Registry Router + Upgradeable
   Proxies for All Core Contracts, and the review discussion that motivated this SWIP.
 - *Forking Swarm: A migration guide* — Andrew Macpherson, Shtuka Research (presentation,
-  2026). Source of the fork framing, the v2.8.0 dissent measurements, and the
-  v0.9.3/v0.9.4 case study. Not yet published at a stable URL; to be linked or mirrored
+  2026). Not yet published at a stable URL; to be linked or mirrored
   under `SWIPs/assets/swip-67/` with the author's consent.
 - Deployed contracts referenced throughout: `src/PostageStamp.sol`, `src/Staking.sol`,
   `src/Redistribution.sol` in `ethersphere/storage-incentives`.
@@ -898,22 +857,13 @@ strict increase in attack surface, from burn to steal; and the observation that 
 between a client release and the pausing of the old stake registry is dead time for
 upgraded operators.
 
-Review of the first draft materially changed Part 1. Mark Bliss identified that a batch's
-remaining balance and expiry are computed against the issuing contract's outpayment
-accumulator, so switching contracts requires derived state to be rebased rather than
-re-pointed — which establishes that the accumulator cannot live in the replaceable half
-(C2.7, C4), and that a policy-side accumulator would have been strictly worse than the
-status quo. The same review supplied the partial-batch-set data-loss window, the
-observation that a half-completed migration and a precompiled fork height are in direct
-contradiction, and the dual-ABI maintenance argument that F7.1 answers. (GitHub handle to
-be added.)
+Review of the first draft materially changed Part 1. Mark Bliss established that the
+outpayment accumulator cannot live in the replaceable half, and why (C2.7), and supplied the
+dual-ABI maintenance argument that F7.1 answers. (GitHub handle to be added.)
 
-Note that this SWIP departs from *Forking Swarm* on one conclusion: that document argues
-that phasing out admin powers makes surgical redeployment impossible and therefore requires
-full-suite redeployment with batch and stake migration at every fork. Part 1 argues the
-coupling that makes this true is removable, and Part 2 is adapted accordingly. Co-authorship
-is listed on the strength of the derived material; @awmacpherson should feel free to ask for
-his name to be removed if he does not want to be associated with that departure.
+This SWIP departs from *Forking Swarm* on one conclusion, set out in
+[Motivation](#motivation). Co-authorship is listed on the strength of the derived material;
+@awmacpherson should feel free to ask for their name to be removed.
 
 ## Copyright
 
