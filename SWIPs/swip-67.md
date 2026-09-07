@@ -881,8 +881,7 @@ currently treated as mutually exclusive.
 - [`ethersphere/storage-incentives#310`][pr310] — Versioned Registry Router + Upgradeable
   Proxies for All Core Contracts, and the review discussion that motivated this SWIP.
 - *Forking Swarm: A migration guide* — Andrew Macpherson, Shtuka Research (presentation,
-  2026). Not yet published at a stable URL; to be mirrored under `SWIPs/assets/swip-67/`
-  with the author's consent before this SWIP leaves Draft.
+  2026).
 - Deployed contracts referenced throughout: `src/PostageStamp.sol`, `src/Staking.sol`,
   `src/Redistribution.sol` in `ethersphere/storage-incentives`.
 
@@ -900,14 +899,13 @@ registry is dead time for upgraded operators.
 
 Review of the first draft materially changed Part 1: the outpayment accumulator cannot live
 in the replaceable half (C2.7), and the dual-ABI maintenance argument answered by F7.1
-(Mark Bliss; GitHub handle to be added). A subsequent review pass established that batch
-sizes and the expiry ordering must also be core-side for C2.2 to be enforceable, that
-`PostageStamp` has no deposit-extraction path — forcing the treasury-matched genesis design
-— and the F3 execution-window form of cutover.
+(Mark Bliss). A subsequent review pass established that batch sizes and the expiry
+ordering must also be core-side for C2.2 to be enforceable, that `PostageStamp` has no
+deposit-extraction path — forcing the treasury-matched genesis design — and the F3
+execution-window form of cutover.
 
 This SWIP departs from *Forking Swarm* on one conclusion, set out in
-[Motivation](#motivation). Co-authorship is listed on the strength of the derived material;
-@awmacpherson should feel free to ask for their name to be removed.
+[Motivation](#motivation).
 
 ## Copyright
 
