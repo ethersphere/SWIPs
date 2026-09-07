@@ -24,8 +24,9 @@ place. That single fact causes both of our recurring problems:
   gave admins powers over money. The redistributor role can send the entire postage pot
   to any address; the admin role can mint batch state that no one paid for.
 - **Migrations.** When we refuse to use those powers, we must instead move everyone's
-  money — and a stake migration alone has cost the network ten days and half its target
-  replication.
+  money. Every logic change becomes a fund movement for every user and every operator,
+  which is why we keep avoiding it, and why no batch migration has ever been completed
+  without admin-driven cloning.
 
 This SWIP splits each contract in two. A **core** holds the money, has no admin, is never
 upgraded, and enforces its own accounting invariants. A **policy** holds the rules, is
@@ -63,19 +64,18 @@ at a new policy address".
 
 ### The two problems are one problem
 
-Two threads have been running in parallel: a security thread about admin powers and
-upgradeability (see [`storage-incentives#310`][pr310]), and a migration thread about how
-we roll out new network versions (see *Forking Swarm*). They are the same problem
-seen from two sides.
+Two threads have been running in parallel: an upgradeability thread (see
+[`storage-incentives#310`][pr310]), and a migration thread about how we roll out new
+network versions (see *Forking Swarm*). They are the same problem seen from two sides.
 
 Because state and logic live in the same contract, replacing logic means replacing state.
 Replacing state means a migration. Avoiding the migration means giving an admin a shortcut
 over state — which is a power over funds. So we oscillate between two bad options:
 
 1. **Use the admin shortcut.** Cheap, but the admin can steal the pot and burn all stake.
-2. **Do a full redeployment and migrate everything.** Rug-resistant, but it has cost the
-   network real downtime and real money, and we have never once managed a batch migration
-   without admin-driven cloning.
+2. **Do a full redeployment and migrate everything.** Rug-resistant, but it turns every
+   logic change into a fund movement for every user and every operator, and no batch
+   migration has ever been completed without admin-driven cloning.
 
 The conclusion drawn in *Forking Swarm* — that phasing out admin powers makes
 surgical redeployment impossible, so every upgrade must become a full-suite redeployment
@@ -118,7 +118,7 @@ would be a strict increase in attack surface, from "burn" to "steal".
 the scenario the hatch exists for — the admin is the adversary — the hatch is closed by the
 adversary. An escape hatch gated on a privileged role is not an escape hatch.
 
-### What migrations have cost
+### What has actually gone wrong
 
 From *Forking Swarm*:
 
@@ -128,17 +128,21 @@ From *Forking Swarm*:
   identities; nine rounds in three weeks (0.38%) in which a dissenter was leader. In round
   306865 a dissenter revealed depth 10, so every node was frozen for twice as long and the
   depth floor blocked all nodes from the following round.
-- **Staggered surgical redeployment, v0.9.3/v0.9.4 (2025-06 to 2025-08).** Two live
-  redistributors for three weeks (~15 BZZ bled). Then a six-day window in which operators
-  who *had* upgraded could not earn, because stake migration cannot begin until the old
-  registry is paused. Roughly half of nodes migrated within three days of unpausing and
-  most of the rest a week later. For a week the publicly advertised branch of Swarm was
-  effectively a Foundation-operated cloud service; for the following week it ran at half
-  target replication.
+- **Staggered surgical redeployment, v0.9.3/v0.9.4 (2025).** Two redistributors were
+  authorised on the same `PostageStamp` at once for three weeks, and the resulting race
+  bled roughly 15 BZZ from operators on the production branch. Separately, the pausing of
+  the old stake registry was scheduled well after the corresponding client release, so
+  operators who had upgraded were unable to earn until it happened.
 
-The sharpest framing in that document is that **any time between a new client release and
-the pausing of the old stake registry is network downtime**. Migration is not an
-inconvenience to be scheduled; it is an outage to be designed away.
+Neither of these is evidence that migration is inherently slow or expensive. Both are
+scheduling failures: overlapping authority that should have been singleton, and a cutover
+that was staggered when it should have been atomic. They are cited here because F3 and F4
+remove both by construction, not to argue that migrations cost weeks.
+
+The structural point worth keeping from *Forking Swarm* is that **the interval between a
+new client release and the pausing of the old stake registry is dead time for everyone who
+has upgraded**. Its length in any given rollout is a matter of scheduling; the remedy is to
+make the interval zero by construction rather than to try to keep it short.
 
 ### Why not simply put everything behind proxies
 
@@ -339,7 +343,7 @@ and height from it on first use, so that a fork requires no operator transaction
 Note that `Redistribution` requires a stake record older than `2 * ROUND_LENGTH` before
 participation; inheriting predecessor state avoids re-triggering that delay, whereas a
 fresh declaration would cost operators roughly two rounds (~25 minutes at
-`ROUND_LENGTH = 152` on Gnosis) rather than the ten days observed in 2025.
+`ROUND_LENGTH = 152` on Gnosis).
 
 #### C4. `PostageAccounting` interface
 
@@ -551,8 +555,8 @@ Together:
 - Deposits never move, so cutover involves no user or operator fund transaction (F6.4).
 - `Redistribution` identity still changes per fork, so branches never share a game (F1).
 - Batches carry across, so there is no batch migration and `copyBatch` can be retired.
-- The window "between release and pausing the old registry" — the observed downtime —
-  collapses to zero.
+- The interval "between release and pausing the old registry" collapses to zero, because
+  there is nothing to pause and nothing to move.
 
 ## Rationale
 
@@ -580,7 +584,7 @@ temptation.
 **Why staking first.** It is the case where the target property is cleanest (funds already
 only flow to `msg.sender`), it is the case where the objection to upgradeability was
 strongest, and demonstrating a frozen core there earns the standing to freeze the postage
-ledger afterwards. It is also the case that removes the observed downtime.
+ledger afterwards.
 
 **Why bounds rather than prohibitions.** A design in which policy has no authority at all
 over funds cannot slash, cannot pay winners, and is therefore not an incentive system. The
@@ -725,7 +729,8 @@ his: the fork and fork-migration framing (F0); the argument that contract identi
 than wire version is what partitions the incentive game, and hence F1; the v2.8.0 dissent
 measurements and the v0.9.3/v0.9.4 case study; the assessment that upgradeable staking is a
 strict increase in attack surface, from burn to steal; and the observation that the interval
-between a client release and the pausing of the old stake registry is network downtime.
+between a client release and the pausing of the old stake registry is dead time for
+upgraded operators.
 
 Note that this SWIP departs from *Forking Swarm* on one conclusion: that document argues
 that phasing out admin powers makes surgical redeployment impossible and therefore requires
