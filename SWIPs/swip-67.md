@@ -15,6 +15,20 @@ shortcut around a fund migration is an admin power over funds. This SWIP separat
 custody from policy so that logic can be replaced without moving funds, and specifies
 the fork-migration protocol that replacement runs under. -->
 
+## Contents
+
+- [Simple Summary](#simple-summary) · [Abstract](#abstract)
+- [Motivation](#motivation) — why the security and migration problems are one problem, and
+  where the custody surface is in today's deployed code
+- [Specification](#specification)
+  - [Normative requirements at a glance](#normative-requirements-at-a-glance)
+  - [Part 1 — Custody separation](#part-1--custody-separation) (C1–C5)
+  - [Part 2 — Fork migration](#part-2--fork-migration) (F0–F8)
+- [Rationale](#rationale) — design choices and rejected alternatives
+- [Backwards compatibility](#backwards-compatibility) — the two final migrations
+- [Test cases](#test-cases) · [Implementation](#implementation) · [Open questions](#open-questions)
+- [References](#references) · [Acknowledgements](#acknowledgements)
+
 ## Simple Summary
 
 Swarm's storage-incentive contracts keep user money and changeable rules in the same
@@ -41,12 +55,14 @@ We specify two coupled changes to the storage-incentive contract suite.
 
 **Part 1 — Custody separation.** `PostageStamp` and `StakeRegistry` are each split into a
 frozen custody core (`PostageAccounting`, `StakingCore`) and a replaceable policy contract
-(`PostagePolicy`, `StakingPolicy`). Cores hold all BZZ, expose no function that transfers
-to a caller-supplied address, enforce token-conservation invariants against their own
-recorded state, rate-limit every value-moving primitive a policy can trigger, change their
-policy pointer only through a self-enforced timelock, never call into policy, and offer a
-permissionless exit that no role can pause. Policies hold batch admissibility, pricing,
-overlay derivation, commitment and effective-stake maths, and slashing rules.
+(`PostagePolicy`, `StakingPolicy`).
+
+Cores hold all BZZ. They expose no function that transfers to a caller-supplied address;
+they enforce token conservation against their own records; they rate-limit every
+value-moving primitive a policy can trigger; they change their policy pointer only through
+a timelock they enforce themselves; they never call into policy; and they offer a
+permissionless exit that no role can pause. Policies hold batch admissibility, price
+submission, overlay derivation, commitment and effective-stake maths, and slashing rules.
 
 **Part 2 — Fork migration.** Every breaking wire-protocol release MUST be accompanied by a
 new `Redistribution` deployment, even when its code is unchanged, so that the two branches
@@ -148,8 +164,8 @@ make the interval zero by construction rather than to try to keep it short.
 
 [`storage-incentives#310`][pr310] proposes upgradeable proxies for all core contracts plus
 an on-chain versioned registry, a registry-guarded proxy, and a `pinnedExecute` path that
-lets a client pin an expected implementation atomically. The reviewer objections to that
-approach are, in our assessment, correct, and this SWIP is the alternative:
+lets a client pin an expected implementation atomically. The objections raised in review of
+that approach hold, and this SWIP is the alternative:
 
 - A proxy over a fund-holding contract hands the proxy admin the ability to steal those
   funds. For `StakeRegistry` this converts today's "admin can burn stake" into "admin can
@@ -167,8 +183,8 @@ approach are, in our assessment, correct, and this SWIP is the alternative:
 The on-chain registry does have real value, but it is coordination and observability
 value, not security value: the trust root for which contracts a node talks to is the client
 release process either way. This SWIP therefore keeps a registry-like contract and gives it
-the job it is actually good at — signalling cutover timing (Part 2, F2) — and drops the
-guarded proxy and `pinnedExecute`.
+the job it is actually good at — signalling cutover timing (F2) — and drops the guarded
+proxy and `pinnedExecute`.
 
 ### What this SWIP does not claim
 
@@ -183,6 +199,29 @@ forks expensive enough to avoid.
 
 The key words MUST, MUST NOT, SHOULD, SHOULD NOT and MAY are to be interpreted as in
 RFC 2119.
+
+### Normative requirements at a glance
+
+| | Requirement |
+|---|---|
+| **C1** | Each fund-holding contract splits into a frozen core and a replaceable policy. Cores are never deployed behind a proxy and contain no `delegatecall`. |
+| **C2.1** | No core function transfers to a caller-supplied address. Every destination derives from core state. |
+| **C2.2** | The core enforces `recorded claims + pot <= token balance` itself, incrementally, on every call. |
+| **C2.3** | Calls go policy → core only. No callbacks, no core reads of policy, no dependence of core correctness on policy code. |
+| **C2.4** | Every value-moving primitive policy can trigger is rate-limited by the core. |
+| **C2.5** | The policy pointer changes only after a timelock the core enforces with an immutable constant. |
+| **C2.6** | Each core offers an exit with no role check, no pause, and no dependence on policy state. |
+| **C2.7** | Cores have no upgrade path, so they stay minimal. The outpayment accumulator lives in the core, which freezes the outpayment model. |
+| **C3.1** | Participation eligibility counts from `min(depositBlock, preRegistrationBlock)`. |
+| **C3.2** | Deposits are recorded per account, not per node. Overlay mapping is policy-side. |
+| **C4** | `claimPot` takes no destination; there is no `accrue`; `expire` is permissionless and self-verifying; `setPrice` is bounded. |
+| **F1** | Every breaking wire release deploys a new `Redistribution`, even if the bytecode is unchanged. |
+| **F2.1** | The chain signal carries timing. Contract addresses are compiled into the client. |
+| **F2.2** | Clients determine activation by observing `Cutover` state, never by a height baked into the binary. |
+| **F3** | `activationBlock` falls on a round boundary, and the outgoing redistributor stops accepting commits one round early. |
+| **F4** | At most one redistributor is authorised at any block, enforced by type rather than by role hygiene. |
+| **F6** | Clients read timing from chain, addresses from the binary, and send no fund-moving transaction in response to a chain signal. |
+| **F7.1** | A cutover needing a runtime branch in consensus-critical computation is wire-breaking (Type A) and ships a single game ABI. |
 
 ### Part 1 — Custody separation
 
@@ -266,11 +305,11 @@ pointer to change, and if it does:
   that a role could replace;
 - `POLICY_TIMELOCK` MUST be immutable.
 
-We state plainly what this is and is not. A core with a timelocked policy pointer **has a
-privileged operation**; it is not literally admin-free. The claim being made is narrower and
-checkable: *no privileged operation can move a user's deposit, and every privileged
-operation is announced in advance with a guaranteed exit window*. Proposals that describe
-this as "no admins" should be corrected to this formulation.
+To be precise about what this is: a core with a timelocked policy pointer **has a privileged
+operation**, and is not literally admin-free. The claim is narrower and checkable — *no
+privileged operation can move a user's deposit, and every privileged operation is announced
+in advance with a guaranteed exit window*. Descriptions of this design as "no admins" should
+be corrected to that formulation.
 
 **C2.6 — Permissionless exit.** Each core MUST provide an exit that:
 
@@ -299,6 +338,8 @@ worse than an upgradeable contract. Therefore:
 - Everything with interesting edge cases — the expiry ordering structure, batch selection,
   depth and bucket rules, effective-stake curves, commitment maths — lives in policy, where
   it can be fixed.
+- Cores MUST be formally specified and MUST have full invariant and fuzz coverage before
+  deployment (see [Test cases](#test-cases)).
 
 The outpayment accumulator is the one piece of pricing arithmetic that cannot live in the
 replaceable half, and the reason is worth stating precisely. A batch's `normalisedBalance`
@@ -321,8 +362,6 @@ per-block accrual against a per-chunk normalised balance. Moving to a different 
 non-linear pricing, per-neighbourhood pricing, a different unit of account — is not a policy
 change and would still require a migration. This is the largest single thing the proposal
 gives up, and it is deliberate.
-- Cores MUST be formally specified and MUST have full invariant and fuzz coverage before
-  deployment (see [Test cases](#test-cases)).
 
 #### C3. `StakingCore` interface
 
@@ -480,9 +519,9 @@ Stated explicitly so it can be argued with:
 The row that does not go away is the last-but-one: whoever controls policy can still bias
 who wins the pot, which is an indirect claim on future revenue. **Custody separation protects
 deposits, not rewards.** Bounding reward direction further would require freezing
-redistribution verification itself, which conflicts directly with Part 2's requirement that
-`Redistribution` be redeployed per fork. We consider the trade correct and name it rather
-than paper over it.
+redistribution verification itself, which conflicts directly with F1's requirement that
+`Redistribution` be redeployed per fork. The trade is deliberate, and named here rather than
+left implicit.
 
 ### Part 2 — Fork migration
 
@@ -653,9 +692,9 @@ balance reads never branch in either type. Only policy and `Redistribution` bind
 
 #### F8. Relationship between the parts
 
-Part 2 alone still requires stake migration at every fork, which is the ten-day outage. Part
-1 alone leaves the fork boundary undefined, so wire-only forks keep commingling incentives.
-Together:
+Part 2 alone still requires a stake migration at every fork, and therefore an interval in
+which upgraded operators cannot earn. Part 1 alone leaves the fork boundary undefined, so
+wire-only forks keep commingling incentives. Together:
 
 - Deposits never move, so cutover involves no user or operator fund transaction (F6.4).
 - `Redistribution` identity still changes per fork, so branches never share a game (F1).
@@ -678,7 +717,7 @@ keep earning, but a user who fails to migrate a batch loses availability they ma
 until they need the data. Operators follow money; users follow nothing. Part 1 removes the
 requirement rather than solving the coordination problem.
 
-**Why the registry survives as a cutover signal.** The reviewer question on
+**Why the registry survives as a cutover signal.** The question raised on
 [`storage-incentives#310`][pr310] — who benefits from an on-chain registry, and how does it
 compare to publishing under ENS or on GitHub — has a straight answer: for *security* it adds
 nothing, because the trust root is the client release process either way. For *coordination*
