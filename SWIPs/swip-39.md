@@ -228,7 +228,7 @@ If $N>2^d$ and the departing node is a depth-$d$ leaf, direct collapse would vio
 1. the departure is committed by the `deregister` call, recording its block height before donor-selection entropy is known;
 2. the contract selects a donor pair uniformly and one member of the pair as the moving donor;
 3. the donor's own leaf is taken over by its sibling — the donor is removed exactly as if it had chosen to leave itself, which is a balanced removal since the sibling becomes unique at depth $d$;
-4. the donor is entered into the commit queue as if newly registering, except that its recorded block height is the one set by the `deregister` call, and its target is fixed to the sibling prefix of the departing node;
+4. the donor is entered into the commit queue as if newly registering, except that its recorded block height is the one set by the `deregister` call, and its target is fixed to the departing prefix itself, which it takes over whole;
 5. the donor mines a new conforming overlay and activates it within the validity window; and
 6. upon the donor's activation, the departing assignment is removed and the departure completes.
 
@@ -301,7 +301,7 @@ The registry maintains:
 - `participants`: staking identity to active assignment;
 - `registrations`: staking identity to registration record;
 - `registrationQueue` ($C_R$) and `departureQueue` ($C_D$): pending identities in commit order;
-- subtree counts for split-candidate and donor-pair selection;
+- subtree leaf counts, from which split-candidate and donor-pair counts are read;
 - `pendingDepartures`: for each departure awaiting donor relocation (recorded in $C_D$), the drawn donor and its relocation deadline; and
 - configuration parameters and references to the staking contract.
 
@@ -377,17 +377,16 @@ graph TD
 
 Each stored trie record may contain:
 
-- an active leaf assignment, if one exists at that exact prefix;
-- `splitCount`, the number of eligible split candidates in its subtree; and
-- `donorCount`, the number of eligible donor-pair parents in its subtree.
+- an active leaf assignment, if one exists at that exact prefix; and
+- `leafCount`, written $n(i)$: the number of active leaves in the subtree rooted at $i$.
 
-Only nodes on a modified leaf-to-root path require counter updates, giving $O(\log N)$ tree writes per activation or completed departure. The stored trie is sparse and requires $O(N)$ assignment records.
+Neither the split count nor the donor count is stored: both are readings of the one counter $n(i)$, and every state transition maintains $n$ alone. The stored trie is sparse and requires $O(N)$ assignment records.
 
 The ICBT SHOULD be implemented as a self-contained container data-structure contract (or library) exposing only the generic trie operations — insert, remove, ranked selection, counter maintenance, and closest-match lookup — which the balancing registry contract then merely uses. This separation keeps the data structure independently testable against a reference model, reusable by other registries, and auditable in isolation from the protocol logic.
 
 #### Rank selection
 
-Given a zero-based rank $r < c(1)$, where $c(i)$ is the relevant aggregate count for the subtree rooted at $i$, selection descends as follows:
+In the descents below, `splitCount(i)` and `donorCount(i)` are the two readings of `leafCount(i)`, $2^{d-\ell+1}-n(i)$ and $n(i)-2^{d-\ell}$ for $\ell=\mathrm{Depth}(i)$, derived in [Split count and donor count are duals of the leaf count](#split-count-and-donor-count-are-duals-of-the-leaf-count) below. Given a zero-based rank $r < c(1)$, where $c(i)$ is the relevant reading for the subtree rooted at $i$, selection descends as follows:
 
 ```text
 selectByRank(r, count):
@@ -402,7 +401,7 @@ selectByRank(r, count):
     return i
 ```
 
-Selection is read-only. Counters are updated only when an assignment activates, a departure completes, or a donor is dropped. The implementation MUST NOT decrement aggregate counters merely because a view function was called.
+Selection is read-only. Counters are updated only when an assignment activates, a leaf is removed, or a donor is drawn or dropped. The implementation MUST NOT decrement aggregate counters merely because a view function was called.
 
 The target prefix can be accumulated bit by bit during the same descent — shift left on every step, set the low bit when going right — and extended by one final bit chosen as the complement of the incumbent's next overlay bit, so that the applicant takes the free child:
 
@@ -471,6 +470,67 @@ $$
 For $N=0$, the implementation uses the empty prefix as a single bootstrap slot and has no donor pair.
 
 These assertions provide useful invariant checks in tests even if production code omits them for gas reasons.
+
+#### Split count and donor count are duals of the leaf count
+
+Let $\ell=\mathrm{Depth}(i)\leq d$. The subtree under $i$ contains exactly $2^{d-\ell}$ trie nodes at depth $d$. By the balance invariant every leaf lies at depth $d$ or $d+1$, so each of these depth-$d$ nodes is exactly one of two things: an active leaf — a split candidate — or the parent of two active depth-$(d+1)$ leaves — a donor pair. The two counts are therefore complementary within the level:
+
+$$
+\mathrm{splitCount}(i)+\mathrm{donorCount}(i)=2^{d-\ell}.
+$$
+
+A candidate contributes one leaf to $n(i)$ and a pair two, so $n(i)=\mathrm{splitCount}(i)+2\,\mathrm{donorCount}(i)$, which gives:
+
+$$
+\mathrm{splitCount}(i)=2^{d-\ell+1}-n(i),
+\qquad
+\mathrm{donorCount}(i)=n(i)-2^{d-\ell}.
+$$
+
+At the root these are the global formulas $2^{d+1}-N$ and $N-2^d$, with $N=n(1)$ and $d=\lfloor\log_2 N\rfloor$; the invariant holds locally as $2^{d-\ell}\leq n(i)\leq 2^{d-\ell+1}$ at every node of depth at most $d$. The duality is also operational: a join turns one candidate into one pair (split count $-1$, donor count $+1$, leaf count $+1$), a balanced removal turns one pair into one candidate (the reverse), and the two selections descend the same tree over the two complementary readings.
+
+#### Counter updates
+
+Every structural change is a single $\pm1$ walk from one trie node to the root, plus a constant number of record writes:
+
+```text
+adjust(i, delta):                     # delta is +1 or -1
+    while i >= 1:
+        leafCount(i) = leafCount(i) + delta
+        i = Parent(i)
+
+activateJoin(i, applicant):           # i: the selected split candidate, Depth(i) = d
+    b = overlay(i)[d]                 # incumbent's next bit
+    assign(2i + b, incumbent(i))      # incumbent keeps its own child
+    assign(2i + 1 - b, applicant)     # applicant takes the free child
+    unassign(i)
+    leafCount(2i + b) = 1
+    leafCount(2i + 1 - b) = 1
+    adjust(i, +1)                     # i and every ancestor gain one leaf
+
+removeLeaf(j):                        # j: an active leaf whose sibling is an active leaf
+    k = Sibling(j)
+    p = Parent(j)
+    assign(p, incumbent(k))           # sibling takes over the parent prefix
+    unassign(j)
+    unassign(k)
+    leafCount(j) = 0
+    leafCount(k) = 0
+    adjust(p, -1)                     # p held two leaves, now one
+
+replaceLeaf(i, donor):                # i: the departing depth-d leaf
+    assign(i, donor)                  # a record swap; no counter changes
+```
+
+The four removal cases map onto these as follows: case 1 clears the root record; cases 2 and 3 are `removeLeaf` of the departing leaf (at depth $d$ and $d+1$ respectively — in both the sibling is an active leaf); case 4 is `removeLeaf` of the drawn donor at draw time, followed by `replaceLeaf` at the departing prefix when the donor activates. So a join, a direct departure, and a donor draw each write one root path of at most $d+2$ counters, and a completed relocation writes none. There is no other write to the tree.
+
+The eligibility rule that a leaf with a pending departure is not a split candidate is applied at selection, not in the counter: `targetPrefix` treats a descent that lands on a pending leaf as a rejection and re-samples with the next rank drawn from $\rho$. This is exact rejection sampling over the non-pending candidates, and it degrades no worse than an explicit exclusion would — if every candidate is pending, neither yields a target until a relocation completes. **(?)**
+
+#### Depth transitions
+
+The counter never mentions $d$, so a depth transition costs no writes; only the readings change. Take $N=2^{d+1}$, the moment row $d$ fills: every depth-$d$ node is a pair, so $n(i)=2^{d-\ell+1}$ at every node of depth $\ell\leq d$. Read with respect to $d$ this is $\mathrm{splitCount}(i)=0$ and $\mathrm{donorCount}(i)=2^{d-\ell}$: no candidates, all pairs. Read with respect to $d+1$, the same $n(i)$ gives $\mathrm{splitCount}(i)=2^{d-\ell+1}$ and $\mathrm{donorCount}(i)=0$: every former pair is now two candidates and there are no pairs — as there must be, since with all leaves at one depth a departure is a collapse (case 2). At the transition each reading is either $0$ or the full slot count of its level under both the old and the new depth — a multiple of either modulus — while $n(i)$ is unchanged. The downward transition at $N=2^d\to 2^d-1$ is the mirror image: $n(i)=2^{d-\ell}$ everywhere, which reads as all candidates and no pairs at depth $d$, and as no candidates and all pairs at depth $d-1$.
+
+Equivalently, `splitCount` can be thought of as maintained modulo $2^{d-\ell}$ at level $\ell$: decremented on a join, incremented on a departure, with $0$ and $2^{d-\ell}$ identified. In that picture a transition is literally a no-op, and the first join after it reads $0-1\equiv 2^{d'}-1\pmod{2^{d'}}$ at the root for the new depth $d'=d+1$, which is the correct $2^{d'+1}-(2^{d'}+1)$. The residue alone, however, does not determine the state: a subtree consisting entirely of depth-$d$ leaves and one consisting entirely of pairs both read $0$, and a parent cannot always tell them apart from its own count — with $d=2$ and $N=6$ the root reads $2$, and its children read $0$ and $0$ whether $\{00,01\}$ are leaves and $1$ is split, or $0$ is split and $\{10,11\}$ are leaves. The leaf count is exactly this residue together with the one bit that resolves the identification, which is why it, and not a reduced split count, is the stored quantity.
 
 #### Comparison with alternative layouts
 
