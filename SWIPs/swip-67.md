@@ -60,9 +60,12 @@ The suite is treated contract by contract.
   they must not share one on-chain game) or a Redistribution code change. Same bytecode
   still gets a new address on a breaking Bee release. The redistributor pointer flips at
   a round boundary; at most one redistributor is authorised at any block.
-- **`StakeRegistry`** splits into `StakingCore` (deposits, exits) and `StakingPolicy`
-  (overlay, height, effective stake, slash/freeze rules). Operators migrate stake once,
-  then deposits stay put across later upgrades.
+- **`StakeRegistry`** splits into `StakingCore` (BZZ, the #309 queue, freeze, payouts)
+  and `StakingPolicy` (overlay derivation, height / `MIN_STAKE`, eligibility views). The
+  staking *lifecycle* is
+  [storage-incentives#309](https://github.com/ethersphere/storage-incentives/pull/309)
+  (queued deposit / top-up / height / overlay / withdraw / exit), not a second unbonding
+  design. Operators migrate stake once, then deposits stay put across later upgrades.
 - **`PostageStamp`** splits into `PostageAccounting` (balances, accumulator, pot, expiry
   ordering) and `PostagePolicy` (admissibility, depth rules, price submission). Batches
   are seeded once, treasury-matched; after that they carry across later upgrades.
@@ -122,7 +125,10 @@ Shared rules for the two cores (`StakingCore`, `PostageAccounting`):
   `claimPot`, `slash`, `setPrice`.
 - Policy and redistributor pointers change only after `POLICY_TIMELOCK`, enforced by the
   core; a pending change is cancellable.
-- `exit` / `refundBatch` have no role check, no pause, and ignore policy locks.
+- `refundBatch` has no role check, no pause, and ignores policy locks. Staking
+  payout is [storage-incentives#309](https://github.com/ethersphere/storage-incentives/pull/309):
+  a matured `withdraw` / `exit` pays `msg.sender` via `applyUpdates`. Redistribution freeze
+  can delay that payout (`FrozenWithdrawal`). An admin pause or a hostile policy cannot.
 
 A core with a timelocked pointer is not admin-free. The claim is narrower: no privileged
 operation can move a user's deposit, and every privileged operation is announced in
@@ -169,10 +175,12 @@ playing is acceptable.
 Until `PostageAccounting` exists, stage 1 honours the same rule by operational
 discipline: one `REDISTRIBUTOR_ROLE`, flipped at a round start after Bee is out.
 
-**`EXIT_DELAY` is not a governance timelock.** It is the unbonding wait on
-`StakingCore.requestExit()` → `exit()`, paid to `msg.sender`. The staker starts it, not
-the multisig. It MUST be at least the maximum freeze horizon, or exit dodges slashing.
-`refundBatch` has no unbonding delay; the forfeit fraction is the brake.
+**`WAIT_WITHDRAWAL` is not a governance timelock.** It is the unbonding wait in
+[storage-incentives#309](https://github.com/ethersphere/storage-incentives/pull/309)
+before a queued `withdraw` or `exit` can pay `msg.sender`. The staker starts it, not the
+multisig. Freeze from Redistribution can delay that payout further (same as #309), so
+exit cannot dodge an in-flight penalty. `refundBatch` has no unbonding delay; the forfeit
+fraction is the brake.
 
 Worked order for a breaking Bee release:
 
@@ -202,7 +210,7 @@ Not split. It holds no user deposits.
 **State.** Commits, reveals, round counters and the last winner. None of it is worth
 preserving across a release. Overlay, stake and freeze data live in staking; postage
 balances live in postage. Redistribution only *reads* those and *calls* `claimPot` /
-`slash` / `lock`.
+`slash` / `freezeDeposit`.
 
 **How it is updated.** Redeploy when the incentive game must not be shared. Two triggers:
 
@@ -243,61 +251,84 @@ postage split.
 
 Split. `StakeRegistry` becomes `StakingCore` + `StakingPolicy`.
 
+Today's registry has surplus `withdrawFromStake` and a paused `migrateStake`. It has no
+real unstake. Do not invent a second one (`requestExit` / `EXIT_DELAY` /
+pre-registration). The staking *lifecycle* is
+[storage-incentives#309](https://github.com/ethersphere/storage-incentives/pull/309):
+one queued update per overlay (deposit, top-up, height, overlay, **withdraw**, **exit**),
+`WAIT_BASE` before a new deposit can play, `WAIT_OVERLAY_CHANGE` /
+`WAIT_WITHDRAWAL` (~28 days on production) before those updates apply, freeze that stays
+on the account after unstake, and effective stake = balance unless frozen, else zero.
+Views preview the post-apply state; BZZ moves only in `applyUpdates`.
+
+#309 is still one contract. This SWIP only splits that contract. The queue mixes
+withdrawals with overlay and height changes, so the queue, `WAIT_*`, `freezeUntilBlock`,
+and BZZ stay together in the core. Otherwise a hostile policy can refuse `applyUpdates`
+and trap funds, which is the same hatch #309 still has via `pause` / `migrateStake`.
+
 | Stays in `StakingCore` (frozen, holds BZZ) | Moves to `StakingPolicy` (replaceable) |
 |---|---|
-| Per-account deposit, `firstDepositBlock`, withdrawal and exit accounting | Overlay derivation, height, committed stake, effective stake, freeze and slash rules |
+| Per-account BZZ, the #309 update queue, `WAIT_*`, `freezeUntilBlock`, `applyUpdates` payouts, slash | Overlay derivation (`NetworkId`), height / `MIN_STAKE` rules, effective-stake and lookahead views Redistribution and Bee call |
 
-`StakingCore` MUST NOT store overlays, heights, committed stake or effective stake, and
-MUST NOT read `PriceOracle`. Overlay mixes `NetworkId`, so it is redeployed with a
-breaking Bee release; deposits are not.
+`StakingCore` MUST NOT read `PriceOracle`. Overlay mixes `NetworkId`, so derivation is
+policy and is replaced with a breaking Bee release; deposits are not. The core stores the
+overlay *bytes* and height as #309 does, so there is still one FIFO. Policy supplies
+derivation and the replaceable view API.
 
 ```solidity
 interface IStakingCore {
-    function deposit(uint256 amount) external;
-    function withdraw(uint256 amount) external;
-    function requestExit() external;
-    function exit() external;
+    function createDeposit(bytes32 overlay, uint256 amount, uint8 height) external returns (uint64);
+    function addTokens(uint256 amount) external returns (uint64);
+    function increaseHeight(uint8 height) external returns (uint64);
+    function changeOverlay(bytes32 overlay) external returns (uint64);
+    function withdraw(uint256 amount) external returns (uint64);
+    function exit() external returns (uint64);
+    function applyUpdates(address owner) external;
     function slash(address account, uint256 amount) external;
-    function lock(address account, uint64 until) external;
+    function freezeDeposit(address account, uint256 time) external;
     function proposePolicy(address next) external;
     function cancelPolicy() external;
     function executePolicy() external;
     function depositOf(address account) external view returns (uint256);
-    function firstDepositBlock(address account) external view returns (uint64);
     function totalDeposited() external view returns (uint256);
 }
 ```
 
-`deposit` credits `msg.sender` and records `firstDepositBlock` on the first credit. No
-policy call. `withdraw` pays `msg.sender` only, and `lock` can block it. `exit` cannot
-be locked, paused, or routed through policy; it is callable `EXIT_DELAY` blocks after
-`requestExit()`. `slash` burns in place and is capped per window.
+Bee still speaks #309 (`nonce` in, `effectiveFromRound` out). Overlay derivation and
+`MIN_STAKE` checks live on the policy, which forwards into the core, so the core never
+reads policy. `addTokens`, `exit`, and `applyUpdates` are permissionless. `applyUpdates`
+pays the owner only, once `WAIT_WITHDRAWAL` has elapsed, unless `FrozenWithdrawal`.
+`freezeDeposit` is `onlyRedistributor` and monotonic; it survives exit on this core
+(same as #309). `slash` is `onlyRedistributor` and burns in place. `WAIT_WITHDRAWAL`
+MUST be at least the longest Redistribution freeze, or a queued exit lands before the
+penalty.
 
-`exit()` is withdrawable stake. Today only surplus above committed stake can leave.
-`EXIT_DELAY` MUST be at least the maximum freeze horizon the game can impose, or exit
-dodges penalties.
+No `pause` on the core. #309's `whenNotPaused` on `withdraw` / `exit` is the admin hatch
+this split removes.
 
-**Eligibility.** `StakingPolicy` computes participation from
-`min(firstDepositBlock, preRegistrationBlock)`. Pre-registration is a zero-value
-transaction an operator may send before a deposit or a pointer flip, so a mass restake does
-not open a participation trough.
+**Eligibility.** #309's `WAIT_BASE` after `createDeposit`. No parallel
+`firstDepositBlock` / pre-registration clock. Overlay change uses `WAIT_OVERLAY_CHANGE`
+and does not reset the deposit. Height still scales `MIN_STAKE`; the token amount in the
+core is deposited BZZ, not a committed/potential pair.
 
-**Accounts and nodes.** Deposits are per account; overlay mapping is policy-side. One
-account may back several nodes. `StakingPolicy` MUST NOT admit overlays whose summed
-committed stake exceeds the account's deposit. A slash reduces the account, and therefore
-every overlay it backs.
+**Accounts and nodes.** Deposits are per account. One account may back several nodes
+only if policy admits that; summed usable stake MUST NOT exceed the account's deposit.
+A slash reduces the account, and therefore every overlay it backs.
 
 `StakingPolicy` SHOULD take an immutable `predecessor` and lazily inherit overlay and
 height on first use, so a later upgrade needs no operator transaction.
 
-**Migration (once).** Operators move deposits with today's `migrateStake()` onto
-`StakingCore`. The old registry is paused when the pointer executes, not later. Operators
-SHOULD pre-register so they are eligible immediately. After this, stake does not move
-again: later upgrades only replace `StakingPolicy`.
+**Migration (once).** Ship or adopt #309 on the current registry first if that lifecycle
+is not live. `migrateStake` (paused in #309, used while paused) is the one jump onto
+`StakingCore`. The old registry is paused for that jump, not kept as an admin path on
+the core. After this, stake does not move again: later upgrades only replace
+`StakingPolicy`. Operators who skip the jump unstake on the old registry with #309's
+`withdraw` / `exit`, or take that one-shot `migrateStake` if the registry is being
+retired.
 
 **After the split.** Policy-pointer change on `StakingCore` as in
 [Pointers and timelocks](#pointers-and-timelocks).
-Deposits, withdrawals and exits never change ABI.
+The #309 enqueue / `applyUpdates` ABI is what Bee talks to for deposits and payouts.
 
 ### PostageStamp
 
@@ -465,8 +496,10 @@ Mandatory before any core deployment.
 - No transfer to an address not derived from core state (static check on bytecode).
 - No core call into the policy address.
 - Malicious policy: flash-drain, unbounded slash, over-claim, unbacked fund, value-inflating
-  resize, blocked exit, over-max price. All revert; `exit` / `refundBatch` still succeed
-  (including policy = 0, pending pointer change, and a locked staking account).
+  resize, blocked exit, over-max price. All revert; a matured staking `applyUpdates`
+  and `refundBatch` still succeed (including policy = 0 and a pending pointer change).
+  `FrozenWithdrawal` delays a due withdraw/exit until the redistributor freeze ends, then
+  payout succeeds.
 - Genesis: seeding without matching BZZ reverts; any call before seal reverts; seeding
   after seal reverts from every role; conservation holds at the first open block.
 - Pointer changes cannot execute before `POLICY_TIMELOCK`. Redistributor execute
@@ -475,7 +508,8 @@ Mandatory before any core deployment.
 - A pointer flip off a round boundary reverts; a boundary-aligned flip does not orphan
   a commit.
 - Policy replacement does not change `currentTotalOutPayment` or remaining balances.
-- Pre-registered operators are eligible when the pointer executes; others are not.
+- A deposit is eligible after `WAIT_BASE`; overlay change after `WAIT_OVERLAY_CHANGE`;
+  withdraw/exit payout after `WAIT_WITHDRAWAL` and not while frozen.
 - Fuzz randomised sequences of deposit, fund, top-up, resize, price, expire, claim,
   slash, refund, withdraw and exit.
 
@@ -487,7 +521,7 @@ Each stage is independently valuable and independently revertible.
 |---|---|---|
 | 1 | New `Redistribution`; round-aligned pointer flip; one redistributor by operational discipline | — |
 | 2 | New `Redistribution` on every breaking Bee release, as standing practice | — |
-| 3 | `StakingCore` + `StakingPolicy`. Final stake migration | 2 |
+| 3 | Adopt [storage-incentives#309](https://github.com/ethersphere/storage-incentives/pull/309) if not live, then `StakingCore` + `StakingPolicy`. Final stake migration. No pause on the core | 2 |
 | 4 | `PostageAccounting` + `PostagePolicy`. Treasury-matched genesis | 3 |
 | 5 | Multisig scope reduced to policy and redistributor pointers | 4 |
 
@@ -499,10 +533,12 @@ coexist.
 
 ## Open questions
 
-1. **Parameter values.** `POLICY_TIMELOCK` (suggested: 14 days in blocks), `EXIT_DELAY`
-   (≥ maximum freeze horizon), `EXECUTION_WINDOW`, slash and pot windows, `MAX_PRICE`
-   and `MAX_PRICE_CHANGE_PER_UPDATE` (must match the oracle's steps). Immutable once
-   deployed.
+1. **Parameter values.** `POLICY_TIMELOCK` (suggested: 14 days in blocks),
+   `WAIT_WITHDRAWAL` / `WAIT_BASE` / `WAIT_OVERLAY_CHANGE` from
+   [storage-incentives#309](https://github.com/ethersphere/storage-incentives/pull/309)
+   (`WAIT_WITHDRAWAL` ≥ maximum freeze horizon), `EXECUTION_WINDOW`, slash and pot
+   windows, `MAX_PRICE` and `MAX_PRICE_CHANGE_PER_UPDATE` (must match the oracle's
+   steps). Immutable once deployed.
 2. **Refund economics.** `refundBatch` forfeit fraction, and the wind-down decay
    schedule. A forfeit is preferred over a minimum batch age.
 3. **Treasury float.** Size of the genesis front, and whether a deadline caps the
