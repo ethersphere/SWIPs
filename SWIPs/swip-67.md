@@ -39,17 +39,17 @@ place. That single fact causes both of our recurring problems:
 
 This SWIP splits the two fund-holding contracts — `PostageStamp` and `StakeRegistry` —
 each into a **core** and a **policy**. The core holds the money, has no admin power over
-it, is never upgraded, and enforces its own accounting invariants. The policy holds the
-rules, is freely replaceable, and can never name a payment destination.
+deposits, is never upgraded, and enforces its own accounting invariants. The policy holds
+the rules, is freely replaceable, and can never name a payment destination.
 
 `Redistribution` and `PriceOracle` hold no user deposits, so they are not split. They stay
 replaceable and are redeployed as-is. A new `Redistribution` whenever the on-chain game
 must not be shared — a breaking Bee release (even if the Solidity is unchanged) or a
 change to Redistribution itself. A new `PriceOracle` when its adjustment rules change.
 
-It then specifies how a new `Redistribution` and a new policy are pointed in at a round
-boundary, so a protocol upgrade stops being a fund movement. Bee keeps shipping contract
-addresses in the binary, as it does today.
+It then specifies how those pointers flip after a core-enforced timelock — the
+redistributor only at a round start — so a protocol upgrade stops being a fund movement.
+Bee keeps shipping contract addresses in the binary, as it does today.
 
 ## Abstract
 
@@ -73,8 +73,9 @@ The suite is treated contract by contract.
   submits prices through `PostagePolicy` into the core's bounded `setPrice`.
 
 Cores hold all user BZZ. No core function transfers to a caller-supplied address. Pointers
-change only after a core-enforced timelock. Exits cannot be paused. Contract addresses
-stay compiled into Bee, as they are today.
+change only after a core-enforced timelock. There is no admin pause on `refundBatch` or a
+matured staking payout; a Redistribution freeze can still delay the latter. Contract
+addresses stay compiled into Bee, as they are today.
 
 ## Motivation
 
