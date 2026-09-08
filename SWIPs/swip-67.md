@@ -143,9 +143,10 @@ No external timelock contract.
 
 Sequence:
 
-1. **Propose.** Multisig calls `proposePolicy(next)` or `proposeRedistributor(next)` on
-   the core. The core stores `next` and `proposeBlock`, and emits an event. Nothing has
-   switched yet.
+1. **Propose.** Multisig calls `proposePolicy(next)` or
+   `proposeRedistributor(next, activationBlock)` on the core. The core stores `next`
+   (and, for redistributor, `activationBlock`) and `proposeBlock`, and emits an event.
+   Nothing has switched yet.
 2. **Wait.** For `POLICY_TIMELOCK` blocks, the old pointer is still live. Users who
    dislike `next` can `exit` or `refundBatch`. The multisig MAY `cancel*` during this
    window; it MUST NOT shorten the delay.
@@ -158,24 +159,44 @@ Sequence:
 Policy pointers (`StakingPolicy`, `PostagePolicy`) need only the timelock. They do not
 touch an in-flight redistribution round.
 
-**`activationBlock` is the round-boundary at which the redistributor pointer may
-execute.** It is not compiled into Bee and it is not read from a registry. Bee already
-has the new `Redistribution` address. `activationBlock` is announced with the Bee
-release (release notes / dashboard), and the *postage core* is what enforces it:
+**`activationBlock` is set by the multisig. It does not happen by itself.**
 
-- `activationBlock % ROUND_LENGTH == 0` for the *outgoing* game. Commit, reveal and
-  claim all sit inside one round; a flip mid-round orphans nodes that have committed.
-  Changing `ROUND_LENGTH` is Type A; the incoming game starts on an outgoing boundary.
-- `activationBlock` MUST be at least `proposeBlock + POLICY_TIMELOCK`. Propose early
-  enough that the delay has elapsed by the chosen round boundary.
-- `executeRedistributor()` reverts before `activationBlock` and after
-  `activationBlock + EXECUTION_WINDOW`. `EXECUTION_WINDOW` is a core constant well under
-  one round, so a late Safe transaction still lands in the same round rather than the
-  next. Until execute succeeds, the outgoing `Redistribution` remains authorised.
+When the multisig proposes a new redistributor it also passes the block at which that
+pointer is allowed to go live:
 
-Until `PostageAccounting` exists, there is no on-chain window: stage 1 honours the same
-round boundary by operational discipline (one `REDISTRIBUTOR_ROLE`, flipped at a round
-start).
+```solidity
+function proposeRedistributor(address next, uint64 activationBlock) external;
+```
+
+`PostageAccounting` stores that number. `executeRedistributor()` later checks
+`block.number` against it. Bee never computes it; there is no registry to read it from.
+Release notes may repeat the same number so operators know the upgrade deadline.
+
+The core accepts the proposal only if:
+
+- `activationBlock` is a round start: `activationBlock % ROUND_LENGTH == 0`.
+  `ROUND_LENGTH` is an immutable on `PostageAccounting`, matching the outgoing game
+  (152 today). Commit, reveal and claim all sit inside one round; a flip mid-round
+  orphans nodes that have committed.
+- `activationBlock >= block.number + POLICY_TIMELOCK`, so the exit window is over
+  before the flip. The multisig picks a concrete future round (for example “round
+  starting at block 18_234_000”) that is far enough out, then proposes that value.
+
+Execute then only succeeds inside
+`[activationBlock, activationBlock + EXECUTION_WINDOW)`.
+`EXECUTION_WINDOW` is a core constant well under one round, so a slightly late Safe
+transaction still lands in the same round. Before `activationBlock`, and after the
+window, `executeRedistributor` reverts. Until execute succeeds, the outgoing
+`Redistribution` remains authorised.
+
+Example: timelock is 14 days, rounds are 152 blocks, now is block 10_000_000. The
+multisig must pick the first round start that is at least 14 days later, put that
+block into `proposeRedistributor`, ship Bee, and call `executeRedistributor` in that
+round. If they never propose, the pointer never moves.
+
+Changing `ROUND_LENGTH` is Type A; the incoming game starts on an outgoing boundary.
+Until `PostageAccounting` exists, stage 1 honours the same round start by operational
+discipline (one `REDISTRIBUTOR_ROLE`, flipped at a round start).
 
 **`EXIT_DELAY` is not a governance timelock.** It is the unbonding wait on
 `StakingCore.requestExit()` → `exit()`, paid to `msg.sender`. The staker starts it, not
@@ -185,7 +206,8 @@ the multisig. It MUST be at least the maximum freeze horizon, or exit dodges sla
 Worked order for a breaking Bee release:
 
 1. Deploy the new `Redistribution` (and new policy contracts if they change).
-2. Multisig `proposeRedistributor` (and `proposePolicy` if needed) on the cores.
+2. Multisig `proposeRedistributor(newRedistribution, activationBlock)` (and
+   `proposePolicy` if needed) on the cores.
 3. Ship Bee with the new addresses. Operators upgrade during the timelock.
 4. At `activationBlock`, `executeRedistributor` (and `executePolicy`). Non-upgraded
    nodes stop earning.
@@ -197,7 +219,7 @@ function cancelPolicy() external;
 function executePolicy() external;
 
 // PostageAccounting only
-function proposeRedistributor(address next) external;
+function proposeRedistributor(address next, uint64 activationBlock) external;
 function cancelRedistributor() external;
 function executeRedistributor() external;
 ```
@@ -340,7 +362,7 @@ interface IPostageAccounting {
     function proposePolicy(address next) external;
     function cancelPolicy() external;
     function executePolicy() external;
-    function proposeRedistributor(address next) external;
+    function proposeRedistributor(address next, uint64 activationBlock) external;
     function cancelRedistributor() external;
     function executeRedistributor() external;
     function remainingBalance(bytes32 batchId) external view returns (uint256);
