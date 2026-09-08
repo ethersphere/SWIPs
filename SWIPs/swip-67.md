@@ -1,6 +1,6 @@
 ---
 SWIP: 67
-title: Custody separation and fork migration
+title: Custody separation and cutover
 author: Cardinal (@0xCardiE), Andrew Macpherson (@awmacpherson)
 discussions-to: https://github.com/ethersphere/SWIPs/pull/108
 status: Draft
@@ -10,7 +10,7 @@ created: 2026-09-07
 ---
 
 <!-- Separates custody from policy so contract logic can be replaced without moving user
-funds, and specifies the fork-migration protocol that replacement runs under. -->
+funds, and specifies the cutover protocol that replacement runs under. -->
 
 ## Contents
 
@@ -19,7 +19,7 @@ funds, and specifies the fork-migration protocol that replacement runs under. --
 - [Specification](#specification)
   - [Key normative requirements at a glance](#key-normative-requirements-at-a-glance)
   - [Part 1 — Custody separation](#part-1--custody-separation) (C1–C5)
-  - [Part 2 — Fork migration](#part-2--fork-migration) (F0–F8)
+  - [Part 2 — Cutover](#part-2--cutover) (F0–F8)
 - [Rationale](#rationale)
 - [Backwards compatibility](#backwards-compatibility) — the two final migrations
 - [Test cases](#test-cases) · [Implementation](#implementation) · [Open questions](#open-questions)
@@ -36,11 +36,18 @@ place. That single fact causes both of our recurring problems:
 - **Migrations.** When we refuse to use those powers, we must instead move everyone's
   money — a fund movement for every user and every operator, every time the rules change.
 
-This SWIP splits each contract in two. A **core** holds the money, has no admin power over
-it, is never upgraded, and enforces its own accounting invariants. A **policy** holds the
-rules, is freely replaceable, and can never name a payment destination. It then specifies
-the **fork-migration protocol** — how a new policy and a new Redistribution contract are
-cut over at a round boundary, so that a protocol upgrade stops being a fund movement.
+This SWIP splits the two fund-holding contracts — `PostageStamp` and `StakeRegistry` —
+each into a **core** and a **policy**. The core holds the money, has no admin power over
+it, is never upgraded, and enforces its own accounting invariants. The policy holds the
+rules, is freely replaceable, and can never name a payment destination.
+
+`Redistribution` and `PriceOracle` hold no user deposits, so they are not split. They stay
+replaceable contracts and are redeployed as-is: a new `Redistribution` on every breaking
+wire release, so forked networks do not share one game; `PriceOracle` whenever its
+adjustment rules change.
+
+It then specifies the **cutover protocol** — how clients switch to a new policy and a new
+`Redistribution` at a round boundary, so a protocol upgrade stops being a fund movement.
 
 ## Abstract
 
@@ -55,7 +62,7 @@ a timelock they enforce themselves; they never call into policy; and they offer 
 permissionless exit that no role can pause. Policies hold batch admissibility, price
 submission, overlay derivation, commitment and effective-stake maths, and slashing rules.
 
-**Part 2 — Fork migration.** Every breaking wire-protocol release MUST be accompanied by a
+**Part 2 — Cutover.** Every breaking wire-protocol release MUST be accompanied by a
 new `Redistribution` deployment, even when its code is unchanged, so that the two branches
 of the resulting network fork do not play the same redistribution game. Cutover is
 signalled on chain by a `Cutover` contract that publishes *timing only*; contract addresses
@@ -209,16 +216,18 @@ RFC 2119.
 
 #### C1. Structure
 
-Each fund-holding contract is split into two deployed contracts.
+The two fund-holding contracts, `PostageStamp` and `StakeRegistry`, are each split into a
+frozen core and a replaceable policy.
 
 | Core (frozen, holds BZZ, no admin power over held funds) | Policy (replaceable, holds no user deposits) |
 |---|---|
 | `PostageAccounting` — batch ownership, depth, per-batch normalised balance, the outpayment accumulator, valid-chunk count, expiry ordering, pot | `PostagePolicy` — batch admissibility, depth and bucket rules, minimum balances, price submission |
 | `StakingCore` — per-account deposit, first-deposit block, withdrawal accounting | `StakingPolicy` — overlay derivation, height, committed stake, effective stake, freeze and slash rules |
 
-`Redistribution` and `PriceOracle` are policy-class contracts: they hold no user deposits
-and are plain redeployments, never proxies (see Part 2). `Redistribution` MAY transiently
-hold pot funds between `claimPot` and winner payout (C4).
+`Redistribution` and `PriceOracle` are not split. They hold no user deposits, so they are
+policy-class contracts: plain redeployments, never proxies (see Part 2). `Redistribution`
+MAY transiently hold pot funds between `claimPot` and winner payout (C4). `PriceOracle` is
+redeployed when its adjustment rules change.
 
 Cores MUST NOT be deployed behind a proxy and MUST NOT contain `delegatecall`. Policies MAY
 be proxied or plainly redeployed; C2 makes the choice non-custodial, and given F1 plain
@@ -536,7 +545,7 @@ redistributor, and misdirecting future rewards after `POLICY_TIMELOCK`. **Custod
 separation protects deposits, not rewards.** Bounding reward direction further would
 require freezing redistribution verification itself, which conflicts with F1.
 
-### Part 2 — Fork migration
+### Part 2 — Cutover
 
 #### F0. Definitions
 
@@ -544,6 +553,11 @@ A **fork** of the Swarm network is a second network whose initial state is a clo
 subset of the first's — canonically, of the stamp set. A **fork-migration** is a fork in
 which the old branch is intended to be wound down. Every breaking change to the Swarm wire
 protocol to date has been a fork-migration.
+
+The **cutover protocol** is how this SWIP runs a fork-migration on the incentive contracts:
+timing on chain, addresses in the client, authority change at a round boundary. It is
+specified by F1–F8. It is not itself a fork, and it is also used for Type B (contract-only)
+releases that do not fork the network.
 
 A **breaking wire release** is a client release whose peer-negotiated protocol version
 differs from its predecessor's, so that mismatched peers disconnect and at least two
