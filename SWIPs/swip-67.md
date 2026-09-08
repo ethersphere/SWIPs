@@ -16,6 +16,7 @@ funds. Bee keeps shipping addresses in the binary. Pointers flip at a round boun
 
 - [Simple Summary](#simple-summary) · [Abstract](#abstract)
 - [Motivation](#motivation)
+- [Rationale](#rationale)
 - [Specification](#specification)
   - [Pointers and timelocks](#pointers-and-timelocks)
   - [Redistribution](#redistribution)
@@ -23,7 +24,6 @@ funds. Bee keeps shipping addresses in the binary. Pointers flip at a round boun
   - [PostageStamp](#postagestamp)
   - [PriceOracle](#priceoracle)
   - [Releases](#releases)
-- [Rationale](#rationale)
 - [Test cases](#test-cases) · [Implementation](#implementation)
 
 ## Simple Summary
@@ -109,6 +109,32 @@ Custody separation removes the on-chain cost of a migration. It does not make ol
 Bee nodes share chunks: after a breaking Bee release they cannot peer, so bucket counters
 and local chunk state stay on each network. On-chain batches carry across; that local
 state does not.
+
+## Rationale
+
+Upgradeable proxies over fund-holding contracts are rejected. A proxy admin can steal
+the funds. If deposits live in a contract that cannot be swapped, that event is no
+longer a fund-loss event. Bee already compiles addresses into the binary; operators
+upgrade Bee, governance flips the pointer at a round boundary, and anyone still on the
+old binary stops earning.
+
+Full-suite redeployment at every breaking Bee release is rejected for the same reason the
+split exists.
+It requires a batch migration every time, leaves that migration undesigned, and relies
+on an incentive that does not hold: operators move stake to keep earning, but a user who
+fails to move a batch loses availability they may not notice. After the two one-time
+migrations in this SWIP, later upgrades replace policy and `Redistribution` only.
+
+An immutable policy pointer is stronger and useless: changing policy would mean a new
+core, which is another migration. An external timelock is weaker: whoever replaces its
+owner shortens the window. Putting expiry ordering in postage policy would make
+conservation depend on policy honesty. User-driven `fund()` as the primary batch
+migration is rejected because the backing BZZ is locked in `PostageStamp`.
+
+A policy with no authority over funds cannot slash and cannot pay winners. The
+achievable goal is bounded, announced, visible authority with a usable exit. Creation
+is policy-gated because admissibility changes per Bee release; exits are not, because a
+hostile policy must not trap existing funds.
 
 ## Specification
 
@@ -470,32 +496,6 @@ upgraded is calling the retired address and stops earning once the pointer has m
 
 Clients MUST NOT send a fund-moving transaction as an automated consequence of an
 upgrade or a chain event.
-
-## Rationale
-
-Upgradeable proxies over fund-holding contracts are rejected. A proxy admin can steal
-the funds. If deposits live in a contract that cannot be swapped, that event is no
-longer a fund-loss event. Bee already compiles addresses into the binary; operators
-upgrade Bee, governance flips the pointer at a round boundary, and anyone still on the
-old binary stops earning.
-
-Full-suite redeployment at every breaking Bee release is rejected for the same reason the
-split exists.
-It requires a batch migration every time, leaves that migration undesigned, and relies
-on an incentive that does not hold: operators move stake to keep earning, but a user who
-fails to move a batch loses availability they may not notice. After the two one-time
-migrations in this SWIP, later upgrades replace policy and `Redistribution` only.
-
-An immutable policy pointer is stronger and useless: changing policy would mean a new
-core, which is another migration. An external timelock is weaker: whoever replaces its
-owner shortens the window. Putting expiry ordering in postage policy would make
-conservation depend on policy honesty. User-driven `fund()` as the primary batch
-migration is rejected because the backing BZZ is locked in `PostageStamp`.
-
-A policy with no authority over funds cannot slash and cannot pay winners. The
-achievable goal is bounded, announced, visible authority with a usable exit. Creation
-is policy-gated because admissibility changes per Bee release; exits are not, because a
-hostile policy must not trap existing funds.
 
 ## Test cases
 
