@@ -17,7 +17,7 @@ funds. Bee keeps shipping addresses in the binary. Pointers flip at a round boun
 - [Simple Summary](#simple-summary) · [Abstract](#abstract)
 - [Motivation](#motivation)
 - [Specification](#specification)
-  - [Pointers, timelocks, and `activationBlock`](#pointers-timelocks-and-activationblock)
+  - [Pointers and timelocks](#pointers-and-timelocks)
   - [Redistribution](#redistribution)
   - [Staking](#staking)
   - [PostageStamp](#postagestamp)
@@ -128,7 +128,7 @@ A core with a timelocked pointer is not admin-free. The claim is narrower: no pr
 operation can move a user's deposit, and every privileged operation is announced in
 advance with an exit window.
 
-### Pointers, timelocks, and `activationBlock`
+### Pointers and timelocks
 
 Two clocks, two jobs. Do not mix them.
 
@@ -141,62 +141,33 @@ The governing multisig is the only address that may propose or cancel a pointer 
 The core enforces the delay itself with an immutable block count (suggested: 14 days).
 No external timelock contract.
 
+There is **no stored `activationBlock`.** Picking the flip date at propose time is what
+goes wrong when Bee slips: you miss a one-round window and have to propose again, another
+full timelock. The date is chosen at **execute** time, once the binary is actually out.
+
 Sequence:
 
-1. **Propose.** Multisig calls `proposePolicy(next)` or
-   `proposeRedistributor(next, activationBlock)` on the core. The core stores `next`
-   (and, for redistributor, `activationBlock`) and `proposeBlock`, and emits an event.
-   Nothing has switched yet.
-2. **Wait.** For `POLICY_TIMELOCK` blocks, the old pointer is still live. Users who
-   dislike `next` can `exit` or `refundBatch`. The multisig MAY `cancel*` during this
-   window; it MUST NOT shorten the delay.
-3. **Execute.** After the delay, `executePolicy()` may be called. For the *redistributor*
-   pointer, execute is further restricted to
-   `[activationBlock, activationBlock + EXECUTION_WINDOW)` (below). Anyone MAY execute
-   once the window is open; only the current `next` is installed. After execute, `claimPot`
-   / policy-gated calls talk to the new address.
+1. **Propose.** Multisig calls `proposePolicy(next)` or `proposeRedistributor(next)`.
+   The core stores `next` and `proposeBlock`, and emits an event. Nothing has switched
+   yet. The old `Redistribution` keeps paying.
+2. **Wait.** For `POLICY_TIMELOCK` blocks, users who dislike `next` can `exit` or
+   `refundBatch`. The multisig MAY cancel during this window; it MUST NOT shorten the
+   delay. If Bee is late, **do nothing** — the old game continues, or pause it and
+   accept a gap. That gap already happens today. It is not a reason to re-propose.
+3. **Execute**, after the delay, when Bee is out. `executePolicy()` has no extra clock.
+   `executeRedistributor()` also requires the current block to be in the opening of a
+   round: `block.number % ROUND_LENGTH < EXECUTION_WINDOW`. `ROUND_LENGTH` is an
+   immutable on `PostageAccounting` (152 today). Any later round start is valid; there
+   is no missed date. A mid-round execute reverts, so committed nodes are not orphaned.
+   Anyone MAY execute once those checks pass; only the proposed `next` is installed.
 
-Policy pointers (`StakingPolicy`, `PostagePolicy`) need only the timelock. They do not
-touch an in-flight redistribution round.
+Do **not** let the multisig `setRedistributor` in one shot with no propose step. That
+drops the exit window, which is the whole point of the timelock. Round alignment
+without a pre-committed block is enough to avoid a mid-round flip; a gap with nobody
+playing is acceptable.
 
-**`activationBlock` is set by the multisig. It does not happen by itself.**
-
-When the multisig proposes a new redistributor it also passes the block at which that
-pointer is allowed to go live:
-
-```solidity
-function proposeRedistributor(address next, uint64 activationBlock) external;
-```
-
-`PostageAccounting` stores that number. `executeRedistributor()` later checks
-`block.number` against it. Bee never computes it; there is no registry to read it from.
-Release notes may repeat the same number so operators know the upgrade deadline.
-
-The core accepts the proposal only if:
-
-- `activationBlock` is a round start: `activationBlock % ROUND_LENGTH == 0`.
-  `ROUND_LENGTH` is an immutable on `PostageAccounting`, matching the outgoing game
-  (152 today). Commit, reveal and claim all sit inside one round; a flip mid-round
-  orphans nodes that have committed.
-- `activationBlock >= block.number + POLICY_TIMELOCK`, so the exit window is over
-  before the flip. The multisig picks a concrete future round (for example “round
-  starting at block 18_234_000”) that is far enough out, then proposes that value.
-
-Execute then only succeeds inside
-`[activationBlock, activationBlock + EXECUTION_WINDOW)`.
-`EXECUTION_WINDOW` is a core constant well under one round, so a slightly late Safe
-transaction still lands in the same round. Before `activationBlock`, and after the
-window, `executeRedistributor` reverts. Until execute succeeds, the outgoing
-`Redistribution` remains authorised.
-
-Example: timelock is 14 days, rounds are 152 blocks, now is block 10_000_000. The
-multisig must pick the first round start that is at least 14 days later, put that
-block into `proposeRedistributor`, ship Bee, and call `executeRedistributor` in that
-round. If they never propose, the pointer never moves.
-
-Changing `ROUND_LENGTH` is Type A; the incoming game starts on an outgoing boundary.
-Until `PostageAccounting` exists, stage 1 honours the same round start by operational
-discipline (one `REDISTRIBUTOR_ROLE`, flipped at a round start).
+Until `PostageAccounting` exists, stage 1 honours the same rule by operational
+discipline: one `REDISTRIBUTOR_ROLE`, flipped at a round start after Bee is out.
 
 **`EXIT_DELAY` is not a governance timelock.** It is the unbonding wait on
 `StakingCore.requestExit()` → `exit()`, paid to `msg.sender`. The staker starts it, not
@@ -206,11 +177,11 @@ the multisig. It MUST be at least the maximum freeze horizon, or exit dodges sla
 Worked order for a breaking Bee release:
 
 1. Deploy the new `Redistribution` (and new policy contracts if they change).
-2. Multisig `proposeRedistributor(newRedistribution, activationBlock)` (and
-   `proposePolicy` if needed) on the cores.
-3. Ship Bee with the new addresses. Operators upgrade during the timelock.
-4. At `activationBlock`, `executeRedistributor` (and `executePolicy`). Non-upgraded
-   nodes stop earning.
+2. Multisig `proposeRedistributor(newRedistribution)` (and `proposePolicy` if needed).
+3. Ship Bee. Operators upgrade during the timelock. If the release slips, wait; the
+   old pointer stays live (or pause the old game).
+4. After the timelock, at the next round start, `executeRedistributor` (and
+   `executePolicy`). Non-upgraded nodes stop earning.
 
 ```solidity
 // On both cores
@@ -219,7 +190,7 @@ function cancelPolicy() external;
 function executePolicy() external;
 
 // PostageAccounting only
-function proposeRedistributor(address next, uint64 activationBlock) external;
+function proposeRedistributor(address next) external;
 function cancelRedistributor() external;
 function executeRedistributor() external;
 ```
@@ -254,8 +225,8 @@ a staking-policy change that does not change how commits are built or verified. 
 replace the other contracts; the game address stays if the game is the same.
 
 **Pointer flip.** The postage core holds the only redistributor pointer. See
-[Pointers, timelocks, and `activationBlock`](#pointers-timelocks-and-activationblock).
-Incoming `Redistribution` accepts commits from `activationBlock` onward. `claimPot`
+[Pointers and timelocks](#pointers-and-timelocks).
+Incoming `Redistribution` accepts commits once it is the authorised pointer. `claimPot`
 reverts for any caller that is not the current pointer.
 
 If the previous Bee network still needs to pay for data availability, the outgoing
@@ -320,12 +291,12 @@ every overlay it backs.
 height on first use, so a later upgrade needs no operator transaction.
 
 **Migration (once).** Operators move deposits with today's `migrateStake()` onto
-`StakingCore`. The old registry is paused at `activationBlock`, not later. Operators
+`StakingCore`. The old registry is paused when the pointer executes, not later. Operators
 SHOULD pre-register so they are eligible immediately. After this, stake does not move
 again: later upgrades only replace `StakingPolicy`.
 
 **After the split.** Policy-pointer change on `StakingCore` as in
-[Pointers, timelocks, and `activationBlock`](#pointers-timelocks-and-activationblock).
+[Pointers and timelocks](#pointers-and-timelocks).
 Deposits, withdrawals and exits never change ABI.
 
 ### PostageStamp
@@ -362,7 +333,7 @@ interface IPostageAccounting {
     function proposePolicy(address next) external;
     function cancelPolicy() external;
     function executePolicy() external;
-    function proposeRedistributor(address next, uint64 activationBlock) external;
+    function proposeRedistributor(address next) external;
     function cancelRedistributor() external;
     function executeRedistributor() external;
     function remainingBalance(bytes32 batchId) external view returns (uint256);
@@ -395,10 +366,10 @@ A: stamp validity is consensus-adjacent.
 **Migration (once), treasury-matched genesis.** `PostageStamp` cannot release unexpired
 deposits, so the new core is seeded and separately backed:
 
-1. At `activationBlock`, `PostageStamp` is paused (`createBatch`, `topUp`,
+1. When the new core goes live, `PostageStamp` is paused (`createBatch`, `topUp`,
    `increaseDepth` freeze; expiry and `withdraw` continue).
 2. `PostageAccounting` is deployed in a genesis phase. The deployer seeds the batch set
-   as of `activationBlock` and transfers in matching BZZ for the full seeded value. The
+   as of that block and transfers in matching BZZ for the full seeded value. The
    treasury fronts this float.
 3. Genesis is sealed in the same ceremony. Until sealed, no other call is accepted;
    after sealing, no seeding path exists.
@@ -410,7 +381,7 @@ After this, batches do not migrate again. Later upgrades only replace `PostagePo
 `Redistribution`.
 
 **After the split.** Redistributor and policy pointers as in
-[Pointers, timelocks, and `activationBlock`](#pointers-timelocks-and-activationblock).
+[Pointers and timelocks](#pointers-and-timelocks).
 Balance reads never change ABI.
 
 **Residual trust.** Deposits cannot be stolen or flash-drained. A hostile policy can
@@ -442,9 +413,9 @@ accumulator, not in the oracle.
 
 Bee ships the current addresses and ABIs in the binary, as it does today. Operators
 switch by running that Bee. Governance proposes pointer changes on the cores, then
-executes them after `POLICY_TIMELOCK` — the redistributor pointer only at
-`activationBlock`. Details:
-[Pointers, timelocks, and `activationBlock`](#pointers-timelocks-and-activationblock).
+executes them after `POLICY_TIMELOCK`. The redistributor pointer may execute only at a
+round start, whichever round comes after Bee is out. Details:
+[Pointers and timelocks](#pointers-and-timelocks).
 
 A **breaking Bee release (Type A)** is a Bee version whose nodes cannot connect to the
 previous version. Ship a new `Redistribution` in that binary. Non-upgraded nodes stop
@@ -453,7 +424,7 @@ commitment hashing, overlay derivation, eligibility, or stamp validity (includin
 `refundBatch`).
 
 A **contract-only release (Type B)** does not change Bee's p2p protocol. Still ship the
-new addresses in Bee; still flip the pointer at `activationBlock`. A node that has not
+new addresses in Bee; still flip the pointer at a round start after the timelock. A node that has not
 upgraded is calling the retired address and stops earning once the pointer has moved.
 
 Clients MUST NOT send a fund-moving transaction as an automated consequence of an
@@ -498,12 +469,13 @@ Mandatory before any core deployment.
   (including policy = 0, pending pointer change, and a locked staking account).
 - Genesis: seeding without matching BZZ reverts; any call before seal reverts; seeding
   after seal reverts from every role; conservation holds at the first open block.
-- Pointer changes cannot execute before `POLICY_TIMELOCK` or outside the execution
-  window; cancellation works only before execution.
+- Pointer changes cannot execute before `POLICY_TIMELOCK`. Redistributor execute
+  additionally reverts unless the current block is in the opening of a round.
+  Cancellation works only before execution.
 - A pointer flip off a round boundary reverts; a boundary-aligned flip does not orphan
   a commit.
 - Policy replacement does not change `currentTotalOutPayment` or remaining balances.
-- Pre-registered operators are eligible at `activationBlock`; others are not.
+- Pre-registered operators are eligible when the pointer executes; others are not.
 - Fuzz randomised sequences of deposit, fund, top-up, resize, price, expire, claim,
   slash, refund, withdraw and exit.
 
