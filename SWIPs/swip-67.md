@@ -10,7 +10,7 @@ created: 2026-09-07
 ---
 
 <!-- Separates custody from policy so contract logic can be replaced without moving user
-funds, and specifies the cutover protocol that replacement runs under. -->
+funds. Bee keeps shipping addresses in the binary. Pointers flip at a round boundary. -->
 
 ## Contents
 
@@ -21,7 +21,7 @@ funds, and specifies the cutover protocol that replacement runs under. -->
   - [Staking](#staking)
   - [PostageStamp](#postagestamp)
   - [PriceOracle](#priceoracle)
-  - [Cutover protocol](#cutover-protocol)
+  - [Cutover](#cutover)
 - [Rationale](#rationale)
 - [Test cases](#test-cases) · [Implementation](#implementation) · [Open questions](#open-questions)
 
@@ -46,8 +46,9 @@ replaceable and are redeployed as-is. A new `Redistribution` whenever the on-cha
 must not be shared — a breaking Bee release (even if the Solidity is unchanged) or a
 change to Redistribution itself. A new `PriceOracle` when its adjustment rules change.
 
-It then specifies the **cutover protocol** — how clients switch to a new policy and a new
-`Redistribution` at a round boundary, so a protocol upgrade stops being a fund movement.
+It then specifies how a new `Redistribution` and a new policy are pointed in at a round
+boundary, so a protocol upgrade stops being a fund movement. Bee keeps shipping contract
+addresses in the binary, as it does today. There is no on-chain `Cutover` contract.
 
 ## Abstract
 
@@ -68,8 +69,8 @@ The suite is treated contract by contract.
   submits prices through `PostagePolicy` into the core's bounded `setPrice`.
 
 Cores hold all user BZZ. No core function transfers to a caller-supplied address. Pointers
-change only after a core-enforced timelock. Exits cannot be paused. A `Cutover` contract
-publishes *timing only*; contract addresses are compiled into the client.
+change only after a core-enforced timelock. Exits cannot be paused. Contract addresses
+stay compiled into Bee, as they are today.
 
 ## Motivation
 
@@ -155,10 +156,12 @@ Do **not** redeploy `Redistribution` for a postage-policy tweak, an oracle adjus
 a staking-policy change that does not change how commits are built or verified. Those
 replace the other contracts; the game address stays if the game is the same.
 
-**Cutover.** Incoming `Redistribution` accepts commits from `activationBlock` onward.
-The postage core authorises at most one redistributor address at a time. The pointer
-moves through `proposeRedistributor` / `executeRedistributor` under the timelock and
-only inside `[activationBlock, activationBlock + EXECUTION_WINDOW)`. Until execution,
+**Cutover.** Incoming `Redistribution` accepts commits from the round-boundary block
+where the postage core's redistributor pointer is executed onward. The postage core
+authorises at most one redistributor address at a time. The pointer moves through
+`proposeRedistributor` / `executeRedistributor` under the timelock and only inside
+`[activationBlock, activationBlock + EXECUTION_WINDOW)`, where `activationBlock` is a
+round boundary of the outgoing game, announced with the Bee release. Until execution,
 the outgoing contract remains authorised, so a late execution shortens the first new
 round rather than orphaning a committed node. `claimPot` reverts for any other caller.
 
@@ -167,8 +170,8 @@ If the previous Bee network still needs to pay for data availability, the outgoi
 into the outgoing contract **before** cutover. After cutover it is never the authorised
 pointer again.
 
-**Migration.** None. There is no user state to move. Clients switch the address they
-call at `activationBlock`. Until `PostageAccounting` exists, singleton authority is
+**Migration.** None. There is no user state to move. Operators run the Bee release that
+contains the new address. Until `PostageAccounting` exists, singleton authority is
 operational (one `REDISTRIBUTOR_ROLE` holder); the type-level guarantee lands with the
 postage split.
 
@@ -322,60 +325,44 @@ All of it is replaceable. The postage core stores `lastPrice` and the accumulato
 oracle does not.
 
 **How it is updated.** Redeployed when adjustment rules change (the rate table, the
-redundancy target, the pause behaviour). A Type B cutover if Bee's p2p protocol is
-unchanged; Type A if a consensus-critical consumer would need a runtime branch.
+redundancy target, the pause behaviour). Ship the new address in Bee; flip nothing on
+the postage core except through the existing `setPrice` path. Type A only if a
+consensus-critical consumer would need a runtime branch.
 
 Price submission is `PriceOracle` → `PostagePolicy` → `PostageAccounting.setPrice`. The
 core enforces `price <= MAX_PRICE` and a maximum step from `lastPrice`. Those bounds
 MUST be compatible with the oracle's own steps, or honest adjustments revert.
 
-**Migration.** None. Clients switch the compiled oracle address at `activationBlock`.
-In-flight postage balances are unaffected: they are denominated in the core accumulator,
-not in the oracle.
+**Migration.** None. Operators run the Bee release that contains the new oracle
+address. In-flight postage balances are unaffected: they are denominated in the core
+accumulator, not in the oracle.
 
-### Cutover protocol
+### Cutover
 
-Shared by all four. A **breaking Bee release** is a Bee version whose nodes cannot
-connect to the previous version, so the p2p network splits in two. A **cutover** is the
-coordinated switch of contract addresses at a round boundary. Type A cutovers follow a
-breaking Bee release. Type B cutovers change contracts only; old and new Bee nodes can
-still peer.
+No extra contract. Bee ships the current addresses and ABIs in the binary, as it does
+today. Operators switch by running that Bee. Governance flips the postage redistributor
+pointer (and any policy pointer) at a round boundary of the outgoing game.
 
-A `Cutover` contract publishes **when**. Addresses live in the client binary.
-
-```solidity
-interface ICutover {
-    struct Schedule {
-        uint32 protocolVersion;  // Bee p2p protocol version this cutover activates
-        uint64 activationBlock;  // round boundary of the outgoing game
-        bytes32 manifest;        // hash of the release's address set
-    }
-    function schedule(uint32 protocolVersion) external view returns (Schedule memory);
-    function current() external view returns (Schedule memory);
-}
-```
-
-- Clients MUST NOT learn a contract address from the chain and act on it. `manifest` is
-  checked against the compiled address set; mismatch is a hard failure.
-- Activation is observed from `Cutover` state, not a height baked into the binary. A
-  reschedule MUST be announced at least `CUTOVER_NOTICE` blocks ahead. Inside that
-  window a schedule MUST NOT be modified (cancellation counts as rescheduling).
-- `activationBlock % ROUND_LENGTH_outgoing == 0`. A mid-round cutover orphans commits.
-  A `ROUND_LENGTH` change is Type A; the incoming game starts on an outgoing boundary.
-- The `Cutover` contract holds no funds. A hostile scheduler can delay cutovers, never
-  redirect money.
-- Clients switch the addresses they use at `activationBlock`, not at operator restart,
-  and MUST NOT send a fund-moving transaction as an automated consequence of a chain
-  signal.
-
-**Type A — breaking Bee release.** Single game ABI. A node that has not upgraded stops
+A **breaking Bee release (Type A)** is a Bee version whose nodes cannot connect to the
+previous version. Ship a new `Redistribution` in that binary. Non-upgraded nodes stop
 earning, by design. Required whenever a runtime branch would appear in reserve sampling,
 commitment hashing, overlay derivation, eligibility, or stamp validity (including
 `refundBatch`).
 
-**Type B — contract-only.** Bee's p2p protocol is unchanged. The client carries both
-bindings and switches at `activationBlock`. Dual-mode is confined to call sites; cores
-never acquire a second ABI.
+A **contract-only release (Type B)** does not change Bee's p2p protocol. Still ship the
+new addresses in Bee; still flip the pointer at a round boundary. There is no dual-ABI
+mode: a node that has not upgraded is calling the retired address and stops earning once
+the pointer has moved. That is the same operator duty as today, without overlapping
+redistributors.
+
+`activationBlock % ROUND_LENGTH_outgoing == 0`. A mid-round flip orphans commits. A
+`ROUND_LENGTH` change is Type A; the incoming game starts on an outgoing boundary.
+Clients MUST NOT send a fund-moving transaction as an automated consequence of an
+upgrade or a chain event.
+
+An on-chain `Cutover` registry, guarded proxies, and `pinnedExecute` are not used. They
+would only duplicate the Bee release: addresses already live in the binary, and a chain
+signal cannot be allowed to redirect funds.
 
 ## Rationale
 
@@ -384,8 +371,15 @@ the funds. Checking a registry on every fallback taxes all calls and can revert
 withdrawals on a mistaken deprecation. `pinnedExecute` adds a second delegatecall path
 and a permanent selector-collision constraint. That machinery solves "the admin swapped
 the implementation under me." If deposits live in a contract that cannot be swapped, the
-event is no longer a fund-loss event. A registry-like contract is kept only for cutover
-*timing*; it is not a security root. The trust root is the client release either way.
+event is no longer a fund-loss event.
+
+An on-chain `Cutover` contract is rejected for the same reason. Its only job would be
+telling Bee *when* to switch addresses that Bee already compiled in. Type A does not
+need that: old and new Bee cannot peer, and the new binary already has the new
+`Redistribution`. Type B would need it only to run two ABIs at once without restarting.
+That is not worth a new contract, a dual-mode client, and a rescheduling protocol.
+Operators upgrade Bee; governance flips the pointer at a round boundary; anyone still
+on the old binary stops earning. The trust root is the Bee release either way.
 
 Full-suite redeployment at every breaking Bee release is rejected for the same reason the
 split exists.
@@ -420,8 +414,8 @@ Mandatory before any core deployment.
   after seal reverts from every role; conservation holds at the first open block.
 - Pointer changes cannot execute before `POLICY_TIMELOCK` or outside the execution
   window; cancellation works only before execution.
-- Boundary-aligned cutover does not orphan a commit; off-boundary schedule reverts;
-  `manifest` mismatch hard-fails the client.
+- A pointer flip off a round boundary reverts; a boundary-aligned flip does not orphan
+  a commit.
 - Policy replacement does not change `currentTotalOutPayment` or remaining balances.
 - Pre-registered operators are eligible at `activationBlock`; others are not.
 - Fuzz randomised sequences of deposit, fund, top-up, resize, price, expire, claim,
@@ -433,25 +427,24 @@ Each stage is independently valuable and independently revertible.
 
 | Stage | Content | Depends on |
 |---|---|---|
-| 1 | New `Redistribution`; round-aligned cutover; one redistributor by operational discipline | — |
+| 1 | New `Redistribution`; round-aligned pointer flip; one redistributor by operational discipline | — |
 | 2 | New `Redistribution` on every breaking Bee release, as standing practice | — |
-| 3 | `Cutover` contract and client support. Drop guarded proxies / `pinnedExecute` | 2 |
-| 4 | `StakingCore` + `StakingPolicy`. Final stake migration | 3 |
-| 5 | `PostageAccounting` + `PostagePolicy`. Treasury-matched genesis | 4 |
-| 6 | Multisig scope reduced to policy and redistributor pointers | 5 |
+| 3 | `StakingCore` + `StakingPolicy`. Final stake migration | 2 |
+| 4 | `PostageAccounting` + `PostagePolicy`. Treasury-matched genesis | 3 |
+| 5 | Multisig scope reduced to policy and redistributor pointers | 4 |
 
 `PriceOracle` has no dedicated stage: redeploy it with the postage or redistribution
 release that needs the new adjustment rules.
 
-After stage 5, surgical redeployment and the absence of admin power over deposits
+After stage 4, surgical redeployment and the absence of admin power over deposits
 coexist.
 
 ## Open questions
 
 1. **Parameter values.** `POLICY_TIMELOCK` (suggested: 14 days in blocks), `EXIT_DELAY`
-   (≥ maximum freeze horizon), `EXECUTION_WINDOW`, `CUTOVER_NOTICE`, slash and pot
-   windows, `MAX_PRICE` and `MAX_PRICE_CHANGE_PER_UPDATE` (must match the oracle's
-   steps). Immutable once deployed.
+   (≥ maximum freeze horizon), `EXECUTION_WINDOW`, slash and pot windows, `MAX_PRICE`
+   and `MAX_PRICE_CHANGE_PER_UPDATE` (must match the oracle's steps). Immutable once
+   deployed.
 2. **Refund economics.** `refundBatch` forfeit fraction, and the wind-down decay
    schedule. A forfeit is preferred over a minimum batch age.
 3. **Treasury float.** Size of the genesis front, and whether a deadline caps the
