@@ -42,9 +42,9 @@ it, is never upgraded, and enforces its own accounting invariants. The policy ho
 rules, is freely replaceable, and can never name a payment destination.
 
 `Redistribution` and `PriceOracle` hold no user deposits, so they are not split. They stay
-replaceable contracts and are redeployed as-is: a new `Redistribution` on every breaking
-wire release, so forked networks do not share one game; `PriceOracle` whenever its
-adjustment rules change.
+replaceable and are redeployed as-is. A new `Redistribution` whenever the on-chain game
+must not be shared — a breaking Bee wire release (even if the Solidity is unchanged) or a
+change to Redistribution itself. A new `PriceOracle` when its adjustment rules change.
 
 It then specifies the **cutover protocol** — how clients switch to a new policy and a new
 `Redistribution` at a round boundary, so a protocol upgrade stops being a fund movement.
@@ -53,9 +53,11 @@ It then specifies the **cutover protocol** — how clients switch to a new polic
 
 The suite is treated contract by contract.
 
-- **`Redistribution`** is not split. Every breaking wire release deploys a new one, even
-  when bytecode is unchanged. Cutover lands on a round boundary; at most one redistributor
-  is authorised at any block.
+- **`Redistribution`** is not split. A new contract is deployed whenever the *game*
+  partitions — a breaking Bee wire release (peers with different protocol versions cannot
+  connect, so two networks must not share one on-chain game) or a Redistribution code
+  change. Same bytecode still gets a new address on a wire break. Cutover lands on a round
+  boundary; at most one redistributor is authorised at any block.
 - **`StakeRegistry`** splits into `StakingCore` (deposits, exits) and `StakingPolicy`
   (overlay, height, effective stake, slash/freeze rules). Operators migrate stake once,
   then deposits stay put across later forks.
@@ -134,15 +136,25 @@ preserving across a release. Overlay, stake and freeze data live in staking; pos
 balances live in postage. Redistribution only *reads* those and *calls* `claimPot` /
 `slash` / `lock`.
 
-**How it is updated.** Every breaking wire release deploys a **new** `Redistribution`,
-even if the bytecode is unchanged. Contract identity, not the wire version, is what
-partitions the incentive game. Without a new contract, both branches of a wire fork play
-the same game with divergent stamp-set views: stragglers claim payments meant for the
-new branch, and honest nodes can be frozen for disagreeing with a non-upgraded leader.
+**How it is updated.** Redeploy when the incentive game must not be shared. Two triggers:
 
-A contract-only bugfix (Type B) also deploys a new `Redistribution` and switches the
-postage core's redistributor pointer; the wire protocol is unchanged and operators who
-already run a dual-binding release keep earning.
+1. **Breaking wire release (Type A).** Bee ships a new *peer protocol version*. Nodes on
+   the old version and the new version cannot connect, so the p2p network splits in two.
+   Those two networks still see different chunks, stamps and reserve commitments, but if
+   they keep calling the **same** `Redistribution` address they play one on-chain commit /
+   reveal / claim game. The contract cannot tell the branches apart. Divergent reveals
+   look like lying: stragglers can win the pot, upgraded nodes get frozen for "disagreeing."
+   A new `Redistribution` address is the partition. The Solidity can be identical — what
+   changed is the off-chain protocol, not the contract. Deploy a new copy, point clients
+   and the postage redistributor pointer at it.
+2. **`Redistribution` itself changed (Type A or B).** A bugfix, a new claim check, a
+   different round length. There is no upgrade path, so that is also a new deployment.
+   If the wire is unchanged this is Type B: operators already running a release with both
+   addresses keep earning across cutover.
+
+Do **not** redeploy `Redistribution` for a postage-policy tweak, an oracle adjustment, or
+a staking-policy change that does not change how commits are built or verified. Those
+replace the other contracts; the game address stays if the game is the same.
 
 **Cutover.** Incoming `Redistribution` accepts commits from `activationBlock` onward.
 The postage core authorises at most one redistributor address at a time. The pointer
