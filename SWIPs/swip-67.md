@@ -1,7 +1,7 @@
 ---
 SWIP: 67
-title: Custody separation and cutover
-author: Cardinal (@0xCardiE), Andrew Macpherson (@awmacpherson)
+title: Custody separation
+author: Cardinal (@0xCardiE)
 discussions-to: https://github.com/ethersphere/SWIPs/pull/108
 status: Draft
 type: Standards Track
@@ -21,7 +21,7 @@ funds. Bee keeps shipping addresses in the binary. Pointers flip at a round boun
   - [Staking](#staking)
   - [PostageStamp](#postagestamp)
   - [PriceOracle](#priceoracle)
-  - [Cutover](#cutover)
+  - [Releases](#releases)
 - [Rationale](#rationale)
 - [Test cases](#test-cases) · [Implementation](#implementation) · [Open questions](#open-questions)
 
@@ -48,7 +48,7 @@ change to Redistribution itself. A new `PriceOracle` when its adjustment rules c
 
 It then specifies how a new `Redistribution` and a new policy are pointed in at a round
 boundary, so a protocol upgrade stops being a fund movement. Bee keeps shipping contract
-addresses in the binary, as it does today. There is no on-chain `Cutover` contract.
+addresses in the binary, as it does today.
 
 ## Abstract
 
@@ -57,14 +57,14 @@ The suite is treated contract by contract.
 - **`Redistribution`** is not split. A new contract is deployed whenever the *game*
   must not be shared — a breaking Bee release (old and new Bee nodes cannot connect, so
   they must not share one on-chain game) or a Redistribution code change. Same bytecode
-  still gets a new address on a breaking Bee release. Cutover lands on a round boundary;
-  at most one redistributor is authorised at any block.
+  still gets a new address on a breaking Bee release. The redistributor pointer flips at
+  a round boundary; at most one redistributor is authorised at any block.
 - **`StakeRegistry`** splits into `StakingCore` (deposits, exits) and `StakingPolicy`
   (overlay, height, effective stake, slash/freeze rules). Operators migrate stake once,
-  then deposits stay put across later cutovers.
+  then deposits stay put across later upgrades.
 - **`PostageStamp`** splits into `PostageAccounting` (balances, accumulator, pot, expiry
   ordering) and `PostagePolicy` (admissibility, depth rules, price submission). Batches
-  are seeded once, treasury-matched; after that they carry across later cutovers.
+  are seeded once, treasury-matched; after that they carry across later upgrades.
 - **`PriceOracle`** is not split. It is redeployed when adjustment rules change, and
   submits prices through `PostagePolicy` into the core's bounded `setPrice`.
 
@@ -149,14 +149,14 @@ balances live in postage. Redistribution only *reads* those and *calls* `claimPo
    at it.
 2. **`Redistribution` itself changed (Type A or B).** A bugfix, a new claim check, a
    different round length. There is no upgrade path, so that is also a new deployment.
-   If Bee's p2p protocol is unchanged this is Type B: operators already running a release
-   with both addresses keep earning across cutover.
+   If Bee's p2p protocol is unchanged this is Type B: operators run the Bee that contains
+   the new address, then the pointer flips. Anyone still on the old binary stops earning.
 
 Do **not** redeploy `Redistribution` for a postage-policy tweak, an oracle adjustment, or
 a staking-policy change that does not change how commits are built or verified. Those
 replace the other contracts; the game address stays if the game is the same.
 
-**Cutover.** Incoming `Redistribution` accepts commits from the round-boundary block
+**Pointer flip.** Incoming `Redistribution` accepts commits from the round-boundary block
 where the postage core's redistributor pointer is executed onward. The postage core
 authorises at most one redistributor address at a time. The pointer moves through
 `proposeRedistributor` / `executeRedistributor` under the timelock and only inside
@@ -167,8 +167,8 @@ round rather than orphaning a committed node. `claimPot` reverts for any other c
 
 If the previous Bee network still needs to pay for data availability, the outgoing
 `Redistribution` MAY keep paying at a reduced, decaying rate. That pot MUST be moved
-into the outgoing contract **before** cutover. After cutover it is never the authorised
-pointer again.
+into the outgoing contract **before** the pointer flips. After that it is never the
+authorised pointer again.
 
 **Migration.** None. There is no user state to move. Operators run the Bee release that
 contains the new address. Until `PostageAccounting` exists, singleton authority is
@@ -212,7 +212,7 @@ dodges penalties.
 
 **Eligibility.** `StakingPolicy` computes participation from
 `min(firstDepositBlock, preRegistrationBlock)`. Pre-registration is a zero-value
-transaction an operator may send before a deposit or a cutover, so a mass restake does
+transaction an operator may send before a deposit or a pointer flip, so a mass restake does
 not open a participation trough.
 
 **Accounts and nodes.** Deposits are per account; overlay mapping is policy-side. One
@@ -221,14 +221,14 @@ committed stake exceeds the account's deposit. A slash reduces the account, and 
 every overlay it backs.
 
 `StakingPolicy` SHOULD take an immutable `predecessor` and lazily inherit overlay and
-height on first use, so a later cutover needs no operator transaction.
+height on first use, so a later upgrade needs no operator transaction.
 
 **Migration (once).** Operators move deposits with today's `migrateStake()` onto
 `StakingCore`. The old registry is paused at `activationBlock`, not later. Operators
 SHOULD pre-register so they are eligible immediately. After this, stake does not move
-again: later cutovers only replace `StakingPolicy`.
+again: later upgrades only replace `StakingPolicy`.
 
-**Cutover after the split.** Policy-pointer change on `StakingCore` under
+**After the split.** Policy-pointer change on `StakingCore` under
 `POLICY_TIMELOCK`. Deposits, withdrawals and exits never change ABI.
 
 ### PostageStamp
@@ -306,10 +306,10 @@ deposits, so the new core is seeded and separately backed:
    expire into the old pot, using `withdraw` with the treasury as beneficiary — the final
    announced use of that primitive. The tail equals the longest remaining batch life.
 
-After this, batches do not migrate again. Later cutovers only replace `PostagePolicy` and
+After this, batches do not migrate again. Later upgrades only replace `PostagePolicy` and
 `Redistribution`.
 
-**Cutover after the split.** Redistributor pointer as in [Redistribution](#redistribution).
+**After the split.** Redistributor pointer as in [Redistribution](#redistribution).
 Policy-pointer change under `POLICY_TIMELOCK`. Balance reads never change ABI.
 
 **Residual trust.** Deposits cannot be stolen or flash-drained. A hostile policy can
@@ -337,11 +337,11 @@ MUST be compatible with the oracle's own steps, or honest adjustments revert.
 address. In-flight postage balances are unaffected: they are denominated in the core
 accumulator, not in the oracle.
 
-### Cutover
+### Releases
 
-No extra contract. Bee ships the current addresses and ABIs in the binary, as it does
-today. Operators switch by running that Bee. Governance flips the postage redistributor
-pointer (and any policy pointer) at a round boundary of the outgoing game.
+Bee ships the current addresses and ABIs in the binary, as it does today. Operators
+switch by running that Bee. Governance flips the postage redistributor pointer (and any
+policy pointer) at a round boundary of the outgoing game.
 
 A **breaking Bee release (Type A)** is a Bee version whose nodes cannot connect to the
 previous version. Ship a new `Redistribution` in that binary. Non-upgraded nodes stop
@@ -350,36 +350,21 @@ commitment hashing, overlay derivation, eligibility, or stamp validity (includin
 `refundBatch`).
 
 A **contract-only release (Type B)** does not change Bee's p2p protocol. Still ship the
-new addresses in Bee; still flip the pointer at a round boundary. There is no dual-ABI
-mode: a node that has not upgraded is calling the retired address and stops earning once
-the pointer has moved. That is the same operator duty as today, without overlapping
-redistributors.
+new addresses in Bee; still flip the pointer at a round boundary. A node that has not
+upgraded is calling the retired address and stops earning once the pointer has moved.
 
 `activationBlock % ROUND_LENGTH_outgoing == 0`. A mid-round flip orphans commits. A
 `ROUND_LENGTH` change is Type A; the incoming game starts on an outgoing boundary.
 Clients MUST NOT send a fund-moving transaction as an automated consequence of an
 upgrade or a chain event.
 
-An on-chain `Cutover` registry, guarded proxies, and `pinnedExecute` are not used. They
-would only duplicate the Bee release: addresses already live in the binary, and a chain
-signal cannot be allowed to redirect funds.
-
 ## Rationale
 
 Upgradeable proxies over fund-holding contracts are rejected. A proxy admin can steal
-the funds. Checking a registry on every fallback taxes all calls and can revert
-withdrawals on a mistaken deprecation. `pinnedExecute` adds a second delegatecall path
-and a permanent selector-collision constraint. That machinery solves "the admin swapped
-the implementation under me." If deposits live in a contract that cannot be swapped, the
-event is no longer a fund-loss event.
-
-An on-chain `Cutover` contract is rejected for the same reason. Its only job would be
-telling Bee *when* to switch addresses that Bee already compiled in. Type A does not
-need that: old and new Bee cannot peer, and the new binary already has the new
-`Redistribution`. Type B would need it only to run two ABIs at once without restarting.
-That is not worth a new contract, a dual-mode client, and a rescheduling protocol.
-Operators upgrade Bee; governance flips the pointer at a round boundary; anyone still
-on the old binary stops earning. The trust root is the Bee release either way.
+the funds. If deposits live in a contract that cannot be swapped, that event is no
+longer a fund-loss event. Bee already compiles addresses into the binary; operators
+upgrade Bee, governance flips the pointer at a round boundary, and anyone still on the
+old binary stops earning.
 
 Full-suite redeployment at every breaking Bee release is rejected for the same reason the
 split exists.
