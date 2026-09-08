@@ -43,7 +43,7 @@ rules, is freely replaceable, and can never name a payment destination.
 
 `Redistribution` and `PriceOracle` hold no user deposits, so they are not split. They stay
 replaceable and are redeployed as-is. A new `Redistribution` whenever the on-chain game
-must not be shared — a breaking Bee wire release (even if the Solidity is unchanged) or a
+must not be shared — a breaking Bee release (even if the Solidity is unchanged) or a
 change to Redistribution itself. A new `PriceOracle` when its adjustment rules change.
 
 It then specifies the **cutover protocol** — how clients switch to a new policy and a new
@@ -54,16 +54,16 @@ It then specifies the **cutover protocol** — how clients switch to a new polic
 The suite is treated contract by contract.
 
 - **`Redistribution`** is not split. A new contract is deployed whenever the *game*
-  partitions — a breaking Bee wire release (peers with different protocol versions cannot
-  connect, so two networks must not share one on-chain game) or a Redistribution code
-  change. Same bytecode still gets a new address on a wire break. Cutover lands on a round
-  boundary; at most one redistributor is authorised at any block.
+  must not be shared — a breaking Bee release (old and new Bee nodes cannot connect, so
+  they must not share one on-chain game) or a Redistribution code change. Same bytecode
+  still gets a new address on a breaking Bee release. Cutover lands on a round boundary;
+  at most one redistributor is authorised at any block.
 - **`StakeRegistry`** splits into `StakingCore` (deposits, exits) and `StakingPolicy`
   (overlay, height, effective stake, slash/freeze rules). Operators migrate stake once,
-  then deposits stay put across later forks.
+  then deposits stay put across later cutovers.
 - **`PostageStamp`** splits into `PostageAccounting` (balances, accumulator, pot, expiry
   ordering) and `PostagePolicy` (admissibility, depth rules, price submission). Batches
-  are seeded once, treasury-matched; after that they carry across forks.
+  are seeded once, treasury-matched; after that they carry across later cutovers.
 - **`PriceOracle`** is not split. It is redeployed when adjustment rules change, and
   submits prices through `PostagePolicy` into the core's bounded `setPrice`.
 
@@ -99,9 +99,10 @@ attack surface, from burn to steal. Its escape hatch, `migrateStake()`, is `when
 and `pause()` requires `DEFAULT_ADMIN_ROLE` — so against the admin it is not an escape
 hatch.
 
-Custody separation removes the on-chain cost of a migration. It does not remove the fork:
-bucket counters and chunk availability still partition on a wire change. Batches carry
-across; the stamp set still forks.
+Custody separation removes the on-chain cost of a migration. It does not make old and new
+Bee nodes share chunks: after a breaking Bee release they cannot peer, so bucket counters
+and local chunk state stay on each network. On-chain batches carry across; that local
+state does not.
 
 ## Specification
 
@@ -138,19 +139,19 @@ balances live in postage. Redistribution only *reads* those and *calls* `claimPo
 
 **How it is updated.** Redeploy when the incentive game must not be shared. Two triggers:
 
-1. **Breaking wire release (Type A).** Bee ships a new *peer protocol version*. Nodes on
-   the old version and the new version cannot connect, so the p2p network splits in two.
-   Those two networks still see different chunks, stamps and reserve commitments, but if
-   they keep calling the **same** `Redistribution` address they play one on-chain commit /
-   reveal / claim game. The contract cannot tell the branches apart. Divergent reveals
-   look like lying: stragglers can win the pot, upgraded nodes get frozen for "disagreeing."
-   A new `Redistribution` address is the partition. The Solidity can be identical — what
-   changed is the off-chain protocol, not the contract. Deploy a new copy, point clients
-   and the postage redistributor pointer at it.
+1. **Breaking Bee release (Type A).** A Bee version whose nodes cannot connect to the
+   previous version. The p2p network splits in two. Those two networks see different
+   chunks and reserve commitments, but if they keep calling the **same** `Redistribution`
+   address they play one on-chain commit / reveal / claim game. The contract cannot tell
+   the two networks apart. Divergent reveals look like lying: old-version nodes can win
+   the pot, upgraded nodes get frozen for "disagreeing." A new `Redistribution` address
+   is what separates the games. The Solidity can be identical — what changed is Bee, not
+   the contract. Deploy a new copy, point clients and the postage redistributor pointer
+   at it.
 2. **`Redistribution` itself changed (Type A or B).** A bugfix, a new claim check, a
    different round length. There is no upgrade path, so that is also a new deployment.
-   If the wire is unchanged this is Type B: operators already running a release with both
-   addresses keep earning across cutover.
+   If Bee's p2p protocol is unchanged this is Type B: operators already running a release
+   with both addresses keep earning across cutover.
 
 Do **not** redeploy `Redistribution` for a postage-policy tweak, an oracle adjustment, or
 a staking-policy change that does not change how commits are built or verified. Those
@@ -163,7 +164,7 @@ only inside `[activationBlock, activationBlock + EXECUTION_WINDOW)`. Until execu
 the outgoing contract remains authorised, so a late execution shortens the first new
 round rather than orphaning a committed node. `claimPot` reverts for any other caller.
 
-If the old branch still needs to pay for data availability, the outgoing
+If the previous Bee network still needs to pay for data availability, the outgoing
 `Redistribution` MAY keep paying at a reduced, decaying rate. That pot MUST be moved
 into the outgoing contract **before** cutover. After cutover it is never the authorised
 pointer again.
@@ -182,8 +183,8 @@ Split. `StakeRegistry` becomes `StakingCore` + `StakingPolicy`.
 | Per-account deposit, `firstDepositBlock`, withdrawal and exit accounting | Overlay derivation, height, committed stake, effective stake, freeze and slash rules |
 
 `StakingCore` MUST NOT store overlays, heights, committed stake or effective stake, and
-MUST NOT read `PriceOracle`. Overlay mixes `NetworkId`, so it is redeployed with a fork;
-deposits are not.
+MUST NOT read `PriceOracle`. Overlay mixes `NetworkId`, so it is redeployed with a
+breaking Bee release; deposits are not.
 
 ```solidity
 interface IStakingCore {
@@ -219,12 +220,12 @@ committed stake exceeds the account's deposit. A slash reduces the account, and 
 every overlay it backs.
 
 `StakingPolicy` SHOULD take an immutable `predecessor` and lazily inherit overlay and
-height on first use, so a later fork needs no operator transaction.
+height on first use, so a later cutover needs no operator transaction.
 
 **Migration (once).** Operators move deposits with today's `migrateStake()` onto
 `StakingCore`. The old registry is paused at `activationBlock`, not later. Operators
 SHOULD pre-register so they are eligible immediately. After this, stake does not move
-again: later forks only replace `StakingPolicy`.
+again: later cutovers only replace `StakingPolicy`.
 
 **Cutover after the split.** Policy-pointer change on `StakingCore` under
 `POLICY_TIMELOCK`. Deposits, withdrawals and exits never change ABI.
@@ -304,7 +305,7 @@ deposits, so the new core is seeded and separately backed:
    expire into the old pot, using `withdraw` with the treasury as beneficiary — the final
    announced use of that primitive. The tail equals the longest remaining batch life.
 
-After this, batches do not migrate again. Later forks only replace `PostagePolicy` and
+After this, batches do not migrate again. Later cutovers only replace `PostagePolicy` and
 `Redistribution`.
 
 **Cutover after the split.** Redistributor pointer as in [Redistribution](#redistribution).
@@ -323,8 +324,8 @@ All of it is replaceable. The postage core stores `lastPrice` and the accumulato
 oracle does not.
 
 **How it is updated.** Redeployed when adjustment rules change (the rate table, the
-redundancy target, the pause behaviour). A Type B cutover if the wire is unchanged; Type
-A if a consensus-critical consumer would need a runtime branch.
+redundancy target, the pause behaviour). A Type B cutover if Bee's p2p protocol is
+unchanged; Type A if a consensus-critical consumer would need a runtime branch.
 
 Price submission is `PriceOracle` → `PostagePolicy` → `PostageAccounting.setPrice`. The
 core enforces `price <= MAX_PRICE` and a maximum step from `lastPrice`. Those bounds
@@ -336,20 +337,22 @@ not in the oracle.
 
 ### Cutover protocol
 
-Shared by all four. A **fork** is a second network cloned from a subset of the first
-(canonically the stamp set). A **breaking wire release** is a client whose peer protocol
-version differs, so mismatched peers disconnect.
+Shared by all four. A **breaking Bee release** is a Bee version whose nodes cannot
+connect to the previous version, so the p2p network splits in two. A **cutover** is the
+coordinated switch of contract addresses at a round boundary. Type A cutovers follow a
+breaking Bee release. Type B cutovers change contracts only; old and new Bee nodes can
+still peer.
 
 A `Cutover` contract publishes **when**. Addresses live in the client binary.
 
 ```solidity
 interface ICutover {
     struct Schedule {
-        uint32 wireVersion;
+        uint32 protocolVersion;  // Bee p2p protocol version this cutover activates
         uint64 activationBlock;  // round boundary of the outgoing game
         bytes32 manifest;        // hash of the release's address set
     }
-    function schedule(uint32 wireVersion) external view returns (Schedule memory);
+    function schedule(uint32 protocolVersion) external view returns (Schedule memory);
     function current() external view returns (Schedule memory);
 }
 ```
@@ -367,14 +370,14 @@ interface ICutover {
   and MUST NOT send a fund-moving transaction as an automated consequence of a chain
   signal.
 
-**Type A — wire-breaking.** Single game ABI. A node that has not upgraded stops earning,
-by design. Required whenever a runtime branch would appear in reserve sampling,
+**Type A — breaking Bee release.** Single game ABI. A node that has not upgraded stops
+earning, by design. Required whenever a runtime branch would appear in reserve sampling,
 commitment hashing, overlay derivation, eligibility, or stamp validity (including
 `refundBatch`).
 
-**Type B — contract-only.** Wire unchanged. The client carries both bindings and
-switches at `activationBlock`. Dual-mode is confined to call sites; cores never acquire
-a second ABI.
+**Type B — contract-only.** Bee's p2p protocol is unchanged. The client carries both
+bindings and switches at `activationBlock`. Dual-mode is confined to call sites; cores
+never acquire a second ABI.
 
 ## Rationale
 
@@ -386,7 +389,8 @@ the implementation under me." If deposits live in a contract that cannot be swap
 event is no longer a fund-loss event. A registry-like contract is kept only for cutover
 *timing*; it is not a security root. The trust root is the client release either way.
 
-Full-suite redeployment at every fork is rejected for the same reason the split exists.
+Full-suite redeployment at every breaking Bee release is rejected for the same reason the
+split exists.
 It requires a batch migration every time, leaves that migration undesigned, and relies
 on an incentive that does not hold: operators move stake to keep earning, but a user who
 fails to move a batch loses availability they may not notice. After the two one-time
@@ -400,7 +404,7 @@ migration is rejected because the backing BZZ is locked in `PostageStamp`.
 
 A policy with no authority over funds cannot slash and cannot pay winners. The
 achievable goal is bounded, announced, visible authority with a usable exit. Creation
-is policy-gated because admissibility changes per branch; exits are not, because a
+is policy-gated because admissibility changes per Bee release; exits are not, because a
 hostile policy must not trap existing funds.
 
 ## Test cases
@@ -432,7 +436,7 @@ Each stage is independently valuable and independently revertible.
 | Stage | Content | Depends on |
 |---|---|---|
 | 1 | New `Redistribution`; round-aligned cutover; one redistributor by operational discipline | — |
-| 2 | New `Redistribution` on every breaking wire release, as standing practice | — |
+| 2 | New `Redistribution` on every breaking Bee release, as standing practice | — |
 | 3 | `Cutover` contract and client support. Drop guarded proxies / `pinnedExecute` | 2 |
 | 4 | `StakingCore` + `StakingPolicy`. Final stake migration | 3 |
 | 5 | `PostageAccounting` + `PostagePolicy`. Treasury-matched genesis | 4 |
