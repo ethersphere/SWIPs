@@ -251,7 +251,7 @@ normalised balance. A different model is not a policy change; it would need a ne
 interface IPostageAccounting {
     function fund(
         address originator, bytes32 nonce, address owner,
-        uint8 depth, bool immutableFlag, uint256 amountPerChunk
+        uint8 depth, uint256 amountPerChunk
     ) external returns (bytes32 batchId);
     function resize(bytes32 batchId, uint8 newDepth) external;
     function setPrice(uint256 price) external;
@@ -285,12 +285,9 @@ is capped per window. The cap limits *acceleration*; the honest game already pay
 whole pot each round. Protection against a hostile redistributor is the timelock plus
 `refundBatch`.
 
-`refundBatch` pays the recorded owner and SHOULD forfeit a fraction to the pot.
-Immutable batches are refundable too: immutability means the batch cannot be topped up
-or resized while it is alive, not that the owner is locked in. A refund is early expiry;
-nodes already handle that. Blocking it would trap the owners who most need the exit.
-Nodes treat a refund as batch invalidation, same as expiry. Introducing `refundBatch` is
-Type A: stamp validity is consensus-adjacent.
+`refundBatch` pays the recorded owner and SHOULD forfeit a fraction to the pot. Nodes
+treat a refund as batch invalidation, same as expiry. Introducing `refundBatch` is Type
+A: stamp validity is consensus-adjacent.
 
 **Migration (once), treasury-matched genesis.** `PostageStamp` cannot release unexpired
 deposits, so the new core is seeded and separately backed:
