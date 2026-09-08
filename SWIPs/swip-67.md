@@ -24,7 +24,7 @@ funds. Bee keeps shipping addresses in the binary. Pointers flip at a round boun
   - [PriceOracle](#priceoracle)
   - [Releases](#releases)
 - [Rationale](#rationale)
-- [Test cases](#test-cases) · [Implementation](#implementation) · [Open questions](#open-questions)
+- [Test cases](#test-cases) · [Implementation](#implementation)
 
 ## Simple Summary
 
@@ -145,8 +145,12 @@ Two clocks, two jobs. Do not mix them.
 replaced by deploying a new contract and, where needed, flipping a pointer *on a core*.
 
 The governing multisig is the only address that may propose or cancel a pointer change.
-The core enforces the delay itself with an immutable block count (suggested: 14 days).
-No external timelock contract.
+The core enforces the delay itself with an immutable block count. Suggested:
+`POLICY_TIMELOCK` = 14 days in blocks. The exact value, and the other immutables
+(`WAIT_*` from [storage-incentives#309](https://github.com/ethersphere/storage-incentives/pull/309),
+`EXECUTION_WINDOW`, slash and pot windows, `MAX_PRICE` /
+`MAX_PRICE_CHANGE_PER_UPDATE`, `refundBatch` forfeit), are decided before the cores
+are deployed. No external timelock contract.
 
 There is **no stored `activationBlock`.** Picking the flip date at propose time is what
 goes wrong when Bee slips: you miss a one-round window and have to propose again, another
@@ -347,8 +351,9 @@ MUST NOT settle while an expired batch is still counted — which is why the cor
 policy, owns the minimum-balance index. A policy-side accumulator would rebase every
 batch on every policy replacement.
 
-The outpayment model is therefore frozen: linear per-block accrual against a per-chunk
-normalised balance. A different model is not a policy change; it would need a new core.
+The outpayment model is frozen in the core: linear per-block accrual against a per-chunk
+normalised balance. A later pricing model is not a policy change and is not solved here;
+it needs a new core.
 
 ```solidity
 interface IPostageAccounting {
@@ -391,9 +396,12 @@ is capped per window. The cap limits *acceleration*; the honest game already pay
 whole pot each round. Protection against a hostile redistributor is the timelock plus
 `refundBatch`.
 
-`refundBatch` pays the recorded owner and SHOULD forfeit a fraction to the pot. Nodes
-treat a refund as batch invalidation, same as expiry. Introducing `refundBatch` is Type
-A: stamp validity is consensus-adjacent.
+`refundBatch` pays the recorded owner **less than** remaining balance. The difference is
+a forfeit to the pot — the owner can take funds out, just a bit less, to cover leftover
+pot operation and remaining availability. There is no minimum batch age. The forfeit
+fraction is an immutable, chosen before deployment. Nodes treat a refund as batch
+invalidation, same as expiry. Introducing `refundBatch` is Type A: stamp validity is
+consensus-adjacent.
 
 **Migration (once), treasury-matched genesis.** `PostageStamp` cannot release unexpired
 deposits, so the new core is seeded and separately backed:
@@ -401,13 +409,14 @@ deposits, so the new core is seeded and separately backed:
 1. When the new core goes live, `PostageStamp` is paused (`createBatch`, `topUp`,
    `increaseDepth` freeze; expiry and `withdraw` continue).
 2. `PostageAccounting` is deployed in a genesis phase. The deployer seeds the batch set
-   as of that block and transfers in matching BZZ for the full seeded value. The
-   treasury fronts this float.
+   as of that block. Matching BZZ is topped up on the new core by the operators of the
+   migration (not a user-by-user movement).
 3. Genesis is sealed in the same ceremony. Until sealed, no other call is accepted;
    after sealing, no seeding path exists.
-4. The treasury is reimbursed from the old contract as seeded batches' old-side balances
-   expire into the old pot, using `withdraw` with the treasury as beneficiary — the final
-   announced use of that primitive. The tail equals the longest remaining batch life.
+4. After the old contract is stopped, remaining BZZ is withdrawn from it
+   (`withdraw` with the migration operators as beneficiary) — the final announced use of
+   that primitive. That withdraw, plus the top-up of the new core, is the float. There
+   is no open reimbursement-tail problem.
 
 After this, batches do not migrate again. Later upgrades only replace `PostagePolicy` and
 `Redistribution`.
@@ -531,23 +540,6 @@ release that needs the new adjustment rules.
 
 After stage 4, surgical redeployment and the absence of admin power over deposits
 coexist.
-
-## Open questions
-
-1. **Parameter values.** `POLICY_TIMELOCK` (suggested: 14 days in blocks),
-   `WAIT_WITHDRAWAL` / `WAIT_BASE` / `WAIT_OVERLAY_CHANGE` from
-   [storage-incentives#309](https://github.com/ethersphere/storage-incentives/pull/309)
-   (`WAIT_WITHDRAWAL` ≥ maximum freeze horizon), `EXECUTION_WINDOW`, slash and pot
-   windows, `MAX_PRICE` and `MAX_PRICE_CHANGE_PER_UPDATE` (must match the oracle's
-   steps). Immutable once deployed.
-2. **Refund economics.** `refundBatch` forfeit fraction, and the wind-down decay
-   schedule. A forfeit is preferred over a minimum batch age.
-3. **Treasury float.** Size of the genesis front, and whether a deadline caps the
-   reimbursement tail.
-4. **Multi-client discipline.** What conformance looks like if a second client exists.
-5. **Frozen outpayment model.** Keep linear per-chunk accrual in the core, or freeze
-   remaining-BZZ with rate-capped policy consumption instead, so a later pricing model
-   is still a policy change.
 
 ## Copyright
 
