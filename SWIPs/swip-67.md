@@ -128,9 +128,7 @@ advance with an exit window.
 
 ### Redistribution
 
-Not split. It holds no user deposits. It MAY transiently hold pot funds between
-`claimPot` and winner payout; that hop SHOULD complete in one transaction. Stranded BZZ
-there is governance-recoverable — protocol funds, not deposits.
+Not split. It holds no user deposits.
 
 **State.** Commits, reveals, round counters and the last winner. None of it is worth
 preserving across a release. Overlay, stake and freeze data live in staking; postage
@@ -288,8 +286,11 @@ whole pot each round. Protection against a hostile redistributor is the timelock
 `refundBatch`.
 
 `refundBatch` pays the recorded owner and SHOULD forfeit a fraction to the pot.
-Immutable batches are not refundable. Nodes treat a refund as batch invalidation, same
-as expiry. Introducing `refundBatch` is Type A: stamp validity is consensus-adjacent.
+Immutable batches are refundable too: immutability means the batch cannot be topped up
+or resized while it is alive, not that the owner is locked in. A refund is early expiry;
+nodes already handle that. Blocking it would trap the owners who most need the exit.
+Nodes treat a refund as batch invalidation, same as expiry. Introducing `refundBatch` is
+Type A: stamp validity is consensus-adjacent.
 
 **Migration (once), treasury-matched genesis.** `PostageStamp` cannot release unexpired
 deposits, so the new core is seeded and separately backed:
