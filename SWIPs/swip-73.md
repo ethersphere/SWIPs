@@ -1,8 +1,8 @@
 ---
-SWIP: 67
+SWIP: 73
 title: Custody separation
 author: Cardinal (@0xCardiE)
-discussions-to: https://github.com/ethersphere/SWIPs/pull/108
+discussions-to: https://github.com/ethersphere/SWIPs/pull/109
 status: Draft
 type: Standards Track
 category: Core
