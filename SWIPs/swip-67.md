@@ -108,6 +108,13 @@ longer a fund-loss event. Bee already compiles addresses into the binary; operat
 upgrade Bee, governance flips the pointer at a round boundary, and anyone still on the
 old binary stops earning.
 
+The core holds remaining balances, the pot, and conservation. The admin can still
+point a new redistributor — that is how Redistribution is replaced without a new
+postage contract — but only after `POLICY_TIMELOCK`. Instant assign, or a proxy,
+takes the pot with no exit. An immutable redistributor forces a new core every game
+change. Batch owners do not authorise the upgrade; they can `refundBatch` in the
+window.
+
 Full-suite redeployment at every breaking Bee release is rejected for the same reason the
 split exists. It requires a batch migration every time, leaves that migration undesigned,
 and relies on an incentive that does not hold: operators move stake to keep earning, but
@@ -448,9 +455,11 @@ After this, batches do not migrate again. Later upgrades only replace `PostagePo
 [Pointers and timelocks](#pointers-and-timelocks).
 Balance reads never change ABI.
 
-**Residual trust.** Deposits cannot be stolen or flash-drained. A hostile policy can
-still, after the timelock, claim the pot at up to the honest rate and bias who wins.
-Custody separation protects deposits, not rewards.
+**Residual trust.** The pot is accrued fees, not remaining batch balances. A proxy
+can take both, rewrite owners, and mint unbacked batches. After the timelock a
+hostile redistributor can take the pot at the capped `claimPot` / `setPrice` rate
+(the redistributor feeds the oracle; the core still caps the step). Remaining
+leaves through `refundBatch`. Custody separation protects deposits, not rewards.
 
 ### PriceOracle
 
