@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package swarm.pricing;
+
+option go_package = "pb";
+
+// AnnouncePaymentThreshold message announces the payment threshold to peers
+// This is an infallible message as it simply declares a value
+message AnnouncePaymentThreshold {
+    // The payment threshold value in bytes as this may be up to u256.
+    bytes payment_threshold = 1;
+}

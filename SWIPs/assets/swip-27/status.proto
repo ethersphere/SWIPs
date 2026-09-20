@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package swarm.status;
+
+import "common.proto";
+
+option go_package = "pb";
+
+// Get message indicates interest in receiving a node Snapshot
+// This is an infallible request with no fields
+message Get {
+    // No fields needed for Get message
+}
+
+// Snapshot message is a response to the Get message
+// This operation is infallible, as this just returns the current state of the node
+message Snapshot {
+    // The total reserve size
+    uint64 reserve_size = 1;
+
+    // The current pullsync rate
+    double pullsync_rate = 2;
+
+    // The storage radius
+    uint32 storage_radius = 3;
+
+    // The number of connected peers
+    uint64 connected_peers = 4;
+
+    // The size of the neighbourhood
+    uint64 neighborhood_size = 5;
+
+    // The mode of the bee node
+    string bee_mode = 6;
+
+    // The batch commitment
+    uint64 batch_commitment = 7;
+
+    // Indicates if the node is reachable
+    bool is_reachable = 8;
+
+    // The reserve size within the storage radius
+    uint64 reserve_size_within_radius = 9;
+
+    // The last synced block
+    uint64 last_synced_block = 10;
+
+    // The committed depth
+    uint32 committed_depth = 11;
+}

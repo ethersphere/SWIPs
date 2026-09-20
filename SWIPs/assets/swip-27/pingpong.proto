@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+package swarm.pingpong;
+
+option go_package = "pb";
+
+// Ping message sent to test connectivity
+// This is an infallible request that cannot fail to be constructed
+message Ping {
+    // Optional greeting text
+    string greeting = 1;
+}
+
+// Pong message sent in response to a Ping
+// This is an infallible response as PingPong is a basic connectivity test
+message Pong {
+    // Response text
+    string response = 1;
+}

@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package swarm.pseudosettle;
+
+option go_package = "pb";
+
+// PseudoSettleMessageType indicates the type of pseudosettle message
+enum PseudoSettleMessageType {
+    PAYMENT = 0;
+    PAYMENT_ACK = 1;
+}
+
+// PseudoSettleMessage is the wrapper for all pseudosettle protocol messages
+// This implements the stateful protocol pattern with explicit message types
+message PseudoSettleMessage {
+    // The type of pseudosettle message
+    PseudoSettleMessageType type = 1;
+
+    // Only one of the following messages should be set based on the type
+    oneof message {
+        Payment payment = 2;
+        PaymentAck payment_ack = 3;
+    }
+}
+
+// Payment message represents a settlement payment
+message Payment {
+    // The payment amount in bytes (big.Int)
+    bytes amount = 1;
+}
+
+// PaymentAck acknowledges receipt of a payment
+message PaymentAck {
+    // The accepted payment amount in bytes (big.Int)
+    bytes amount = 1;
+
+    // The timestamp of the payment
+    int64 timestamp = 2;
+}

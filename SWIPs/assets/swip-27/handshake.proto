@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package swarm.handshake;
+
+import "common.proto";
+
+option go_package = "pb";
+
+// HandshakeMessageType indicates the type of handshake message
+enum HandshakeMessageType {
+    SYN = 0;
+    ACK = 1;
+    SYN_ACK = 2;
+}
+
+// HandshakeMessage is the wrapper for all handshake protocol messages
+message HandshakeMessage {
+    // The type of handshake message
+    HandshakeMessageType type = 1;
+
+    // Only one of the following messages should be set based on the type
+    oneof message {
+        Syn syn = 2;
+        Ack ack = 3;
+        SynAck syn_ack = 4;
+    }
+}
+
+// Syn message is sent to initiate a handshake
+message Syn {
+    // The observed underlay address of the peer
+    bytes observed_underlay = 1;
+}
+
+// Ack message is sent in response to a Syn
+message Ack {
+    // The sender's Swarm address
+    swarm.common.BzzAddress address = 1;
+
+    // Network ID to ensure peers are on the same network
+    uint64 network_id = 2;
+
+    // Indicates if the node is a full node
+    bool full_node = 3;
+
+    // Optional welcome message (max 140 chars)
+    string welcome_message = 99;
+}
+
+// SynAck message combines Syn and Ack for efficiency
+message SynAck {
+    // The Syn part of the message
+    Syn syn = 1;
+
+    // The Ack part of the message
+    Ack ack = 2;
+}
