@@ -13,7 +13,7 @@ created: 2026-09-14
 PR #111 after review: no history, no bandwidth incentive, no service messages, singlehop
 only, one mode only — an explicit single publisher (live video streaming). SWIP-60
 (PR #104) is the full singlehop protocol and is to be amended to extend this wire rather
-than the other way round; see "Relation to SWIP-60". Open points are marked (?). -->
+than the other way round; see "Relation to SWIP-60". -->
 
 - **Business line**: a live stream on Swarm — one author, an audience, real time, no
   storage round trip and no polling: video/audio streaming, a price ticker, a game's
@@ -198,12 +198,10 @@ Then the stream's role, from `Auth`:
 
 **The identity is bound to the stream, not to the peer connection.** One stream per
 (peer, cohort); a node may present different identities on different streams, and a
-stream without `Auth` has none. **(?)** What if a second stream authenticates as the
-admin while a first one is live — the admin from two nodes, or reconnecting before its
-old stream is torn down? This draft admits both as publisher streams and lets the
-per-cohort cursor arbitrate (neither can publish an index the other already has); the
-alternatives are that the new stream supersedes the old (reset), or that the second is
-`REJECTED`.
+stream without `Auth` has none. A second stream MAY authenticate as the admin while a
+first one is live — the admin from two nodes, or reconnecting before its old stream is
+torn down: both are publisher streams, and the per-cohort cursor arbitrates, since
+neither can publish an index the other already has. No supersede rule, no refusal.
 
 The broker answers `Ack{status}`: `OK`, `FULL` at a capacity bound, `REJECTED` for a spec
 outside this SWIP or a reserved field set. A non-`OK` `Ack` ends the stream; on `OK` the
