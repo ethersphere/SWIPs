@@ -1,6 +1,6 @@
 ---
 SWIP: 60
-title: BPS singlehop — brokered broadcast pub/sub, base protocol
+title: BPS singlehop — brokered broadcast pub/sub, the full singlehop protocol
 author: Viktor Trón (@zelig), Viktor Tóth (@nugaon)
 discussions-to: https://discord.gg/Q6BvSkCv
 status: Draft
@@ -9,9 +9,10 @@ category: Networking
 created: 2026-08-03
 ---
 
-<!-- Base SWIP of the Broadcast Pub/Sub (BPS) family: the decomposition of the monolithic
-PubSub SWIP (ethersphere/SWIPs PR #93) into work-package-sized SWIPs. Companion protobuf:
-assets/swip-60/bps.proto. -->
+<!-- Full singlehop SWIP of the Broadcast Pub/Sub (BPS) family: the decomposition of the
+monolithic PubSub SWIP (ethersphere/SWIPs PR #93) into work-package-sized SWIPs. Extends
+the base wire of SWIP-74 (BPS-lite, PR #111) and changes nothing in it. Companion
+protobuf: assets/swip-60/bps.proto (revision 8, derived from SWIP-74's block). -->
 
 - **Business line**: real-time topic streams for dApps without storing chunks or polling —
   enough on its own for the five cohort shapes it defines: **jam** (a closed set of authors:
@@ -23,6 +24,10 @@ assets/swip-60/bps.proto. -->
   [bps.proto](assets/swip-60/bps.proto)) plus a WebSocket bridge on the Bee API; done when
   a broker, publishers and subscribers interoperate per the conformance section. Groundwork
   exists in bee [#5435](https://github.com/ethersphere/bee/pull/5435).
+- **Base**: [SWIP-74 BPS-lite](https://github.com/ethersphere/SWIPs/pull/111) — one
+  publisher over a feed, one broker, one hop, three frames. This SWIP adds cohort
+  parameters, the admin's service feed and the Bee API on top of that wire and never
+  changes it: a SWIP-74 peer is a conformant peer of the live-stream configuration below.
 - Bandwidth-incentive integration is a separate SWIP (bps-bw-incentives).
 - Broker discovery integration is from a separate SWIP (bps-broker-discovery, building on
   [SWIP-59 MEX](https://github.com/ethersphere/SWIPs/pull/103)).
@@ -30,7 +35,7 @@ assets/swip-60/bps.proto. -->
 ## Simple Summary
 
 A real-time messaging protocol: WebSocket clients publish and subscribe to topic streams
-through Bee nodes. One full node per topic acts as **broker**, re-broadcasting each message
+through Bee nodes. One full node per cohort acts as **broker**, re-broadcasting each message
 over direct, long-lived p2p streams to a capacity-bounded set of connected peers. Messages are
 single-owner chunks, so every subscriber verifies authorship end-to-end; the broker can
 withhold, never forge.
@@ -38,10 +43,12 @@ withhold, never forge.
 ## Motivation
 
 Swarm's event primitives (GSOC, PSS) require full-node operation; light clients can only
-poll storage. BPS singlehop is the smallest protocol that fixes this: one broker, direct
-streams, authenticated messages, an explicit capacity bound. Everything larger — multihop
-trees, adaptive reorganisation, incentives, discovery — is layered on top by later SWIPs
-without changing the semantics defined here.
+poll storage. [SWIP-74](https://github.com/ethersphere/SWIPs/pull/111) is the smallest
+protocol that fixes this for one publisher; BPS singlehop is the smallest that fixes it for
+every cohort shape, on the same wire: one broker, direct streams, authenticated messages,
+an admin's control plane, an explicit capacity bound. Everything larger — multihop trees,
+adaptive reorganisation, incentives, discovery — is layered on top by later SWIPs without
+changing the semantics defined here.
 
 ## Specification
 
@@ -55,17 +62,18 @@ Per topic-cohort:
 ### Cohort genesis: the parameters
 
 A cohort is fully described by a `CohortSpec` ([bps.proto](assets/swip-60/bps.proto)), fixed
-the moment the first peer contacts a BPS-speaking full node with a topic, and **immutable for
-the cohort's lifetime**. There is no mode enum; **modes are combinations of these
-parameters**.
+the moment the first peer brings it to a BPS-speaking full node, and **immutable for the
+cohort's lifetime**. **The spec is the cohort's identity**: every joiner carries it, and
+two specs that differ in any field are two cohorts, even on one topic. There is no mode
+enum; **modes are combinations of these parameters**.
 
 | parameter | values | meaning |
 |---|---|---|
 | `topic` | 32 bytes | interpreted per `binding` |
 | `binding` | `MNEMONIC` / `ANCHOR` / `SOC_ID` / `OWNER` / `FEED_TOPIC` | what the topic binds to; fixes which SOCs qualify as messages and the dedup rule |
-| `admin` | eth address | the opener, the cohort's authority, and a member of its publisher set. **Absent ⇒ implicit authorship**, and the two fields below do not apply |
-| `publishers` | `ADMIN_ONLY` / `GRANTED` / `ALL` | who may author besides the admin |
-| `spectators` | bool | whether peers outside the publisher set may join |
+| `admin` | eth address | the cohort's authority and a member of its publisher set — not necessarily the first to join. **Absent ⇒ implicit authorship**, and the two fields below do not apply |
+| `publishers` | `ALL` or unset | set: anyone attached may author. Unset: the admin, and whoever its roster ever names — **a cohort is multi-publisher iff its admin ever publishes a roster**, and nobody needs to know in advance |
+| `closed` | bool, unset = open | set: no audience — a joiner whose identity is not the admin's or on the roster is refused |
 | `history` | bool | deliver matching chunks already in the local store (mechanism in bps-history; a singlehop broker MAY refuse) |
 
 **The publisher list is deliberately not here.** It is dynamic — an admin grants and revokes
@@ -78,18 +86,22 @@ subscriber verifies it against the admin's key rather than against the broker's 
 
 #### The five configurations
 
-| configuration | `admin` | `publishers` | `spectators` | who may author |
+| configuration | `admin` | `publishers` | `closed` | who may author |
 |---|---|---|---|---|
-| **jam** | set | `GRANTED` | false | admin + current grantees; nobody else attends |
-| **spectator-jam** | set | `GRANTED` | true | admin + current grantees, before an audience |
-| **live-stream** | set | `ADMIN_ONLY` | true | the admin alone, before an audience |
-| **group-chat** | set | `ALL` | true | anyone attached — each peer signs its own SOCs |
-| **implicit** | absent | — | true | whoever the binding's SOC shape admits |
+| **jam** | set | unset | true | admin + current grantees; nobody else attends |
+| **spectator-jam** | set | unset | unset | admin + current grantees, before an audience |
+| **live-stream** | set | unset | unset | the admin alone, before an audience — **SWIP-74's cohort**: a spectator-jam whose admin never publishes a roster |
+| **group-chat** | set | `ALL` | unset | anyone attached — each peer signs its own SOCs |
+| **implicit** | absent | — | unset | whoever the binding's SOC shape admits |
 
-`spectators` does real work only in the `GRANTED` and `ADMIN_ONLY` rows — which is exactly
-the audience / no-audience distinction. Under `ALL` and under implicit authorship every
-attached peer is already a potential author, so excluding non-publishers excludes nobody;
-openers MUST set it true there.
+Live-stream and spectator-jam are one spec: nothing in it promises a single author in
+advance, and nothing needs to — the audience verifies every message against the admin's
+key and the roster it has seen, and a roster that never comes is a stream with one
+author. `closed` does real work only where a roster decides authorship — the jam rows,
+which is exactly the audience / no-audience distinction. Under `ALL` and under implicit
+authorship every attached peer is already a potential author, so excluding non-publishers
+excludes nobody; a spec MUST leave it unset there — a broker answers a `closed` `ALL` or
+implicit spec with `REJECTED`.
 
 **The admin is always in the publisher set**, and being a publisher obliges nobody to
 publish — no peer waits on another — so a practically non-publishing **moderator** needs no
@@ -104,7 +116,9 @@ Binding semantics (dedup rule in parentheses):
 - **`ANCHOR`** — topic = full SOC/GSOC address; all messages share one address (dedup on
   the wrapped CAC — the guard against unsolicited republication of old SOCs, sound only
   under an application-level requirement: payloads are distinct, i.e. the application
-  includes some index in the payload).
+  includes some index in the payload). **Under explicit authorship the address check does
+  not apply**: several owners cannot share one SOC address, so the topic is a rendezvous,
+  legitimacy is roster membership (below), and only the wrapped-CAC dedup remains.
 - **`SOC_ID`** — topic = SOC id; any owner with `PO(socAddr(id, owner), anchor) ≥ PO_MIN`
   qualifies (dedup on chunk address).
 - **`OWNER`** — topic = `keccak256(owner)`; any id under the same PO constraint — MIC
@@ -139,14 +153,18 @@ footgun — an omitted value silently disabling the constraint — and no use ca
 it.)
 
 Broker **capacity is deliberately not a cohort parameter**: a cohort cannot dictate a
-remote node's connection count. Each broker enforces its own per-topic stream limit and
-answers `FULL` when it is exhausted.
+remote node's connection count. Each broker enforces its own per-cohort stream limit and
+answers `FULL` when it is exhausted — to a `Join` without a publisher's `Auth`: the
+audience cannot lock the admin, or a rostered publisher, out of its own cohort.
 
-**Cohort lifetime** is broker-side in the same way, with one exception. A cohort lives for as
-long as its broker keeps serving the topic; it is not tied to its opener, and a broker MAY
-reclaim a cohort that has no attached streams, which is unobservable beyond a later
-`Subscribe` being answered `UNKNOWN_TOPIC`. The exception is the **end-of-stream** service
-message, by which an admin ends its own cohort deliberately and *attributably* (below).
+**Cohort lifetime** is broker-side in the same way, with one exception. A cohort is not
+tied to whoever joined first, nor to its admin's stream: it ends by **inactivity** — the
+broker reclaims a cohort on which no publisher stream has had a message accepted for its
+inactivity deadline, and MAY reclaim one with no attached streams at once (SWIP-74,
+*Resource bounds*) — which is unobservable beyond a fresh cohort on the next `Join`. The
+exception is the **end-of-stream** service message, by which an admin ends its own cohort
+deliberately and *attributably* (below), and which is what distinguishes "over" from "the
+broker stopped relaying".
 
 ### The service feed: the admin's control plane
 
@@ -159,16 +177,19 @@ owner = admin        id = keccak256("bps-service:v1" ‖ topic ‖ index)
 
 | index | message | carries |
 |---|---|---|
-| `0` | **genesis** | the `CohortSpec`, signed by the admin |
 | `n` | **roster** | the full publisher set as of version `n` |
 | last | **end-of-stream** | the cohort is closed by its admin |
 
-Three properties follow, and each of them is the point:
+The feed starts at index 0 with the first roster or the end of stream; a cohort whose
+admin has published nothing has an empty service feed, and the admin alone may write.
+Each service message carries its own index in the payload, so its id is verifiable
+without an out-of-band hint. Three properties follow, and each of them is the point:
 
-- **The admin is authenticated, and so is the spec.** A broker cannot invent a cohort in
-  somebody's name: `admin` is an address anyone can read, and index 0 is that address's own
-  signature over the spec it is claimed to have opened. Nothing else in the handshake needs
-  to be trusted.
+- **The spec is nobody's word, and the admin is authenticated.** Every joiner brings the
+  spec in its `Join`, so a broker cannot serve a peer a cohort it did not name; `admin`
+  is an address anyone can read, its `Auth` at join is a recovered signature, and every
+  message and every service message carries its signature. Nothing in the handshake
+  needs to be trusted.
 - **It is a feed, not a single mutable slot.** The obvious alternative — one constant-id SOC
   overwritten in place — makes a stale roster **undetectable**, which would reintroduce
   forging-by-omission at the one point that decides who may write. Sequential indices make
@@ -179,9 +200,11 @@ Three properties follow, and each of them is the point:
   SOCs on the ordinary path — storable, re-fetchable, and checked with the same code as any
   broadcast. A broker relays them; it cannot author them.
 
-**`Ack` therefore carries the genesis SOC and the latest service SOC** (with its index)
-alongside the echoed `CohortSpec`. A joiner learns who may write from the admin, not from the
-broker, before it has received a single message.
+**`Ack` is a status, and the roster is the first delivery.** On every newly attached
+stream not bound to the admin's identity the broker delivers the **latest service SOC** as
+the first `Message` before any other **(?)**; a joiner learns who may write from the
+admin, not from the broker, before it has received a single message, and a cohort with an
+empty service feed delivers nothing first — the admin alone may write.
 
 #### `Auth`: recovered, not asserted, and not tied to a node
 
@@ -199,10 +222,11 @@ publishing identity to the node holding the stream: the same key could not be us
 second node without re-signing, and every join would link an eth identity to a peer id for
 anyone watching. Neither is acceptable — an owner's identity is its own, not its node's.
 
-The consequence, taken deliberately: a static preimage is **replayable**. It costs nothing,
-because a replayed role is worthless — the replayer cannot sign, so every frame it sends is
-dropped at `Publish`. What `Auth` buys is that the broker need not carry peers whose frames
-could only ever be dropped; **authorship rests on the message signature, never on the
+The consequence, taken deliberately: a static preimage is **replayable**. It costs little:
+a replayed role can publish only what its owner already signed, which the binding's dedup
+refuses within a cohort's life and the subscriber's own cursor catches across one (Security
+considerations). What `Auth` buys is that the broker need not carry peers whose frames could
+only ever be dropped; **authorship rests on the message signature, never on the
 handshake.**
 
 The **`"bps-join:v1"` domain separator is load-bearing**. These are the same secp256k1 keys
@@ -210,39 +234,48 @@ that sign SOCs, over the preimage `id ‖ wrappedAddress`. Without separation a 
 could be reinterpreted as a chunk signature, or a chunk signature coaxed out of a peer and
 replayed as a join. The prefix makes the two preimage spaces disjoint by construction.
 
-Under implicit authorship there is no `Auth` at all: the SOC itself is the credential, and
-its shape is checked at `Publish`.
+The identity `Auth` proves is **bound to the stream it arrives on, not to the peer
+connection**: one node may carry different identities on different cohorts, and a stream
+without `Auth` has none. Under implicit authorship there is no `Auth` at all: the SOC
+itself is the credential, and its shape is checked on every `Message`.
 
 ### The first frame settles the role
 
-A peer's role is fixed by its **first frame**, before any data flows:
+A peer's role is fixed by its **first frame**, `Join` — the only handshake frame there is
+— carrying the full `CohortSpec` and, if the peer claims an identity, an `Auth`. The
+broker compares the spec with its live cohorts: **no match → the cohort is created** with
+the joiner attached; **match → the joiner is attached**. Anyone whose `Join` is accepted
+may create — in an open cohort that includes a spectator arriving before the admin, and a
+cohort costs the broker a map entry until the inactivity deadline reclaims it; under
+`closed` a `REJECTED` `Join` creates nothing, so the admin's is the first accepted one.
+Cohorts are keyed by the **whole spec**, so pre-creating a topic under a wrong admin
+squats nothing — the genuine spec is a different cohort.
 
-- the **admin** sends `Open`, carrying the `CohortSpec` and its `Auth`. The broker recovers
-  the address, checks it against `CohortSpec.admin`, and stores the genesis service SOC;
-- everyone else sends `Subscribe`, optionally carrying `Auth`. The broker recovers the
-  address and matches it against the **current roster**:
+Then the stream's role, from the address `Auth` recovers, matched against `admin` and the
+**current roster**:
 
-| outcome | `spectators: true` | `spectators: false` |
+| outcome | `closed` unset | `closed` set |
 |---|---|---|
-| recovered address is in the roster | joins as **publisher** | joins as **publisher** |
-| no match, or no `Auth` | joins as **spectator**, read-only | `REJECTED` |
+| recovered address is the admin's, or in the roster | joins as **publisher** | joins as **publisher** |
+| no match, or no `Auth` | joins as **spectator**, read-only — the identity, if any, stays bound to the stream and a later roster naming it promotes the stream in place | `REJECTED` |
 
-`spectators: false` is the only configuration in which a peer is turned away for *who it is*,
-and it is enforceable precisely because `Auth` is recovered rather than asserted. Everywhere
-else `REJECTED` means the *spec* is unacceptable — an `Open` naming an already-open topic with
-a mismatched spec — and `FULL` means capacity, nothing more.
+`closed` is the only configuration in which a peer is turned away for *who it is*, and it
+is enforceable precisely because `Auth` is recovered rather than asserted. Everywhere else
+`REJECTED` means the *spec* is unacceptable — a value outside this SWIP, or a reserved
+field set — and `FULL` means capacity, nothing more.
 
 #### Grant and revocation
 
 An admin changes the roster by publishing the next service message; the cohort spec never
 changes. A **grant** takes effect for the granted peer on its next join, or immediately if it
-is already attached as a spectator.
+is already attached as a spectator whose `Join` carried its `Auth` — the identity is bound to
+the stream, so the stream is promoted in place.
 
 A **revocation** has two phases, and the boundary between them is the moment the reduced
 roster reaches subscribers:
 
 1. **Before it is published**, the revoked peer has no way to know it has been revoked —
-   nothing has told it. Its `Publish` frames are therefore **dropped and tolerated**:
+   nothing has told it. Its `Message` frames are therefore **dropped and tolerated**:
    silently ignored, no penalty, the connection untouched. There is nothing else a broker can
    honestly do, because the peer is not misbehaving.
 2. **After it is published**, the peer has been told — it receives the service message like
@@ -265,28 +298,32 @@ disconnection they cannot attribute.
 ### Roles and capacity
 
 - **Broker**: the first full node contacted; root of the (here, depth = 1) multicast tree.
-  Enforces its own per-topic capacity. **At capacity it MUST answer `Open`/`Subscribe`
-  with a refusal** (`FULL`); referral to another attachment point is reserved for
-  bps-multihop — a singlehop-only broker simply refuses. Because `Open` is an allocation
-  primitive available to any peer, a conformant broker also bounds **how many cohorts it
-  will create**, not only the streams within one; the two limits are independent policy.
-- **Admin = opener**: the one peer that fixes the `CohortSpec` (`Open`), always a member of
-  the publisher set, and the cohort's only authority: it grants, revokes and ends, each by
-  publishing a service message. Its address is public in the spec — as a stream's or a
-  co-edited file's owner naturally is — while its grantees' are not. An admin that never
-  sends is a **moderator**; no separate role is needed, since being a publisher obliges
-  nobody to publish.
-- **Publisher**: sends and receives. At depth = 1 every peer is attached to the broker, so
-  publishers are too — this is a **consequence of singlehop, not a protocol invariant**.
-  bps-multihop lifts it by forwarding `Publish` rootward as well as `Broadcast` leafward,
-  so a publisher may sit several hops out; that is what lets an everyone-publishes cohort
-  grow past one broker's capacity. Attachment is in any case necessary, not sufficient —
-  under explicit authorship, the current roster decides.
-- **Spectator**: receives only; joins by naming the topic (`Subscribe`) and carries no
-  cohort metadata — the broker echoes the `CohortSpec` and the admin's service SOCs back, so
-  the cohort, its roster and every message are verified end-to-end. Every peer receives, so
-  publishing is the *additional* capability and this role is what remains without it; a
-  cohort with `spectators: false` has none.
+  Enforces its own capacity. **At capacity it MUST answer `Join` with a refusal**
+  (`FULL`) — for the per-cohort stream bound, a `Join` whose `Auth` recovers to the admin
+  or to a rostered publisher is admitted past it, as in SWIP-74; referral to another
+  attachment point is reserved for bps-multihop — a singlehop-only broker simply refuses. Because any peer can make a broker allocate a
+  cohort simply by joining, a conformant broker also bounds **how many cohorts it will
+  create** and **how many one peer connection may hold**, and **reclaims idle ones** —
+  SWIP-74's bounds, all independent policy.
+- **Admin**: the address the spec names — not necessarily the first to join — always a
+  member of the publisher set, and the cohort's only authority: it grants, revokes and
+  ends, each by publishing a service message. Its address is public in the spec — as a
+  stream's or a co-edited file's owner naturally is — while its grantees' are not. An
+  admin that never sends is a **moderator**; no separate role is needed, since being a
+  publisher obliges nobody to publish.
+- **Publisher**: sends and receives — every `Message` of the cohort except its own, on
+  any of its streams. At
+  depth = 1 every peer is attached to the broker, so publishers are too — this is a
+  **consequence of singlehop, not a protocol invariant**. bps-multihop lifts it by
+  forwarding `Message` frames rootward as well as leafward, so a publisher may sit
+  several hops out; that is what lets an everyone-publishes cohort grow past one
+  broker's capacity. Attachment is in any case necessary, not sufficient — under
+  explicit authorship, the current roster decides.
+- **Spectator**: receives only; joins with the same `Join` as everyone, carrying the
+  spec it was invited with, and the broker delivers the latest roster as its first
+  frame, so the cohort, its roster and every message are verified end-to-end. Every
+  peer receives, so publishing is the *additional* capability and this role is what
+  remains without it; a `closed` cohort has none.
 
 ### Information flow
 
@@ -299,25 +336,24 @@ sequenceDiagram
     participant SN as subscriber's bee node<br/>(WS bridge + mux)
     participant SD as subscriber dApp(s)
 
-    PN->>B: Hello(Open(CohortSpec, Auth))
-    Note over PN,B: opener fixes the cohort and is its admin<br/>at depth = 1 every publisher is attached to the broker
+    PN->>B: Join(CohortSpec, Auth)
+    Note over PN,B: the spec is the cohort's identity: the first Join creates it,<br/>later ones attach; at depth = 1 every publisher is attached to the broker
     B-->>PN: Ack(OK)
-    SN->>B: Hello(Subscribe(topic, Auth?))
-    B-->>SN: Ack(OK, CohortSpec, genesis SOC, latest ROSTER)
-    Note over B,SN: echoed spec ⇒ subscriber verifies<br/>every message end-to-end
+    SN->>B: Join(CohortSpec, Auth?)
+    B-->>SN: Ack(OK)
+    B->>SN: Message(latest ROSTER) — the admin's word, relayed
+    Note over B,SN: spec in hand + admin-signed roster ⇒<br/>subscriber verifies every message end-to-end
 
     PD->>PN: WS: payload
-    PN->>B: Publish(SOC)
+    PN->>B: Message(SOC)
     B->>B: validate: SOC sig ⊨ topic binding<br/>(+ dedup per binding)
 
-    par fan-out to every subscriber stream
-        B->>SN: Broadcast(SOC) — every frame self-contained
+    par fan-out to every stream of the cohort not bound to the publishing identity
+        B->>SN: Message(SOC) — every frame self-contained
         SN->>SN: mux: one p2p stream → N WS sessions
         SN->>SD: WS: payload
-    and publisher's own subscription (if subscriber too)
-        B->>PN: Broadcast(SOC)
-        PN->>PD: WS: payload
     end
+    Note over B,PN: other publishers' streams receive it the same way;<br/>the author's own never do
 ```
 
 The broadcast is **end-to-end authenticated**: every subscriber re-verifies the SOC
@@ -327,42 +363,59 @@ signature against the topic binding regardless of path.
 
 Messages are defined in [bps.proto](assets/swip-60/bps.proto). Framing notes:
 
-- Transport: libp2p stream `pubsub/1.0.0`, one stream per (peer, topic),
-  protobuf-over-libp2p as bee protocols elsewhere. The first message on a fresh stream is
-  **`Hello`**, carrying either `Open` (fixes a new cohort) or `Subscribe` (joins one —
-  topic only, no cohort metadata); the broker answers with `Ack`, carrying the echoed
-  `CohortSpec` together with the admin-signed genesis SOC and the latest service SOC, so
-  the joiner verifies the cohort and its roster against the admin rather than the broker.
-- **Why the `Hello` envelope**: as bare frames, `Open` and `Subscribe` are
-  indistinguishable on the wire — both are a length-delimited field 1 followed by an
-  optional `Auth` in field 2 — and proto3's permissive unmarshalling means a
-  receiver that guesses wrong does not fail: it succeeds and misreads the frame, then
-  rejects it for an unrelated reason with a misleading `Status`. The `oneof` makes the
-  choice explicit at no cost. (The alternative — two libp2p protocol ids — needs no proto
-  change but splits the one-stream-per-(peer, topic) model across two stream names.)
-- **`Open` is idempotent**: naming an already-open topic with an **identical** spec is
-  equivalent to `Subscribe`; with a mismatched spec it is answered `REJECTED`.
-  Implicit-publisher cohorts rely on this — the first subscriber is the opener, so a
-  client need not know whether it is first.
-- **Stream model rationale**: per-topic streams give per-cohort flow control, teardown
+- Transport: libp2p stream `pubsub/1.0.0`, one stream per (peer, cohort),
+  protobuf-over-libp2p as bee protocols elsewhere. The first and only handshake frame on
+  a fresh stream is **`Join`**, carrying the full `CohortSpec` and optionally an `Auth`;
+  the broker answers with `Ack{status}`, and delivers the latest service SOC as the
+  stream's first `Message`, so the joiner verifies the roster against the admin rather
+  than the broker. The three frames — `Join`, `Ack`, `Message` — and the two types they
+  carry are SWIP-74's; this SWIP adds fields and values, never frames.
+- **`Join` creates or attaches**, keyed by the whole spec: a spec no live cohort has
+  creates one, a byte-identical spec attaches, and there is no "unknown topic".
+  Implicit-publisher cohorts rely on this — the first subscriber creates, so a client
+  need not know whether it is first — and so does every audience member arriving before
+  its admin.
+- **Stream model rationale**: per-cohort streams give per-cohort flow control, teardown
   and role typing, and match bee's protocol idiom. Because every frame carries the full
   SOC (self-contained, no per-stream handshake state), a later move to topic-muxed
   streams requires no format change.
-- Every `Broadcast` frame carries the **full SOC** (id, owner, signature, span, payload);
-  there is no handshake/data frame split.
+- Every `Message` carries the **full chunk** as opaque chunk data (SWIP-74), validated by
+  the ordinary SOC code; there is no handshake/data frame split. Deliveries go to every
+  stream of the cohort except those bound to the publishing identity: a publisher never
+  receives its own messages back, on whichever of its streams it sent them (SWIP-74).
 - No BPS-level keepalive or RTT probing: liveness is the transport's job, and latency
   metrics for reorganisation policies are sourced there too.
-- Broker validation on `Publish`: SOC signature verifies against the topic binding, PO
-  constraint holds where applicable, sender is a legitimate publisher, message is not a
-  duplicate per the binding's dedup rule. Invalid ⇒ drop; repeated invalid ⇒ disconnect
-  (blocklisting policy).
+- Broker validation on a `Message`: SOC signature verifies against the topic binding, PO
+  constraint holds where applicable, the stream's identity is a legitimate publisher (the
+  admin or a rostered address; anyone under `ALL`; the binding's SOC shape under implicit
+  authorship). Invalid ⇒ drop and count; repeated invalid ⇒ disconnect (blocklisting
+  policy). A message that passes and is a **duplicate** per the binding's dedup rule is
+  dropped and counted as a retransmit, never as invalid — an admin reconnecting after a
+  reset legitimately resends (SWIP-74); a broker MAY reset a stream whose retransmit rate
+  exceeds its policy. A `Message` on a stream whose identity may not publish — none, or one
+  neither the admin's nor rostered — is a protocol violation: dropped, the stream reset,
+  the peer blocklisted (SWIP-74).
+- **Service messages** ride the same frame and are recognised before the content path: a
+  `Message` on a stream bound to `admin` whose payload decodes as a `ServiceMessage` and
+  whose id equals `keccak256("bps-service:v1" ‖ topic ‖ payload.index)` is a service SOC.
+  It is accepted iff it validates as a SOC under that id, its owner is `admin`, and
+  `payload.index` exceeds the service feed's cursor (initially absent: index 0 is
+  accepted); otherwise it is invalid. Under `FEED_TOPIC` the two paths are told apart by
+  the id slot alone — a feed update carries a bare index (24 leading zero bytes), a
+  service SOC its full id — which is why a SWIP-74 broker drops the latter rather than
+  punishing it.
 - **The dedup *horizon* is implementation-defined, but it MUST be bounded**: the binding
   fixes what counts as a duplicate, not how far back the broker remembers, and an
   unbounded seen-set is a memory-exhaustion vector. A broker keeps a bounded window over
   recent message identifiers; the accepted consequence is that a legitimate publisher can
   overrun that window and replay an evicted message. Applications that cannot tolerate
   replay carry their own sequencing — which the sequential construction of
-  [SWIP-65](https://github.com/ethersphere/SWIPs/pull/106) gives for free.
+  [SWIP-65](https://github.com/ethersphere/SWIPs/pull/106) gives for free. A SWIP-74
+  broker is stricter on its one configuration — a per-cohort **cursor**, `index > cursor`,
+  no window at all — which this SWIP does not adopt: with several publisher feeds on one
+  topic, and with the reordering of [SWIP-61](https://github.com/ethersphere/SWIPs/pull/105),
+  a full broker dedups on chunk address and passes retransmits through, and the subscriber's
+  own cursor does the rest.
 
 ### API (WebSocket bridge)
 
@@ -384,13 +437,13 @@ topics). Query parameters:
 | parameter | maps to | meaning |
 |---|---|---|
 | `peer` | — | broker underlay multiaddr; required until broker discovery exists (bps-broker-discovery) — early deployments configure it |
-| `binding`, `admin`, `publishers`, `spectators`, `history` | `CohortSpec` | **presence of cohort parameters makes the session the opener**: the node sends `Open` with the assembled spec; absence makes it a joiner: the node sends `Subscribe(topic)` and learns the spec from the `Ack` echo. `admin` omitted ⇒ implicit authorship. No publisher list here — it is not part of the spec |
-| `auth` (+ `id` where the binding does not fix it) | `Auth` | 65-byte join signature over `H("bps-join:v1" ‖ topic ‖ admin)`. **Presence claims a publisher role** (read–write); absence, a spectator (read-only). Signed client-side, like every other signature here — the node holds no publisher keys, and the signature is over no node identity, so the same key works from any node |
+| `binding`, `admin`, `publishers`, `closed`, `history` | `CohortSpec` | **the spec, on every session**: `binding` always, the others where the spec sets them — the spec is the cohort's identity and the invite carries it; the node sends `Join` with the assembled spec, which creates or attaches, and keys its sessions by the whole spec, not the topic. `admin` omitted ⇒ implicit authorship. No publisher list here — it is not part of the spec |
+| `auth` (+ `id` where the binding does not fix it) | `Auth` | 65-byte join signature over `H("bps-join:v1" ‖ topic ‖ admin)`. **Binds an identity to the session's stream**: read–write iff that identity is the admin's or currently rostered (or the cohort is `ALL`), read-only otherwise and promoted in place when a later roster names it; absent, a spectator with no identity. Signed client-side, like every other signature here — the node holds no publisher keys, and the signature is over no node identity, so the same key works from any node |
 
 **`POST /pubsub/{topic}/service`** — the admin's control plane: submits a service message
 (`ROSTER` or `END_OF_STREAM`) as the next update on the service feed. The SOC is signed
-client-side by the admin key; the node relays it. Granting or revoking a publisher is one
-call here and touches no cohort parameter.
+client-side by the admin key; the node relays it on the cohort whose `admin` that key is.
+Granting or revoking a publisher is one call here and touches no cohort parameter.
 
 Headers:
 
@@ -417,33 +470,36 @@ the feed id `keccak256(topic ‖ index)` (self-indexed feeds,
 [SWIP-65](https://github.com/ethersphere/SWIPs/pull/106));
 under explicit regimes with `ANCHOR` binding the id does no work and there is no
 prefix. The node assembles the SOC, validates it exactly as a broker would, and
-publishes. End-to-end verification against the `Ack`-echoed `CohortSpec` is performed
-by the local node — node and dApp are one trust domain.
+publishes. End-to-end verification against the `CohortSpec` the session supplied — the
+spec the node sent in `Join` — is performed by the local node — node and dApp are one
+trust domain.
 
-**Worked API calls — the jam cohort** (see Configurations below). Seat A opens — cohort
-parameters present ⇒ `Open`, `owner` present ⇒ read–write:
+**Worked API calls — the jam cohort** (see Configurations below). Seat A joins — its
+`auth` recovers to `admin` ⇒ read–write; the spec creates the cohort, since under `closed`
+nobody else's `Join` is accepted before A's:
 
 ```
 wss://node:1633/pubsub/jam-tuesday?peer=<broker-multiaddr>
-    &binding=anchor&admin=0xA…&publishers=granted&spectators=false&auth=0x3f2a…
+    &binding=anchor&admin=0xA…&closed=true&auth=0x3f2a…
 ```
 
-Seats B–D join — no cohort parameters ⇒ `Subscribe`, spec learned from the `Ack` echo:
+Seats B–D join with the same spec and their own `auth`:
 
 ```
-wss://node:1633/pubsub/jam-tuesday?peer=<broker-multiaddr>&auth=0x9c14…
+wss://node:1633/pubsub/jam-tuesday?peer=<broker-multiaddr>
+    &binding=anchor&admin=0xA…&closed=true&auth=0x9c14…
 ```
 
 Seats B–D are not named in this URL and never appear in a cohort parameter: A grants them
 with a `POST /pubsub/jam-tuesday/service` carrying a `ROSTER` message, and can revoke or add a
 fifth seat later without any of the above changing. Each seat is sorted into the publisher
-role by the address recovered from its `auth`; because `spectators` is false, a peer with no
+role by the address recovered from its `auth`; because the cohort is `closed`, a peer with no
 listed key is `REJECTED` rather than admitted read-only. The join URL minus `auth` is the
-complete out-of-band invite (topic mnemonic + broker) until broker discovery exists — and it
-is genuinely an invite: only a holder of a rostered key can turn it into a session at all.
+complete out-of-band invite (spec + broker) until broker discovery exists — and it is
+genuinely an invite: only a holder of a rostered key can turn it into a session at all.
 A live MIC — all SOCs of one owner, the light-client twin
-of `/mic/subscribe/{owner}` — is the implicit case: first subscriber opens with
-`?binding=owner`, no `admin` and no `auth` (idempotent `Open`),
+of `/mic/subscribe/{owner}` — is the implicit case: every subscriber joins with
+`?binding=owner`, no `admin` and no `auth` (the first creates, the rest attach),
 topic = `keccak256(owner)`, read-only, `swarm-soc-fields: identifier,payload`.
 
 ### Configurations (worked examples)
@@ -454,10 +510,10 @@ The five configurations, as `CohortSpec` rows.
 
 ```
 binding: ANCHOR (topic = mnemonic anchor)   admin: 0xA…
-publishers: GRANTED   spectators: false   history: false
+closed: true   history: false
 ```
 
-Seat A opens; B, C and D are granted by a `ROSTER` service message, and each is sorted into
+Seat A joins; B, C and D are granted by a `ROSTER` service message, and each is sorted into
 the publisher role on joining because the address recovered from its `Auth` is on the roster
 it can verify against A's key. A fifth peer is `REJECTED` — this is the one configuration in
 which a peer is refused for who it is, and it is enforceable because `Auth` is recovered, not
@@ -469,10 +525,11 @@ encrypts payloads.
 
 ```
 binding: ANCHOR   admin: 0xA…
-publishers: GRANTED   spectators: true   history: false
+history: false
 ```
 
-Identical authorship, but an unrecognised joiner is admitted read-only instead of refused.
+Identical authorship, but an unrecognised joiner is admitted read-only instead of refused —
+and, if its `Join` carried an `Auth`, promoted in place when a later roster names it.
 The audience verifies the roster from the admin's feed, so it knows exactly whose messages
 are legitimate without trusting the broker.
 
@@ -480,19 +537,21 @@ are legitimate without trusting the broker.
 
 ```
 binding: FEED_TOPIC (sequential index)   admin: the streamer
-publishers: ADMIN_ONLY   spectators: true   history: false
+history: false
 ```
 
-`ADMIN_ONLY` is an immutable promise, not merely an empty roster: this stream will never have
-a second author, and a subscriber knows that from genesis rather than from the roster
-happening to be empty so far. The streamer ends it with an `END_OF_STREAM` service message,
-which is what distinguishes "over" from "the broker stopped relaying".
+This is [SWIP-74](https://github.com/ethersphere/SWIPs/pull/111)'s cohort exactly, and a
+SWIP-74 peer is a conformant peer of it. The spec is the same as a spectator-jam's: the
+streamer simply never publishes a roster, so it stays the only author, and the audience
+verifies every message against its key regardless. What this SWIP adds is the end: the
+streamer ends it with an `END_OF_STREAM` service message, which is what distinguishes
+"over" from "the broker stopped relaying" — and from SWIP-74's inactivity reclaim.
 
 **Group-chat** — anyone attached may speak.
 
 ```
 binding: MNEMONIC (the topic is just the cohort's name)   admin: 0xA…
-publishers: ALL   spectators: true   history: false
+publishers: ALL   history: false
 ```
 
 No roster, no `Auth`, no constraint on the SOCs: each peer signs and sends its own. The topic
@@ -501,7 +560,7 @@ never *unattributable*: every message is SOC-signed, so the chat knows exactly w
 without there being an authorised set to check against. The admin here is not a gatekeeper —
 it cannot be, since everyone may write — but it still owns the service feed, so it can end
 the cohort. This is the row that outgrows a single broker fastest, and the one
-[SWIP-61](https://github.com/ethersphere/SWIPs/pull/105) exists to scale: with `Publish`
+[SWIP-61](https://github.com/ethersphere/SWIPs/pull/105) exists to scale: with publications
 forwarded from the leaves towards the root, a member need not be attached to the broker to
 speak. Where a cohort wants no authorship guarantees at all, see "why not gossipsub".
 
@@ -526,7 +585,7 @@ Known use cases attach here; each mode is nothing more than a row — a combinat
 publisher/subscriber info, topic match type, and history. (`+/−` = both configurations
 meaningful.)
 
-| configuration | binding | spectators | history | use case |
+| configuration | binding | audience (`closed` unset) | history | use case |
 |---|---|---|---|---|
 | live-stream | feed topic, index sequential | + | — | live video streaming |
 | spectator-jam | feed topic, index sequential | + | — | live videoconference |
@@ -541,8 +600,8 @@ meaningful.)
 At depth = 1 the broker's capacity bounds **both** directions: the audience by its stream
 count, and — since every publisher is attached to it — the publisher count too. Scaling
 either past one broker is bps-multihop's business
-([SWIP-61](https://github.com/ethersphere/SWIPs/pull/105)), which forwards `Publish`
-rootward as well as `Broadcast` leafward. The everyone-publishes rows above — group chat,
+([SWIP-61](https://github.com/ethersphere/SWIPs/pull/105)), which forwards `Message`
+frames rootward as well as leafward. The everyone-publishes rows above — group chat,
 videoconference, troll-box — are the ones that need it.
 
 The implicit rows and history are specified in bps-implicit-publisher and bps-history
@@ -592,11 +651,13 @@ verifiable signed chunks — not to reimplement a mesh.
 
 ## Security considerations
 
-**The admin is authenticated, and so is the cohort.** `admin` is a public address, and the
-genesis service message is that address's own signature over the spec it is claimed to have
-opened. A broker therefore cannot invent a cohort in somebody's name, nor serve a spec its
-admin never signed. Nothing else in the handshake needs to be trusted, because the roster
-arrives the same way — signed by the admin, on a feed whose gaps are visible.
+**The spec is nobody's word, and the admin is authenticated.** Every joiner carries the
+spec in its `Join`, so a broker cannot serve a peer a cohort it did not name, and a
+cohort somebody else pre-creates under a wrong admin is simply a different cohort.
+`admin` is a public address; its `Auth` at join is a recovered signature, and every
+message and every roster it publishes carries its signature. Nothing else in the
+handshake needs to be trusted, because the roster arrives the same way — signed by the
+admin, on a feed whose gaps are visible.
 
 **The publisher role is proved, not asserted.** `Auth` carries a signature and no address:
 the owner is recovered from it, so presenting it is possession of a key. The preimage is
@@ -606,11 +667,13 @@ stream: the key could not be used from a second node without re-signing, and eve
 link an eth identity to a peer id for anyone watching. An owner's identity is its own, not
 its node's.
 
-The accepted consequence: a static preimage is **replayable**, and a replayed role is
-worthless. Which is the deeper point —
+The accepted consequence: a static preimage is **replayable**, and a replayed role can
+publish only what its owner already signed — worthless within a cohort's life, where the
+binding's dedup refuses it, and a matter for the subscriber's own cursor across cohorts
+(SWIP-74, *Security considerations*). Which is the deeper point —
 
 **Defence in depth is the real guarantee.** Even a peer that obtains the publisher role gains
-nothing by it: every message is validated at `Publish` against the SOC signature and the
+nothing by it: every message is validated on arrival against the SOC signature and the
 current roster (or, for an implicit cohort, the binding's SOC shape). `Auth` spares the
 broker from carrying peers whose frames could only ever be dropped; **authorship rests on the
 message signature, never on the handshake.** A **challenge round trip** is therefore not
@@ -618,7 +681,7 @@ specified: it would cost a frame in an otherwise one-each-way establishment to h
 credential that grants nothing on its own.
 
 **Audience control exists in exactly one form, and it is not confidentiality.**
-`spectators: false` refuses a joiner outside the roster, and is enforceable because `Auth` is
+`closed` refuses a joiner outside the roster, and is enforceable because `Auth` is
 recovered rather than asserted. It bounds *attendance at this broker*, nothing more. **BPS
 provides no confidentiality at any layer**: the broker sees every message in plaintext, and so
 does everyone it admits. Applications needing a bounded audience **encrypt payloads** — SOC
@@ -637,11 +700,13 @@ fault. Announcing first also makes the revocation legible to the rest of the coh
 learns *why* a publisher fell silent from an admin-signed message rather than from an
 unattributable disconnection.
 
-**Resource bounds are broker policy, and all three are required.** A conformant broker
-bounds its per-topic stream count (`FULL`), the number of cohorts it will create (`Open` is
-otherwise an unbounded allocation primitive for any peer), and its dedup window (see the
-horizon note above). The bounded dedup window admits replay of an evicted message by an
-already-legitimate publisher: a cohort-internal nuisance, not a break of authorship.
+**Resource bounds are broker policy, and all are required.** A conformant broker bounds
+its per-cohort stream count (`FULL`), the number of cohorts it will create and the number
+one peer connection may hold (any peer can make it allocate a cohort simply by joining),
+and reclaims idle cohorts — SWIP-74's bounds — and bounds its dedup window (see the
+horizon note above), which SWIP-74's one configuration replaces with a cursor. The bounded
+dedup window admits replay of an evicted message by an already-legitimate publisher: a
+cohort-internal nuisance, not a break of authorship.
 
 ## Out of scope (deliberately)
 
@@ -657,24 +722,28 @@ revocations are the service feed's business, and neither changes the cohort.
 
 An implementation is conformant when:
 
-1. a broker enforces its per-topic capacity, publisher legitimacy, per-binding validation
-   and dedup;
-2. a subscriber re-verifies every message end-to-end — against the `Ack`-echoed
-   `CohortSpec`, itself checked against the admin-signed genesis SOC — and detects (only)
-   liveness faults;
+1. a broker enforces SWIP-74's bounds — streams per cohort, cohorts per broker, cohorts
+   per peer connection, the inactivity deadline — plus publisher legitimacy, per-binding
+   validation and dedup;
+2. a subscriber re-verifies every message end-to-end — against the `CohortSpec` it
+   joined with and the admin-signed roster it received — and detects (only) liveness
+   faults;
 3. the **five** configurations above — jam, spectator-jam, live-stream, group-chat and
    implicit — interoperate across independent implementations against the frames in
    [bps.proto](assets/swip-60/bps.proto);
 4. a `FULL` refusal is issued at capacity — and nothing else is (no referral);
-5. the WS bridge round-trips each worked configuration end to end — open, publish,
-   subscribe — with all signing on the client side (the node holds no publisher keys);
-6. the handshake is read from the `Hello` envelope, never guessed from the frame body;
+5. the WS bridge round-trips each worked configuration end to end — join, publish,
+   receive — with all signing on the client side (the node holds no publisher keys);
+6. the handshake is one `Join` carrying the full spec, creating the cohort or attaching
+   to it, keyed by the whole spec; `Ack` is a status; a newly attached stream receives
+   the latest service SOC as its first `Message` **(?)**;
 7. an absent `admin` is treated as implicit authorship — validated strictly per the
-   binding's SOC shape — and a present one authenticated by the genesis service message,
-   whose signature MUST recover to it;
-8. `Auth` is verified by recovery over `H("bps-join:v1" ‖ topic ‖ admin)`, and a joiner
-   outside the roster is admitted read-only where `spectators` is true and `REJECTED` where
-   it is false — the only refusal for identity in the protocol;
+   binding's SOC shape — and a present one authenticated by its `Auth` at join and by its
+   signature on every service message, both of which MUST recover to it;
+8. `Auth` is verified by recovery over `H("bps-join:v1" ‖ topic ‖ admin)`, the identity
+   is bound to the stream, and a joiner outside the roster is admitted read-only where the
+   cohort is not `closed` — promoted in place if a later roster names it — and `REJECTED`
+   where it is — the only refusal for identity in the protocol;
 9. an admin grants and revokes by publishing `ROSTER` service messages; a revoked
    publisher's frames are **dropped and tolerated** until the reduced roster is published,
    and its connection is broken only if it publishes **after** that point;
@@ -683,13 +752,23 @@ An implementation is conformant when:
 
 ## Backwards compatibility
 
-New protocol; no existing behaviour changes. Reserved `Broadcast` frame fields hold the
-multihop control plane, so bps-multihop extends without a version bump; self-contained
-frames mean a change of stream model needs no format change either.
+New protocol; no existing behaviour changes. This SWIP extends the wire of
+[SWIP-74](https://github.com/ethersphere/SWIPs/pull/111) and changes nothing in it: a
+SWIP-74 peer at a full broker is a conformant peer of the live-stream configuration, and a
+SWIP-74 broker refuses at the handshake every spec that differs from
+`{topic, FEED_TOPIC, admin}`. The one thing it cannot refuse there is a feed-topic cohort
+whose admin later publishes a roster — the spec is the same — and it serves that as a live
+stream: the roster and the grantees' updates are dropped as invalid, so an admin that wants
+a roster needs a full broker. Reserved `Message` fields hold the multihop control plane,
+so bps-multihop extends without a version bump —
+[SWIP-61](https://github.com/ethersphere/SWIPs/pull/105) is to be re-based on the `Message`
+frame, a rename of its `Publish`/`Broadcast`; self-contained frames mean a change of stream
+model needs no format change either.
 
 ## References
 
-Wire: [bps.proto](assets/swip-60/bps.proto) · origin:
+Wire: [bps.proto](assets/swip-60/bps.proto) · base:
+[SWIP-74 BPS-lite, PR #111](https://github.com/ethersphere/SWIPs/pull/111) · origin:
 [PR #93](https://github.com/ethersphere/SWIPs/pull/93) "Add: pubsub" · broker discovery:
 [SWIP-59 MEX, PR #103](https://github.com/ethersphere/SWIPs/pull/103) · implementation:
 bee [#5435](https://github.com/ethersphere/bee/pull/5435), bee-js
