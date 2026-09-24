@@ -173,6 +173,20 @@ all subscribers — but its enforcement point is now explicit: **authorship is d
 root, and verified again by every subscriber.** Relays in between are conveniences, and a
 dishonest one can delay a message or drop it, never author one.
 
+**Claims travel rootward too.** A publisher proves its key to the node it attaches to
+exactly as at a singlehop broker (SWIP-74, *Handshake*; SWIP-60, *The claim*): it declares
+its address in `Join`, receives that node's challenge, and signs it together with that
+node's overlay and its cursor. The attachment node verifies the claim against its own
+secret, and **forwards it rootward iff the address is legitimate to upgrade** — the admin,
+or an entry in the roster it holds; each node on the way upgrades the child stream for
+that address the same way, so that a publication travels rootward only on streams claimed
+for its owner, hop by hop, and a relay that carries a publication on an unclaimed stream is
+in violation at its parent. Under `ALL` there is nothing to forward: everybody may publish,
+no claim exists, and every node authenticates each publication against the address its
+child stream declared. This section still names the frames `Publish` and `Broadcast`;
+SWIP-60 rev 5 folded both into one `Message` frame, and this SWIP is to be re-based on it
+**(?)**.
+
 **Revocation across a tree.** SWIP-60's two-phase revocation is unchanged in rule and
 lands one hop out: the roster update is an ordinary broadcast, so it reaches every node,
 and the revoked publisher's **parents** are where enforcement happens — they are the nodes
