@@ -140,9 +140,10 @@ message Auth {
   uint32 v = 3; // 27 or 28
 }
 
-// A publisher's claim on the stream it is sent on. `auth` signs
-//   keccak256("bps-claim:v1" || S || O_B || index)
-// with the key of `addr`: S the challenge the broker issued for `addr` on this
+// A publisher's claim on the stream it is sent on. `auth` signs the bytes
+//   "bps-claim:v1" || S || O_B || index
+// with the key of `addr`, in the same convention as a SOC signature (the EIP-191
+// prefixed digest bee and bee-js use) (?): S the challenge the broker issued for `addr` on this
 // cohort, O_B the overlay of the broker the claiming node is connected to, `index`
 // eight bytes big-endian. Sent inside Join by a peer that already holds S, or as the
 // next frame after Ack by one that has just received it.
@@ -220,10 +221,12 @@ joins, and differs at every other broker and after every restart. It goes to the
 over the encrypted stream and is useful only to the key of `addr`; anyone may obtain it
 by declaring the address, and gains nothing by it.
 
-**The claim.** A publisher claims its stream by signing, with the key of `addr`,
+**The claim.** A publisher claims its stream by signing, with the key of `addr` and in
+the same convention as a SOC signature — the EIP-191 prefixed digest bee and bee-js use
+**(?)** — the bytes
 
 ```
-keccak256("bps-claim:v1" ‖ S ‖ O_B ‖ index)
+"bps-claim:v1" ‖ S ‖ O_B ‖ index
 ```
 
 where `O_B` is the overlay of the broker the claiming node is connected to and `index`
@@ -237,8 +240,11 @@ The claim is sent in one of two places:
 - **in `Join`**, by a peer that already holds `S` for this address at this broker — a
   reconnecting admin, from the same node or another: the broker verifies it before any
   bound is applied, and a valid claim makes the stream a publisher stream from its first
-  frame. A stale claim — the broker has restarted, `S` has changed — is treated as
-  absent: `Ack{OK, S}` with the new `S`, no penalty;
+  frame. A claim in the `Join` that does not verify — stale because the broker has
+  restarted and `S` has changed, or simply wrong, or naming an `addr` other than the
+  `Join`'s: the broker cannot tell these apart — is treated as absent: `Ack{OK, S}` with
+  the current `S`, no penalty. The peer sees that its claim was not taken when the `S` in
+  the `Ack` differs from the one it signed, and claims again after the `Ack`;
 - **as the next frame after `Ack`**, a `Claim`, by a peer that has just received `S`.
 
 The broker recovers the signer and checks that it equals `addr` (ecrecover never fails,
@@ -248,10 +254,11 @@ it returns *some* address, which is why the address is declared and compared) an
 becomes `max(cursor, index)`. There is **no reply**: a publisher sends its claim and its
 first publication back to back, and stream ordering guarantees the broker handles the
 claim first; a claim that did not upgrade makes the publication that follows a violation,
-and the reset is the answer. Anything else — a signature that does not recover to `addr`,
-an `addr` that is not the admin, a second claim on a stream — is a protocol violation:
-dropped, counted (`invalid_claim`), the stream reset, the peer blocklisted per the node's
-policy. Several streams MAY be claimed for the admin at once — the admin from two nodes,
+and the reset is the answer. A `Claim` after the `Ack` that does not verify — a signature
+that does not recover to `addr`, or an `addr` that is not the admin — is a protocol
+violation: dropped, counted (`invalid_claim`), the stream reset, the peer blocklisted per
+the node's policy; a `Claim` sent on a publisher stream is read as a `Message` and fails as
+one. Several streams MAY be claimed for the admin at once — the admin from two nodes,
 or reconnecting before its old stream is torn down: each is a publisher stream, and the
 cursor arbitrates.
 
@@ -289,8 +296,9 @@ initially 0 — index 0 is the first update of every feed. A `Message` arriving 
 broker is accepted iff, in order:
 
 1. it arrived on a **publisher stream** — on a subscriber stream the frame is read as a
-   `Claim`, and if it is not a valid one it is a protocol violation: dropped, the stream
-   reset, the peer blocklisted per the node's policy;
+   `Claim`, and if it is not a valid one it is a protocol violation: dropped, counted
+   (`wrong_stream` if it does not even parse as a `Claim`, `invalid_claim` if it does and
+   fails), the stream reset, the peer blocklisted per the node's policy;
 2. its `id` slot is a bare index `n` and **`n ≥ cursor`**;
 3. with the `id` slot rewritten to `keccak256(topic ‖ n)` the chunk **validates as a
    single-owner chunk**: the wrapped chunk's BMT address matches `span ‖ payload`, the
@@ -344,12 +352,12 @@ edge, not at the broker.
 
 ### Resource bounds
 
-All broker policy, none on the wire. The first four bounds are REQUIRED, with the values
+All broker policy, none on the wire. The first five bounds are REQUIRED, with the values
 given RECOMMENDED where a value is given; the last two are MAY:
 
 | bound | answer | recommended |
 |---|---|---|
-| subscriber streams per cohort — the fan-out set | `FULL` to the next `Join` — except **one extra stream while the admin is absent**: a `Join` declaring the admin's `addr` when no publisher stream exists is admitted over the bound, and disconnected, with a short blocklist, if it has not claimed within the **claim deadline** | implementation-defined; claim deadline 30 s, long enough for a wallet prompt (?) |
+| subscriber streams per cohort — the fan-out set | `FULL` to the next `Join` — except **one extra stream while the admin is absent**: a `Join` declaring the admin's `addr` when no publisher stream exists is admitted over the bound, and disconnected, with a short blocklist and counted (`claim_timeout`), if it has not claimed within the **claim deadline** | implementation-defined; claim deadline 30 s, long enough for a wallet prompt (?) |
 | live cohorts per broker | `FULL` to a cohort-creating `Join` | implementation-defined |
 | **cohorts per peer connection** — a peer cannot flood the broker with bogus cohorts while keeping one legitimate stream open | `FULL` | 16 |
 | **inactivity deadline** — reclaims a cohort, see *Lifetime* | reset | 10 min |
@@ -470,7 +478,7 @@ stops it:
 |---|---|---|---|---|
 | the claim signature | a third party or another subscriber | anywhere | cannot obtain it | it travels on the encrypted stream to the broker and nowhere else |
 | the claim signature | the node that bridged the admin (holds it, not the key) | this broker, while it runs, from any node | accepted — it upgrades | nothing, by design: the identity continues from another node; that node held the admin's stream anyway and can publish only what the key signed |
-| the claim signature | the same node | this broker after a restart, or another broker, or another cohort here | refused: recovers to some other address | `S_C` drawn at boot and never persisted; `O_B` names the verifier; the spec is in `S` |
+| the claim signature | the same node | this broker after a restart, or another broker, or another cohort here | not accepted: it recovers to some other address — in a `Join` it is treated as absent and a fresh `S` issued, after an `Ack` it is a violation | `S_C` drawn at boot and never persisted; `O_B` names the verifier; the spec is in `S` |
 | the claim signature | anyone | for another address | refused | the address is in `S`, and the signer must equal the declared address |
 | the claim with a changed `index` | anyone holding one | anywhere | refused | `index` is inside the signed preimage |
 | the challenge, forwarded | a relay or impostor broker the publisher was pointed at: it fetches `S` from the honest broker, hands it over, forwards the signature | the honest broker | refused | the publisher signs the overlay it is talking to, the relay's, and the honest broker checks its own |
@@ -482,8 +490,7 @@ stops it:
 | a `Join` | anyone | anywhere | attaches or creates, as any join does — no privilege | nothing needed; the bounds and the inactivity deadline |
 
 **The transport precondition.** The forwarding row above rests on `O_B` being the overlay
-the publisher's node is actually connected to, and the claim rests on the broker knowing
-the peer it is talking to. A BPS node MUST verify, in the p2p handshake, that a peer's
+the publisher's node is actually connected to. A BPS node MUST verify, in the p2p handshake, that a peer's
 signed address record names the connection's authenticated peer ID; a record that is
 merely self-consistent — signed by the overlay's key but not tied to the connection — can
 be presented by anyone who has seen it. (bee's handshake verifies the record and not the
@@ -493,7 +500,8 @@ binding as of this writing; the check is one comparison.)
 encrypt payloads. **The broker withholds, never forges**, and a withheld update is
 visible as a gap in the index. **No end signal**: a broker can end a cohort for its
 audience by resetting their streams, which is withholding, nothing more. **Resource
-bounds are policy and the four capacity bounds are required** (above); the cursor
+bounds are policy; the three capacity bounds, the inactivity deadline and the queue bound
+are required** (above); the cursor
 removes the dedup-window bound and its edge. A subscriber that publishes is a protocol
 violation and is blocklisted; a squatted cohort is one map entry for one inactivity
 deadline, and a peer can hold only a bounded number of them.
@@ -509,11 +517,12 @@ An implementation is BPS-lite conformant when:
    `FULL` and `REJECTED` is ever sent;
 3. the challenge is derived as specified from a boot secret, the canonical spec and the
    declared address, issued iff an address was declared, and nothing is stored for it;
-4. a claim — in `Join`, or as a subscriber stream's next frame — is verified over
-   `keccak256("bps-claim:v1" ‖ S ‖ O_B ‖ index)`: the signer equals `addr` and `addr` is
-   the admin; the stream then becomes a publisher stream and the cursor becomes
-   `max(cursor, index)`; no reply is sent; a claim in `Join` is verified before any bound;
-   a stale claim in `Join` is treated as absent; any other claim is a violation;
+4. a claim — in `Join`, or as a subscriber stream's next frame — is verified over the
+   bytes `"bps-claim:v1" ‖ S ‖ O_B ‖ index` in the SOC signing convention: the signer
+   equals `addr` and `addr` is the admin; the stream then becomes a publisher stream and
+   the cursor becomes `max(cursor, index)`; no reply is sent; a claim in `Join` is verified
+   before any bound, and treated as absent if it does not verify; a `Claim` after the
+   `Ack` that does not verify is a violation;
 5. a frame on a subscriber stream that is not a valid claim is dropped, the stream reset,
    the peer blocklisted;
 6. a `Message` on a publisher stream is accepted iff its bare index is at least the
@@ -537,8 +546,10 @@ An implementation is BPS-lite conformant when:
     single-publisher cohort.
 
 A broker MUST expose per-cohort counters for the silent outcomes — `invalid_index`,
-`invalid_soc`, `wrong_owner`, `wrong_stream`, `invalid_claim`, `retransmit`,
-`queue_reset` — since items 5–7 are unobservable from the wire without them.
+`invalid_soc`, `wrong_owner`, `wrong_stream` (a subscriber-stream frame that is not a
+`Claim`), `invalid_claim` (a `Claim` that fails), `claim_timeout` (an extra stream
+disconnected at the claim deadline), `retransmit`, `queue_reset` — since items 5–7 and 9
+are unobservable from the wire without them.
 
 ## Out of scope (deliberately)
 
