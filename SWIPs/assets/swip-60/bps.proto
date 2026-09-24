@@ -75,11 +75,12 @@ message CohortSpec {
                                   // and `publishers`, `closed` do not apply.
   PublisherRegime publishers = 4; // ALL, or unset (see the enum)
   bool            history    = 5; // deliver matching chunks from the local store
-  bool            closed     = 6; // no audience: a joiner receives nothing until
-                                  // its claim recovers to the admin or a rostered
-                                  // address, and is disconnected otherwise. Unset
-                                  // = open, so that a SWIP-74 spec, which never
-                                  // sets it, reads as an open cohort.
+  bool            closed     = 6; // no audience: every stream is admitted silent,
+                                  // receiving nothing, and is disconnected unless
+                                  // a claim recovering to the admin or a rostered
+                                  // address arrives within the claim deadline.
+                                  // Unset = open, so that a SWIP-74 spec, which
+                                  // never sets it, reads as an open cohort.
 }
 
 // ---------------------------------------------------------------------------
@@ -97,8 +98,8 @@ message Auth {
 }
 
 // A publisher's claim on the stream it is sent on. `auth` signs
-//   keccak256("bps-claim:v1" || S || O_B || index)
-// with the key of `addr`, where
+//   "bps-claim:v1" || S || O_B || index
+// with the key of `addr`, in the same convention as a SOC signature (?), where
 //   S_C = a secret drawn once at broker boot, never persisted
 //   S_s = keccak256(Marshal(spec))         the cohort's key
 //   S_c = keccak256(S_C || S_s)            the cohort's secret
@@ -122,9 +123,10 @@ message Claim {
 message Join {
   CohortSpec cohort = 1;
   bytes      addr   = 2; // 20 bytes: the address this stream will publish as --
-                         // under explicit authorship the one it will claim, under
-                         // ALL the one every publication is validated against;
-                         // absent: a spectator, and no challenge is issued
+                         // under explicit authorship the one it will claim; under
+                         // ALL and under implicit authorship the one every
+                         // publication is validated against, no claim; absent: a
+                         // spectator, and no challenge is issued
   Claim      claim  = 3; // a returning publisher's claim, verified before any bound
 }
 
@@ -138,7 +140,9 @@ enum Status {
 }
 
 // Broker -> peer, answering Join. A non-OK Ack ends the stream. The roster
-// reaches a newly attached stream as its first Message (see ServiceKind).
+// reaches a newly attached stream as its first Message (see ServiceKind) --
+// except the admin's own, and except under `closed`, where nothing is delivered
+// before the claim.
 message Ack {
   Status status    = 1;
   bytes  challenge = 2; // S, iff status == OK and addr was declared
