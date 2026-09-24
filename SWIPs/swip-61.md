@@ -174,17 +174,27 @@ root, and verified again by every subscriber.** Relays in between are convenienc
 dishonest one can delay a message or drop it, never author one.
 
 **Claims travel rootward too.** A publisher proves its key to the node it attaches to
-exactly as at a singlehop broker (SWIP-74, *Handshake*; SWIP-60, *The claim*): it declares
-its address in `Join`, receives that node's challenge, and signs it together with that
-node's overlay and its cursor. The attachment node verifies the claim against its own
-secret, and **forwards it rootward iff the address is legitimate to upgrade** — the admin,
-or an entry in the roster it holds; each node on the way upgrades the child stream for
-that address the same way, so that a publication travels rootward only on streams claimed
-for its owner, hop by hop, and a relay that carries a publication on an unclaimed stream is
-in violation at its parent. Under `ALL` there is nothing to forward: everybody may publish,
+exactly as at a singlehop broker (SWIP-74, *Handshake*): it declares its address in
+`Join`, receives that node's challenge, and signs it together with that node's overlay and
+its cursor. Its parent cannot verify that signature — it was made over the attachment
+node's secret and overlay — so what travels rootward is an **attestation** **(?)**: the
+attachment node, having verified the claim, sends its parent a `Claim{addr, index}`
+without a signature, on the child stream the parent already holds, and does so only if
+the address is legitimate to upgrade — the admin's, or an entry in the roster it holds.
+Each parent checks legitimacy against its own roster and upgrades that child stream for
+`addr` on the child's word, hop by hop, so that a publication travels rootward only on
+streams upgraded for its owner; a publication arriving on a stream not upgraded for its
+owner is dropped as any invalid frame is (the leniency of conformance item 11 is for the
+stateless checks, not for this). Legitimacy rootward therefore rests on the chain of
+relays, which can attest falsely but cannot sign a publication: the root remains the
+authority per message, as the paragraph above says, and a false attestation buys a relay
+exactly what a subscriber stream cannot carry — the admin's captured history, rootward,
+after a reclaim — which is history, not forgery. A publisher with two parents claims once,
+at its attachment node; the attestation goes up both. Under `ALL` nothing is forwarded:
 no claim exists, and every node authenticates each publication against the address its
-child stream declared. This section still names the frames `Publish` and `Broadcast`;
-SWIP-60 rev 5 folded both into one `Message` frame, and this SWIP is to be re-based on it
+child stream declared. This section still names the frames `Publish` and `Broadcast` and
+the join `Subscribe`/`Open`; SWIP-60 rev 5–6 folded the first two into one `Message` frame
+and the join into `Join{spec, addr, claim?}`, and this SWIP is to be re-based on them
 **(?)**.
 
 **Revocation across a tree.** SWIP-60's two-phase revocation is unchanged in rule and
