@@ -1,7 +1,8 @@
 // Broadcast Pub/Sub (BPS) — protocol messages and types.
 // Spec: SWIP-60 (../../swip-60.md), extending the base wire of SWIP-74 (BPS-lite).
 //
-// Revision 10 (2026-09-27), per Viktor — the claim carried as a chunk; Broadcast.
+// Revision 11 (2026-09-28), per Viktor — the claim carried as a chunk; Broadcast is
+// the chunk data alone, the receiver forms the address.
 //
 // SWIP-74 fixes the base: four frames (Join, Ack, Auth, Broadcast) and the one type
 // they carry (CohortSpec), for a single publisher over a feed at one broker, one hop,
@@ -150,15 +151,16 @@ message Ack {
 // ---------------------------------------------------------------------------
 
 // Both directions after the handshake: publisher -> broker is a publication,
-// broker -> peer a delivery of the same bytes. The single-owner chunk travels
-// whole, address and data, opaque to the protocol and validated by the ordinary
-// SOC code once the id slot has been rewritten as SWIP-74's Frames section says:
-//   data = id (32) || signature (65) || span (8, LE) || payload (<= 4096)
+// broker -> peer a delivery of the same bytes. The single-owner chunk travels as
+// its chunk data, opaque to the protocol; the receiver forms the address it must
+// have from the binding's id and the owner it knows (the stream's claimed or
+// declared address) and validates the chunk against it with the ordinary SOC code
+// once the id slot has been rewritten as SWIP-74's Frames section says:
+//   soc = id (32) || signature (65) || span (8, LE) || payload (<= 4096)
 // Under FEED_TOPIC a feed update's id slot carries the bare index (SWIP-74,
 // SWIP-65); a service SOC carries its full id (see ServiceKind).
 message Broadcast {
-  bytes address = 1; // 32 bytes: the SOC address, keccak256(id || owner)
-  bytes data    = 2;
+  bytes soc = 1;
 }
 
 // ---------------------------------------------------------------------------

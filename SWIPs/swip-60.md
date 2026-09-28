@@ -12,7 +12,7 @@ created: 2026-08-03
 <!-- Full singlehop SWIP of the Broadcast Pub/Sub (BPS) family: the decomposition of the
 monolithic PubSub SWIP (ethersphere/SWIPs PR #93) into work-package-sized SWIPs. Extends
 the base wire of SWIP-74 (BPS-lite, PR #111) and changes nothing in it. Companion
-protobuf: assets/swip-60/bps.proto (revision 10, derived from SWIP-74's block). -->
+protobuf: assets/swip-60/bps.proto (revision 11, derived from SWIP-74's block). -->
 
 - **Business line**: real-time topic streams for dApps without storing chunks or polling —
   enough on its own for the five cohort shapes it defines: **jam** (a closed set of authors:
@@ -376,11 +376,11 @@ sequenceDiagram
     Note over B,SN: spec in hand + admin-signed roster ⇒<br/>subscriber verifies every message end-to-end
 
     PD->>PN: WS: payload
-    PN->>B: Broadcast(address, data)
-    B->>B: validate: publisher stream, SOC ⊨ topic binding,<br/>owner = claimed addr (+ cursor / dedup per binding)
+    PN->>B: Broadcast(soc)
+    B->>B: validate: publisher stream, SOC at the address formed from<br/>the binding's id and the stream's addr (+ cursor / dedup per binding)
 
     par fan-out to every stream of the cohort not bound to the publishing identity
-        B->>SN: Broadcast(address, data) — every frame self-contained
+        B->>SN: Broadcast(soc) — every frame self-contained
         SN->>SN: mux: one p2p stream → N WS sessions
         SN->>SD: WS: payload
     end
@@ -413,20 +413,31 @@ Messages are defined in [bps.proto](assets/swip-60/bps.proto). Framing notes:
   its admin.
 - **Stream model rationale**: per-cohort streams give per-cohort flow control, teardown
   and role typing, and match bee's protocol idiom. Because every data frame carries the
-  whole chunk (self-contained, no per-stream handshake state), a later move to
-  topic-muxed streams requires no format change; the `Auth` chunk is the one frame bound
-  to its stream by construction — it is verified against the address that stream declared.
-- Every `Broadcast` carries the **whole chunk**, address and data (SWIP-74), validated by
-  the ordinary SOC code; there is no handshake/data frame split. Deliveries go to every
+  chunk data (self-contained, no per-stream handshake state), a later move to
+  topic-muxed streams requires no format change; at the broker every frame is verified
+  against an address formed from what its stream declared or claimed.
+- Every `Broadcast` carries the **chunk data** (SWIP-74) and no address. **At the
+  broker** the receiver forms the address from the binding's id and the owner it knows —
+  the stream's claimed or declared address, or the binding's SOC shape under implicit
+  authorship — and validates the chunk against it with the ordinary SOC code. **At a
+  subscriber**, which does not see which stream a delivery came from and in a
+  multi-publisher cohort knows a *set* of admissible owners, the rule is: recover the
+  owner from the signature over `id ‖ wrappedAddress`, form `keccak256(id ‖ owner)` as
+  the chunk's address (for dedup and for `swarm-soc-fields`), and accept iff that owner
+  is admissible — the admin or a currently rostered address under explicit authorship,
+  any address under `ALL` and `MNEMONIC` (attribution, not restriction: the accepted
+  trade-off), the owner the binding's shape fixes under implicit `OWNER`, `ANCHOR` and
+  `FEED_TOPIC`, any owner meeting the PO constraint under implicit `SOC_ID`. There is no
+  handshake/data frame split. Deliveries go to every
   stream of the cohort except those bound to the publishing identity: a publisher never
   receives its own messages back, on whichever of its streams it sent them (SWIP-74).
 - No BPS-level keepalive or RTT probing: liveness is the transport's job, and latency
   metrics for reorganisation policies are sourced there too.
 - Broker validation on a `Broadcast`: it arrived on a publisher stream — claimed for its
-  address, or declaring one under `ALL` or implicit authorship — the chunk validates as a
-  SOC under the topic binding with the owner hashing to its address, the PO constraint
-  holds where applicable, and the owner is the stream's address (or fits the binding's SOC
-  shape under implicit authorship). Invalid ⇒ drop and count; repeated invalid ⇒ disconnect (blocklisting
+  address, or declaring one under `ALL` or implicit authorship — and the chunk validates as
+  a SOC at the address the broker forms from the binding's id and the stream's address
+  (under implicit authorship, from the binding's SOC shape), the PO constraint holding
+  where applicable. Invalid ⇒ drop and count; repeated invalid ⇒ disconnect (blocklisting
   policy). A message that passes and is a **duplicate** per the binding's dedup rule is
   dropped and counted as a retransmit, never as invalid — an admin reconnecting after a
   reset legitimately resends (SWIP-74); a broker MAY reset a stream whose retransmit rate
@@ -506,8 +517,9 @@ signed client-side (bee-js). Where the binding does not fix the SOC id, the fram
 prefixed with it — for feed bindings the prefix is the bare index, the signed id being
 the feed id `keccak256(topic ‖ index)` (self-indexed feeds,
 [SWIP-65](https://github.com/ethersphere/SWIPs/pull/106));
-under explicit regimes with `ANCHOR` binding the id does no work and there is no
-prefix. The node assembles the SOC, validates it exactly as a broker would, and
+under explicit regimes with `ANCHOR` binding the id does no protocol work but is still
+signed over, so the frame is prefixed with the 32-byte id the dApp chose — its sequence
+number, or zero. The node assembles the SOC, validates it exactly as a broker would, and
 publishes. The claim is a SOC the dApp signs like any other: the node passes it the
 challenge, its broker's overlay and the session's cursor, and relays the chunk **(?)**.
 End-to-end
@@ -731,8 +743,9 @@ peer ID; a record that is merely self-consistent can be presented by anyone who 
 
 **Defence in depth is the real guarantee.** Even a stream that obtains the publisher role
 gains nothing by it beyond what its key already signs: every message is validated on
-arrival against the SOC signature, its address, and the stream's address (or, for an
-implicit cohort, the binding's SOC shape). **Authorship rests on the message signature;
+arrival at the address the broker forms from the stream's address (or, for an implicit
+cohort, the binding's SOC shape), and again by every subscriber against the set of
+owners the cohort admits. **Authorship rests on the message signature;
 the handshake decides only who is carried as a publisher.**
 
 **Audience control exists in exactly one form, and it is not confidentiality.**
@@ -782,9 +795,9 @@ An implementation is conformant when:
 1. a broker enforces SWIP-74's bounds — streams per cohort, cohorts per broker, cohorts
    per peer connection, the inactivity deadline — plus publisher legitimacy, per-binding
    validation and dedup;
-2. a subscriber re-verifies every message end-to-end — against the `CohortSpec` it
-   joined with and the admin-signed roster it received — and detects (only) liveness
-   faults;
+2. a subscriber re-verifies every message end-to-end — recovering the owner, forming
+   the chunk's address, and admitting the owner against the `CohortSpec` it joined with
+   and the admin-signed roster it received — and detects (only) liveness faults;
 3. the **five** configurations above — jam, spectator-jam, live-stream, group-chat and
    implicit — interoperate across independent implementations against the frames in
    [bps.proto](assets/swip-60/bps.proto);
