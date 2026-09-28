@@ -175,13 +175,14 @@ dishonest one can delay a message or drop it, never author one.
 
 **Claims travel rootward too.** A publisher proves its key to the node it attaches to
 exactly as at a singlehop broker (SWIP-74, *Handshake*): it declares its address in
-`Join`, receives that node's challenge, and sends an `Auth` — a single-owner chunk it
-signs, whose payload is that node's challenge, that node's overlay and its cursor. A
+`Join`, receives that node's challenge, and sends its claim — a `Broadcast` whose chunk it
+signs, a `CLAIM` service message carrying that node's challenge, that node's overlay and
+its cursor. A
 publisher that keeps two parents claims at each: each parent issues its own challenge and
 is named by its own overlay, so a claim is per attachment stream. A parent's own parent
 cannot verify the challenge — it was the attachment node's, derived from a secret it does
 not hold — so what travels rootward is an **attestation** **(?)**: the attachment node,
-having verified the `Auth`, forwards it unchanged up both of its own parents on the child
+having verified the claim, forwards it unchanged up both of its own parents on the child
 streams they already hold, and does so only if the address is legitimate to upgrade — the
 admin's, or an entry in the roster it holds. The receiving node derives the claim id from
 the topic, recovers the owner and reads the cursor from the chunk, checks legitimacy
