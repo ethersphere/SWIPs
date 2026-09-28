@@ -1,17 +1,19 @@
 // Broadcast Pub/Sub (BPS) — protocol messages and types.
 // Spec: SWIP-60 (../../swip-60.md), extending the base wire of SWIP-74 (BPS-lite).
 //
-// Revision 11 (2026-09-28), per Viktor — the claim carried as a chunk; Broadcast is
-// the chunk data alone, the receiver forms the address.
+// Revision 12 (2026-09-28), per Viktor — no Auth type: the claim is a Broadcast whose
+// chunk payload is a service message of kind CLAIM; nothing on the wire is told apart
+// by shape.
 //
-// SWIP-74 fixes the base: four frames (Join, Ack, Auth, Broadcast) and the one type
-// they carry (CohortSpec), for a single publisher over a feed at one broker, one hop,
-// with the publisher role claimed by signing a broker-derived challenge — as a
-// single-owner chunk, verified by the ordinary SOC code. This
+// SWIP-74 fixes the base: three frames (Join, Ack, Broadcast) and the two types they
+// carry (CohortSpec; ServiceMessage as a chunk payload), for a single publisher over a
+// feed at one broker, one hop, with the publisher role claimed by signing a
+// broker-derived challenge — as a single-owner chunk, verified by the ordinary SOC
+// code. This
 // file adds what the full singlehop protocol needs and changes nothing SWIP-74
 // defines:
 //   - CohortSpec gains `publishers` (one value, ALL), `history` and `closed`;
-//   - the admin's service feed (ROSTER, END_OF_STREAM) travels as Broadcast frames.
+//   - the admin's service feed (ROSTER, END_OF_STREAM) is two more ServiceKinds.
 // Field numbers follow SWIP-74's; the added fields come after. There is no envelope:
 // what a frame is follows from the stream's direction and role. Multihop (SWIP-61)
 // adds its control frames as messages of its own.
@@ -92,29 +94,26 @@ message CohortSpec {
 // claim settles the role.
 // ---------------------------------------------------------------------------
 
-// A publisher's claim on the stream it is sent on, carried as a single-owner chunk
-// so that the ordinary SOC validation verifies it in one call:
+// A publisher's claim on the stream it is sent on is a Broadcast whose chunk is a
+// single-owner chunk it signs as any SOC, with
 //   id      = keccak256("bps-claim:v1" || topic)   never a feed id
 //   owner   = addr                                  address = keccak256(id || addr)
-//   payload = S || O_B || index                     32 + 32 + 8 bytes
-// signed as any SOC is, with the key of `addr`, where
+//   payload = ServiceMessage{CLAIM, index, S, O_B}
+// where
 //   S_C = a secret drawn once at broker boot, never persisted
 //   S_s = keccak256(Marshal(spec))         the cohort's key
 //   S_c = keccak256(S_C || S_s)            the cohort's secret
 //   S   = keccak256(S_C || S_c || addr)    the challenge for addr on this cohort
-// O_B is the overlay of the broker the claiming node is connected to and `index`
-// (eight bytes big-endian) the publisher's cursor: its next message has a feed
-// index >= index. The receiver derives the id from the topic and the expected
-// address from `addr`, validates the chunk against it, and checks the payload
-// against its own S and overlay. The broker stores nothing; S is the same for an
-// address on a cohort for as long as the broker runs, from any node. Sent inside
-// Join by a peer that already holds S, or as the next frame after Ack by one that
-// has just received it -- or has just seen itself named in a roster. No reply: the
-// outcome is whether the stream survives the publication that follows. Under ALL
-// and under implicit authorship there is no claim.
-message Auth {
-  bytes soc = 1; // chunk data: id (32) || signature (65) || span (8, LE) || payload (72)
-}
+// O_B is the overlay of the broker the claiming node is connected to and `index` the
+// publisher's cursor: its next message has a feed index >= index. The receiver
+// derives the id from the topic and the expected address from `addr`, validates the
+// chunk against it, decodes the payload and checks the challenge and overlay against
+// its own. The broker stores nothing; S is the same for an address on a cohort for as
+// long as the broker runs, from any node. Sent inside Join by a peer that already
+// holds S, or as the next Broadcast after Ack by one that has just received it -- or
+// has just seen itself named in a roster. No reply: the outcome is whether the stream
+// survives the publication that follows. Under ALL and under implicit authorship
+// there is no claim.
 
 // Peer -> broker: the first frame on a fresh stream. Creates the cohort if no live
 // cohort has this spec, attaches to it otherwise.
@@ -125,7 +124,8 @@ message Join {
                          // ALL and under implicit authorship the one every
                          // publication is validated against, no claim; absent: a
                          // spectator, and no challenge is issued
-  Auth       auth   = 3; // a returning publisher's claim, verified before any bound
+  bytes      auth   = 3; // a returning publisher's claim: the claim chunk's data,
+                         // verified before any bound
 }
 
 enum Status {
@@ -150,15 +150,15 @@ message Ack {
 // Broadcast — SOC-only is a protocol feature
 // ---------------------------------------------------------------------------
 
-// Both directions after the handshake: publisher -> broker is a publication,
-// broker -> peer a delivery of the same bytes. The single-owner chunk travels as
-// its chunk data, opaque to the protocol; the receiver forms the address it must
-// have from the binding's id and the owner it knows (the stream's claimed or
-// declared address) and validates the chunk against it with the ordinary SOC code
-// once the id slot has been rewritten as SWIP-74's Frames section says:
+// Every frame after the handshake: publisher -> broker a publication, a claim or a
+// service message, broker -> peer a delivery of the same bytes. The single-owner
+// chunk travels as its chunk data, opaque to the protocol; the receiver forms the
+// address it must have from the binding's id and the owner it knows (the stream's
+// claimed or declared address) and validates the chunk against it with the ordinary
+// SOC code once the id slot has been rewritten as SWIP-74's Frames section says:
 //   soc = id (32) || signature (65) || span (8, LE) || payload (<= 4096)
 // Under FEED_TOPIC a feed update's id slot carries the bare index (SWIP-74,
-// SWIP-65); a service SOC carries its full id (see ServiceKind).
+// SWIP-65); a claim or a service SOC carries its full id (see ServiceKind).
 message Broadcast {
   bytes soc = 1;
 }
@@ -183,15 +183,20 @@ message Broadcast {
 
 enum ServiceKind {
   SERVICE_KIND_UNSPECIFIED = 0; // invalid on the wire (see header note)
-  ROSTER        = 1; // the full publisher set as of this index (not a delta)
-  END_OF_STREAM = 2; // the admin closes the cohort, attributably
+  CLAIM         = 1; // SWIP-74: a publisher's claim on its stream (not on the feed)
+  ROSTER        = 2; // the full publisher set as of this index (not a delta)
+  END_OF_STREAM = 3; // the admin closes the cohort, attributably
 }
 
-// The payload of a service SOC.
+// The payload of a claim or a service SOC. Fields 1-4 are SWIP-74's.
 message ServiceMessage {
   ServiceKind    kind       = 1;
-  uint64         index      = 2; // this update's index on the service feed
-  repeated bytes publishers = 3; // set iff ROSTER: 20-byte eth addresses, the
+  uint64         index      = 2; // CLAIM: the publisher's cursor; ROSTER and
+                                 // END_OF_STREAM: this update's index on the
+                                 // service feed
+  bytes          challenge  = 3; // CLAIM: S, as received in the Ack
+  bytes          overlay    = 4; // CLAIM: O_B, the broker's overlay
+  repeated bytes publishers = 5; // set iff ROSTER: 20-byte eth addresses, the
                                  // complete set excl. admin (who is always a
                                  // publisher). Full state, not a delta, so a
                                  // reader needs only the latest it can verify.
