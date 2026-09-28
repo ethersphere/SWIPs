@@ -15,7 +15,9 @@ only, one mode only — an explicit single publisher (live video streaming). Rev
 publisher role is claimed by signing a broker-issued challenge (the first draft had a
 challenge; rev 2 wrongly replaced it with a static signature). Rev 4: the claim is carried
 as a single-owner chunk (`Auth`) and verified by the ordinary SOC code; the data frame is
-`Broadcast`. SWIP-60 (PR #104) is the
+`Broadcast`. Rev 5: `Broadcast` carries the chunk data alone — the receiver forms the
+address it validates against from the owner it already knows — and `wrong_owner` folds
+into `invalid_soc`. SWIP-60 (PR #104) is the
 full singlehop protocol and extends this wire without changing it; see "Relation to
 SWIP-60". Open points are marked (?). -->
 
@@ -46,8 +48,8 @@ the address it will publish as; the broker answers with a **challenge** it deriv
 secret it never stores, and the publisher claims its stream by signing it. Its messages
 are single-owner chunks that are the higher-index updates of the feed the topic names,
 carried with their bare index; the broker accepts each one iff its index is at least the
-channel's cursor, the chunk validates as a single-owner chunk under the feed's id, and its
-owner is the admin, and delivers it unchanged to every subscriber stream — never to a
+channel's cursor and the chunk validates as the admin's single-owner chunk under the
+feed's id, and delivers it unchanged to every subscriber stream — never to a
 publisher's. All other joiners are subscribers and verify the same way, end to end: the
 broker can withhold, never forge. A channel ends when it goes idle.
 
@@ -176,13 +178,14 @@ message Ack {
 }
 
 // Both directions after the handshake: publisher -> broker is a publication, broker
-// -> subscriber a delivery of the same bytes. The single-owner chunk travels whole,
-// address and data, opaque to the protocol and validated by the ordinary SOC code
-// once the id slot has been rewritten as the Frames section says:
-//   data = id (32) || signature (65) || span (8, LE) || payload (<= 4096)
+// -> subscriber a delivery of the same bytes. The single-owner chunk travels as its
+// chunk data, opaque to the protocol; the receiver forms the address it must have —
+// keccak256(id || owner), with the owner it already knows — and validates the chunk
+// against it with the ordinary SOC code once the id slot has been rewritten as the
+// Frames section says:
+//   soc = id (32) || signature (65) || span (8, LE) || payload (<= 4096)
 message Broadcast {
-  bytes address = 1; // 32 bytes: the SOC address, keccak256(id || owner)
-  bytes data    = 2;
+  bytes soc = 1;
 }
 ```
 
@@ -286,14 +289,16 @@ After the handshake a broker sends `Broadcast` and nothing else, to subscriber s
 publisher stream sends `Broadcast` and nothing else; a subscriber stream sends at most one
 `Auth`. A delivery is the accepted publication's bytes, unchanged.
 
-**The frame is a whole chunk.** `address` is the SOC address and `data` the chunk data,
-so that the ordinary SOC validation applies: without the address it would be vacuous,
-since recovering a signer always yields *an* address, and with it a bad signature fails
-because the recovered owner no longer hashes to the address.
+**The frame carries no address.** Recovering a signer always yields *an* address, so the
+ordinary SOC validation needs an address to hold the chunk against — and every receiver
+has one: in BPS-lite the publisher is the admin, so the expected address of an update is
+`keccak256(keccak256(topic ‖ index) ‖ admin)`, and validating the chunk against it checks
+signature, digest and owner in one call, with the owner forced rather than compared
+afterwards. Carrying the address would say nothing the receiver does not already know.
 
 **The `id` slot carries the bare index.** A feed update's signed id is
 `keccak256(topic ‖ index)`, `index` a uint64 big-endian in 8 bytes. On the wire the
-32-byte `id` slot of `data` holds that index left-padded with 24 zero bytes, and the
+32-byte `id` slot of `soc` holds that index left-padded with 24 zero bytes, and the
 receiver reconstructs the signed id from the cohort's topic (the carriage of
 [SWIP-65](https://github.com/ethersphere/SWIPs/pull/106)). A `Broadcast` whose `id` slot
 does not have 24 leading zero bytes is not a feed update: a broker drops it as invalid; a
@@ -307,21 +312,22 @@ broker is accepted iff, in order:
 
 1. it arrived on a **publisher stream** — on a subscriber stream the frame is read as an
    `Auth`, and if it is not a valid one it is a protocol violation: dropped, counted
-   (`wrong_stream` if it is not even the shape of an `Auth` — a `soc` of 177 bytes and no
-   other field; a `Broadcast` parses as an `Auth` with a 32-byte `soc` — `invalid_claim`
-   if it is and fails), the stream reset, the peer blocklisted per the node's policy;
+   (`Auth` and `Broadcast` are one shape on the wire, so the only shape test is length:
+   `wrong_stream` if `soc` is not 177 bytes, `invalid_claim` if it is and the claim
+   validation fails), the stream reset, the peer blocklisted per the node's policy;
 2. its `id` slot is a bare index `n` and **`n ≥ cursor`**;
-3. with the `id` slot rewritten to `keccak256(topic ‖ n)` the chunk **validates as a
-   single-owner chunk**: the wrapped chunk's BMT address matches `span ‖ payload`, the
-   signature over `id ‖ wrappedAddress` recovers an owner, and `keccak256(id ‖ owner)`
-   equals `address`;
-4. `address` equals `keccak256(id ‖ admin)` — the owner is the admin.
+3. with the `id` slot rewritten to `keccak256(topic ‖ n)` the chunk **validates as the
+   admin's single-owner chunk**: the receiver forms the expected address
+   `keccak256(id ‖ admin)` and runs the ordinary SOC validation against it — the wrapped
+   chunk's BMT address matches `span ‖ payload`, and the signature over
+   `id ‖ wrappedAddress` recovers an owner that hashes with the id to that address, which
+   only the admin's does.
 
 On acceptance the broker sets `cursor := n + 1` and enqueues the frame on **every
 subscriber stream** in the cohort. Publisher streams receive nothing: a publisher never
 gets its own messages back, on whichever of its streams they were sent.
 
-Failures of 3 and 4 are invalid frames: dropped and counted; repeated invalid frames end
+A failure of 3 is an invalid frame: dropped and counted; repeated invalid frames end
 the connection (blocklisting policy). A frame failing 2 with `n < cursor` is the one
 benign failure — a retransmit, which an admin reconnecting after a reset legitimately
 sends when it does not know what the broker last accepted — and is counted separately; a
@@ -337,8 +343,8 @@ to what the admin has published elsewhere, never back. This is stricter than SWI
 general carriage rule, under which a broker does not enforce monotonicity; the restriction
 is sound here because one publisher on one hop admits no legitimate reordering.
 
-Subscribers re-verify every delivery exactly as the broker does (steps 2–4, against the
-spec they joined with and their own cursor), end to end, whatever the broker did.
+Subscribers re-verify every delivery exactly as the broker does (steps 2 and 3, against
+the spec they joined with and their own cursor), end to end, whatever the broker did.
 
 ### Lifetime: inactivity
 
@@ -448,9 +454,13 @@ admin's. Binding the identity to the stream is what lets one node carry differen
 identities on different streams — and, in SWIP-60, what lets a subscriber stream be
 upgraded by a claim when the admin grants it.
 
-**Why the frame is a whole chunk.** The ordinary SOC validation checks that the signer
-hashes to the address. Without the address on the frame there is nothing to hash to, and
-a broker that only recovered a signer would accept any signature at all.
+**Why the frame carries no address.** The ordinary SOC validation checks that the signer
+hashes, with the id, to the chunk's address; a receiver that only recovered a signer
+would accept any signature at all. But the address is not information the sender has and
+the receiver lacks: publishing is restricted to known owners — the admin here, a claimed
+or declared address in SWIP-60 — so every receiver forms the expected address itself and
+holds the chunk to it. That is the same check with the owner forced, and 32 bytes fewer
+on every frame.
 
 **Why the claim is a chunk.** A claim has to be signed by the publisher's key and
 verified by the broker; a single-owner chunk is what this protocol already signs and
@@ -545,10 +555,10 @@ An implementation is BPS-lite conformant when:
 5. a frame on a subscriber stream that is not a valid claim is dropped, the stream reset,
    the peer blocklisted;
 6. a `Broadcast` on a publisher stream is accepted iff its bare index is at least the
-   cursor, the chunk validates as a single-owner chunk under `keccak256(topic ‖ index)`
-   with the owner hashing to `address`, and `address` is `keccak256(id ‖ admin)`; accepted
-   frames set the cursor past their index and are delivered unchanged to every subscriber
-   stream in the cohort, and to no publisher stream;
+   cursor and the chunk validates as a single-owner chunk at the address the broker forms
+   itself, `keccak256(keccak256(topic ‖ index) ‖ admin)`; accepted frames set the cursor
+   past their index and are delivered unchanged to every subscriber stream in the cohort,
+   and to no publisher stream;
 7. `n < cursor` is counted as a retransmit, not a violation, and there is no other dedup
    state; gaps are accepted; index 0 is accepted on a fresh cohort;
 8. a cohort with no accepted message for the inactivity deadline is reclaimed, every
@@ -565,8 +575,9 @@ An implementation is BPS-lite conformant when:
     single-publisher cohort.
 
 A broker MUST expose per-cohort counters for the silent outcomes — `invalid_index`,
-`invalid_soc`, `wrong_owner`, `wrong_stream` (a subscriber-stream frame that is not the
-shape of an `Auth`), `invalid_claim` (an `Auth` that fails), `claim_timeout` (an extra stream
+`invalid_soc` (a chunk that does not validate at the expected address: bad signature,
+wrong owner or wrong digest alike), `wrong_stream` (a subscriber-stream frame whose `soc`
+is not 177 bytes), `invalid_claim` (one that is, and fails), `claim_timeout` (an extra stream
 disconnected at the claim deadline), `retransmit`, `queue_reset` — since items 5–7 and 9
 are unobservable from the wire without them.
 
