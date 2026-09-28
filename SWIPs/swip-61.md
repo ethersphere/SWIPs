@@ -201,7 +201,7 @@ publication on its own hash and signature rather than against one declared addre
 folded `Publish` into `Broadcast`, the one data frame both ways, and the join into
 `Join{spec, addr, auth?}`. The proto block and conformance item 3 below are written
 against SWIP-60 rev 4 and collide with rev 7: SWIP-60's `Ack` is `{status, challenge}`
-and its `Broadcast` is `{address, data}` with no `oneof` and nothing reserved, so this
+and its `Broadcast` is `{soc}` — the chunk data alone, no `oneof`, nothing reserved — so this
 SWIP's control frames must become messages of their own and `Ack.candidates` must be
 renumbered — the full re-base is pending **(?)**.
 
