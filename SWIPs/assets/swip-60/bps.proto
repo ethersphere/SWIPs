@@ -1,28 +1,29 @@
 // Broadcast Pub/Sub (BPS) — protocol messages and types.
 // Spec: SWIP-60 (../../swip-60.md), extending the base wire of SWIP-74 (BPS-lite).
 //
-// Revision 13 (2026-10-01), per Viktor — the challenge is random per stream and salts
-// the feed topic for the session; the first frame under it is the claim; no claim
-// chunk, no CLAIM service message, no credential in Join; a stream declaring a
-// publisher's address is pending, outside the fan-out bound, until it claims.
+// Revision 14 (2026-10-01), per Viktor — the chunk is an ordinary single-owner chunk
+// with its full id; the frame carries what the id was derived from (kind, challenge,
+// index) beside it; the challenge is 32 bytes; service messages are kinds, not
+// payloads; AUTH is the empty claim; a chunk that does not validate disconnects.
 //
-// SWIP-74 fixes the base: three frames (Join, Ack, Broadcast) and the one type they
-// carry (CohortSpec), for a single publisher over a feed at one broker, one hop, with
-// every publication signed under the challenge the broker issued for its stream, so
-// that the first one claims the publisher role. This
-// file adds what the full singlehop protocol needs and changes nothing SWIP-74
-// defines:
+// SWIP-74 fixes the base: three frames (Join, Ack, Broadcast) and the two types they
+// carry (CohortSpec, Kind with DATA and AUTH), for a single publisher over a feed at
+// one broker, one hop, with every chunk signed under an id salted by the challenge
+// the broker issued for its stream, so that the first valid frame claims the
+// publisher role. This file adds what the full singlehop protocol needs and changes
+// nothing SWIP-74 defines:
 //   - CohortSpec gains `publishers` (one value, ALL), `history` and `closed`;
-//   - the admin's service feed (ROSTER, END_OF_STREAM) as a chunk payload,
-//     ServiceMessage.
+//   - Kind gains the admin's service kinds, EOS and ROSTER, and Roster is the
+//     payload of a ROSTER chunk.
 // Field numbers follow SWIP-74's; the added fields come after. There is no envelope:
-// what a frame is follows from the stream's direction and role. Multihop (SWIP-61)
-// adds its control frames as messages of its own.
+// what a frame is follows from the stream's direction and role, and what a chunk is
+// from the frame's kind. Multihop (SWIP-61) adds its control frames as messages of
+// its own.
 //
 // Enum zero values (*_UNSPECIFIED): proto3 requires a zero value; it is
 // deliberately NOT a legitimate wire value. It exists so that an unset field is
 // detectable and no implementation can silently rely on a default. Receivers MUST
-// reject messages carrying it.
+// reject messages carrying it -- PublisherRegime excepted, where unset is a value.
 //
 // Implementation: bee PR #5626.
 
@@ -34,7 +35,7 @@ option go_package = "github.com/ethersphere/bee/v2/pkg/bps/pb";
 // ---------------------------------------------------------------------------
 // Cohort genesis — immutable policy, and the cohort's identity: cohorts are keyed
 // by the spec's canonical serialisation (fields in number order, unset fields not
-// emitted). The roster is NOT here (see ServiceKind).
+// emitted). The roster is NOT here (see Kind).
 // ---------------------------------------------------------------------------
 
 // What the topic binds to (see SWIP-60: binding semantics). SWIP-74 defines
@@ -44,10 +45,11 @@ enum TopicBinding {
   ANCHOR     = 1; // topic = full SOC/GSOC address; dedup on the wrapped CAC
   SOC_ID     = 2; // topic = SOC id; any owner with PO(addr, anchor) >= PO_MIN
   OWNER      = 3; // topic = keccak256(owner); any id, same PO constraint (MIC)
-  FEED_TOPIC = 4; // a feed on the topic; on the wire the session feed:
-                  // id = keccak256(keccak256(topic || challenge) || index)
-  MNEMONIC   = 5; // the topic names the cohort and constrains nothing: any SOC
-                  // from any owner qualifies (dedup on chunk address). What
+  FEED_TOPIC = 4; // a feed on the topic; on the wire the session feed (see
+                  // Broadcast)
+  MNEMONIC   = 5; // the topic names the cohort and constrains nothing: under
+                  // implicit authorship any SOC from any owner qualifies (dedup
+                  // on chunk address), under ALL any owner's session chunk. What
                   // PublisherRegime.ALL needs -- authorship unrestricted, but
                   // never unattributable, since every message is SOC-signed.
 }
@@ -59,7 +61,8 @@ enum TopicBinding {
 // nobody needs to know in advance. With no admin the cohort is implicit:
 // authorship follows the binding's SOC shape and this does not apply.
 enum PublisherRegime {
-  PUBLISHER_REGIME_UNSPECIFIED = 0; // invalid on the wire (see header note)
+  PUBLISHER_REGIME_UNSPECIFIED = 0; // unset: the admin and whoever its roster names
+                                    // -- the one zero value legitimate on the wire
   ALL = 1; // anyone attached; needs MNEMONIC binding
 }
 
@@ -82,10 +85,11 @@ message CohortSpec {
   PublisherRegime publishers = 4; // ALL, or unset (see the enum)
   bool            history    = 5; // deliver matching chunks from the local store
   bool            closed     = 6; // no audience: every stream is admitted silent,
-                                  // receiving nothing, and is disconnected unless
-                                  // its first frame under its challenge recovers
-                                  // to the admin or a rostered address within the
-                                  // claim deadline.
+                                  // receiving nothing but a roster naming its addr,
+                                  // and is disconnected unless
+                                  // its first valid frame, from the admin's or a
+                                  // rostered address, arrives within the claim
+                                  // deadline.
                                   // Unset = open, so that a SWIP-74 spec, which
                                   // never sets it, reads as an open cohort.
 }
@@ -94,7 +98,7 @@ message CohortSpec {
 // Stream establishment, stream name "pubsub/1.0.0" — one stream per
 // (peer, cohort, identity). The first and only handshake frame on a fresh stream
 // is Join; the broker answers with Ack. The first frame settles the cohort; the
-// first frame under the stream's challenge settles the role.
+// first valid Broadcast settles the role.
 // ---------------------------------------------------------------------------
 
 // Peer -> broker: the first frame on a fresh stream. Creates the cohort if no live
@@ -104,13 +108,14 @@ message CohortSpec {
 message Join {
   CohortSpec cohort = 1;
   bytes      addr   = 2; // 20 bytes, required: the stream's identity -- under
-                         // explicit authorship the address whose first frame under
-                         // the challenge claims the stream; the admin's or a
-                         // rostered one makes the stream pending (outside the
-                         // fan-out bound, receiving nothing until it claims), any
-                         // other a spectator; under ALL and under implicit
-                         // authorship the one every publication is validated
-                         // against, no claim
+                         // explicit authorship the address whose first valid
+                         // frame claims the stream; the admin's or a rostered
+                         // one makes the stream pending (outside the fan-out
+                         // bound, receiving nothing but the roster that names it
+                         // until it claims), any other
+                         // a spectator, which may not publish; under ALL and
+                         // under implicit authorship the one every publication
+                         // is validated against, no claim
 }
 
 enum Status {
@@ -119,80 +124,76 @@ enum Status {
   FULL               = 2; // a capacity bound (per cohort, per broker, per peer
                           // connection); a singlehop broker refuses -- nothing
                           // else
-  REJECTED           = 3; // the SPEC is unacceptable: a value outside this SWIP
+  REJECTED           = 3; // a spec value outside this SWIP, or a malformed Join
+                          // (addr not 20 bytes)
 }
 
-// Broker -> peer, answering Join. A non-OK Ack ends the stream. The roster
-// reaches a newly attached stream as its first Broadcast (see ServiceKind) --
-// except a pending one, and except under `closed`, where nothing is delivered
-// before the claim.
+// Broker -> peer, answering Join. A non-OK Ack ends the stream. The latest roster
+// is the first Broadcast on a stream when it enters a fan-out set -- at attach for
+// a spectator, at upgrade for a pending or silent stream -- and reaches a pending
+// or silent stream before that only if it names the stream's addr.
 message Ack {
   Status status    = 1;
-  bytes  challenge = 2; // iff OK: exactly 24 bytes drawn at random for this
-                        // stream, never all zero -- the salt every publication on
-                        // it carries (SWIP-74); held for the stream's life, never
-                        // persisted, never reused
+  bytes  challenge = 2; // iff OK: 32 bytes drawn at random for this stream -- the
+                        // salt of its session feeds (SWIP-74); held for the
+                        // stream's life, never persisted, never reused
 }
 
 // ---------------------------------------------------------------------------
 // Broadcast — SOC-only is a protocol feature
 // ---------------------------------------------------------------------------
 
-// Every frame after the handshake: publisher -> broker a publication or, from the
-// admin, a service message; broker -> peer a delivery of the same bytes. The
-// single-owner chunk travels as its chunk data, opaque to the protocol; the
-// receiver forms the address it must have from the id and the owner it knows (the
-// stream's claimed or declared address) and validates the chunk against it with
-// the ordinary SOC code:
+// What a chunk on this wire is. DATA and AUTH are SWIP-74's; EOS and ROSTER are
+// the admin's control plane: ordinary SOCs on the ordinary path, owned by the
+// admin, so a broker relays them and cannot author them, and a subscriber checks
+// them with the same code as any broadcast.
+enum Kind {
+  KIND_UNSPECIFIED = 0; // invalid on the wire (see header note)
+  DATA             = 1; // a publication
+  AUTH             = 2; // an empty chunk: claims the stream, says nothing, is
+                        // never delivered
+  EOS              = 3; // an empty chunk from the admin, at index 0: the channel
+                        // is closed, attributably and for good
+  ROSTER           = 4; // from the admin: the full publisher set as of this
+                        // index (not a delta); payload = Roster
+}
+
+// The payload of a ROSTER chunk.
+message Roster {
+  repeated bytes publishers = 1; // 20-byte eth addresses: the complete set excl.
+                                 // admin (who is always a publisher). Full state,
+                                 // not a delta, so a reader needs only the latest
+                                 // it can verify.
+}
+
+// Every frame after the handshake: publisher -> broker a publication, a claim or,
+// from the admin, a service message; broker -> peer a delivery of the same frame.
+// The chunk is an ordinary single-owner chunk, travelling as its chunk data with
+// its full id:
 //   soc = id (32) || signature (65) || span (8, LE) || payload (<= 4096)
-// A publication's id slot begins with the stream's challenge (SWIP-74, Frames):
-// under FEED_TOPIC it is challenge (24) || index (8) and the signed id is
-// keccak256(keccak256(topic || challenge) || index); under the other bindings, with
-// explicit authorship or ALL, it is challenge (24) || 8 bytes of the publisher's
-// choosing and the signed id is the slot itself. A pending stream's first frame
-// under its challenge is its claim. A service SOC carries its full id and names the
-// challenge in its payload (see ServiceKind); under implicit authorship the chunks
-// are the binding's own and carry their own id.
+// Under explicit authorship and under ALL the frame carries what that id was
+// derived from (SWIP-74):
+//   prefix  = (empty)                      kind == DATA
+//           = "bps-service:v1" || kind     any other kind, kind as one byte
+//   topic_s = keccak256(prefix || topic || challenge)
+//   id      = keccak256(topic_s || index)  index as a uint64 big-endian
+// and the receiver derives the id, requires the chunk's to equal it, forms the
+// address the chunk must have from the id and the owner it knows (the stream's
+// claimed or declared address; at a subscriber, the owner it recovers and admits)
+// and validates the chunk against it with the ordinary SOC code. For EOS and
+// ROSTER the owner is the admin, in every configuration; an AUTH is held to the
+// stream's declared address and is never delivered. Each kind is a
+// feed of its own with its own index sequence; under explicit authorship and ALL a
+// publisher's DATA indices increase and are never reused, and every receiver keeps
+// a cursor per publisher. Under implicit authorship there is
+// no challenge: the chunks are the binding's own, `challenge` and `index` are
+// unset, and the chunk's id is whatever the binding's SOC shape says.
 message Broadcast {
-  bytes soc = 1;
-}
-
-// ---------------------------------------------------------------------------
-// The service feed — the admin's control plane.
-//
-// Service messages are ordinary SOCs on the ordinary path, owned by the admin:
-//
-//   owner = admin    id = keccak256("bps-service:v1" || topic || challenge || index)
-//
-// travelling as Broadcast frames with their full 32-byte id, on the admin's
-// publisher or pending stream, so a broker relays them and cannot author them, and
-// a subscriber checks them with the same code as any broadcast. The payload
-// carries its own index and the challenge of the stream it was published on, so
-// the id is verifiable without an out-of-band hint and the message is as fresh as
-// a publication -- and a service SOC is told from a publication by that id alone:
-// it never begins with a stream's challenge. Sequential indices (SWIP-65 self-indexed feeds)
-// make gaps visible: a single constant-id slot overwritten in place would make
-// a stale roster undetectable, reintroducing forging-by-omission at the one
-// point that decides who may write. The feed starts at index 0 with the first
-// ROSTER or END_OF_STREAM; a cohort whose admin has published nothing has an
-// empty service feed, and the admin alone may write.
-// ---------------------------------------------------------------------------
-
-enum ServiceKind {
-  SERVICE_KIND_UNSPECIFIED = 0; // invalid on the wire (see header note)
-  ROSTER        = 1; // the full publisher set as of this index (not a delta)
-  END_OF_STREAM = 2; // the admin closes the cohort, attributably
-}
-
-// The payload of a service SOC.
-message ServiceMessage {
-  ServiceKind    kind       = 1;
-  uint64         index      = 2; // this update's index on the service feed
-  bytes          challenge  = 3; // the challenge of the admin's stream, as in the Ack
-  repeated bytes publishers = 4; // set iff ROSTER: 20-byte eth addresses, the
-                                 // complete set excl. admin (who is always a
-                                 // publisher). Full state, not a delta, so a
-                                 // reader needs only the latest it can verify.
+  bytes  soc       = 1;
+  Kind   kind      = 2;
+  bytes  challenge = 3; // 32 bytes: the challenge of the stream the chunk was
+                        // signed for
+  uint64 index     = 4; // the chunk's index on its feed
 }
 
 // Keepalive / RTT: none at the BPS level. Liveness is the transport's job
