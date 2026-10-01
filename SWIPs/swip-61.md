@@ -175,34 +175,40 @@ dishonest one can delay a message or drop it, never author one.
 
 **Claims travel rootward too.** A publisher proves its key to the node it attaches to
 exactly as at a singlehop broker (SWIP-74, *Handshake*): it declares its address in
-`Join`, receives that node's challenge, and sends its claim — a `Broadcast` whose chunk it
-signs, a `CLAIM` service message carrying that node's challenge, that node's overlay and
-its cursor. A
-publisher that keeps two parents claims at each: each parent issues its own challenge and
-is named by its own overlay, so a claim is per attachment stream. A parent's own parent
-cannot verify the challenge — it was the attachment node's, derived from a secret it does
-not hold — so what travels rootward is an **attestation** **(?)**: the attachment node,
-having verified the claim, forwards it unchanged up both of its own parents on the child
-streams they already hold, and does so only if the address is legitimate to upgrade — the
-admin's, or an entry in the roster it holds. The receiving node derives the claim id from
-the topic, recovers the owner and reads the cursor from the chunk, checks legitimacy
-against its own roster, and upgrades that child stream for `addr` on the child's word,
-hop by hop, so that a
+`Join`, receives a challenge that node drew at random for the stream, and its first
+publication — signed, like every one after it, with that challenge as the first 24 bytes
+of its `id` slot — is its claim. A publisher that keeps two parents holds a stream to
+each, with each parent's own challenge, and signs each update once per stream. A parent's
+own parent did not issue that challenge and cannot check it; what travels rootward is
+the publication itself, and the check that moves with it is the one every receiver can
+make — the id reconstructed from the slot, the signature and the owner — while the
+freshness check stays at the attachment node. The attachment node, having verified the
+first publication, forwards it unchanged up both of its own parents on the child streams
+they already hold, and does so only if the address is legitimate to upgrade — the
+admin's, or an entry in the roster it holds; the receiving node validates the chunk at
+the address formed from the id and the owner the child names, checks legitimacy against
+its own roster, and upgrades that child stream for `addr` on the child's word, hop by
+hop — which is where the salt stops protecting identity: a parent that upgrades on a
+forwarded chunk alone would upgrade for anyone who replays a delivered one, so the
+child's word, and what bounds it, is what the re-base has to settle **(?)** — so that a
 publication travels rootward only on streams upgraded for its owner; a publication
 arriving on a stream not upgraded for its owner is dropped as any invalid frame is (the
 leniency of conformance item 11 is for the stateless checks, not for this). Legitimacy
 rootward therefore rests on the chain of relays, which can attest falsely but cannot sign
 a publication: the root remains the authority per message, as the paragraph above says,
 and a false attestation buys a relay exactly what a subscriber stream cannot carry — the
-admin's captured history, rootward, after a reclaim — which is history, not forgery.
-Under `ALL` nothing is forwarded and no claim exists; a relay's upstream stream then
+admin's captured updates of an earlier session, rootward, after a reclaim — which the
+root's cursor drops as retransmits where it has seen them, and which is history, not
+forgery, where it has not. Under `ALL` nothing is forwarded and no claim exists, but the
+salt still applies at the attachment node; a relay's upstream stream then
 carries publications of many owners, so on relayed streams each hop authenticates each
 publication on its own hash and signature rather than against one declared address
 **(?)**. This section still names `Publish` and the join `Subscribe`/`Open`; SWIP-60
 folded `Publish` into `Broadcast`, the one data frame both ways, and the join into
-`Join{spec, addr, auth?}`. The proto block and conformance item 3 below are written
-against SWIP-60 rev 4 and collide with rev 7: SWIP-60's `Ack` is `{status, challenge}`
-and its `Broadcast` is `{soc}` — the chunk data alone, no `oneof`, nothing reserved — so this
+`Join{spec, addr}`. The proto block and conformance item 3 below are written
+against SWIP-60 rev 4 and collide with rev 10: SWIP-60's `Ack` is `{status, challenge}`,
+the challenge random per stream, and its `Broadcast` is `{soc}` — the chunk data alone,
+no `oneof`, nothing reserved — so this
 SWIP's control frames must become messages of their own and `Ack.candidates` must be
 renumbered — the full re-base is pending **(?)**.
 
