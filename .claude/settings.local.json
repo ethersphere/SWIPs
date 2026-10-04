@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git fetch:*)",
+      "Bash(git pull:*)",
+      "Bash(git checkout:*)",
+      "Bash(ls -la *.md)",
+      "mcp__datacore__datacore_session_start",
+      "Bash(gh pr:*)",
+      "Bash(grep:*)",
+      "Bash(gh issue:*)",
+      "Bash(gh api:*)",
+      "mcp__datacore__datacore_learn",
+      "mcp__datacore__datacore_session_end"
+    ]
+  }
+}
