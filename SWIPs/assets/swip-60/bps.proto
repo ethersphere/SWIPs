@@ -1,6 +1,8 @@
 // Broadcast Pub/Sub (BPS) — protocol messages and types.
 // Spec: SWIP-60 (../../swip-60.md), extending the base wire of SWIP-74 (BPS-lite).
 //
+// Revision 15 (2026-10-10): field names principal and identity, protocol bps/1.0.0,
+// auth deadline — as the implementation (bee #5626) settled them.
 // Revision 14 (2026-10-01), per Viktor — the chunk is an ordinary single-owner chunk
 // with its full id; the frame carries what the id was derived from (kind, challenge,
 // index) beside it; the challenge is 32 bytes; service messages are kinds, not
@@ -78,24 +80,25 @@ enum PublisherRegime {
 message CohortSpec {
   bytes           topic      = 1; // 32 bytes, meaning per binding
   TopicBinding    binding    = 2;
-  bytes           admin      = 3; // 20-byte eth address: the cohort's authority
-                                  // and always a member of its publisher set.
+  bytes           principal  = 3; // 20-byte eth address: the admin -- the cohort's
+                                  // authority and always a member of its publisher set.
                                   // Absent (length 0) => implicit authorship,
                                   // and `publishers`, `closed` do not apply.
   PublisherRegime publishers = 4; // ALL, or unset (see the enum)
   bool            history    = 5; // deliver matching chunks from the local store
   bool            closed     = 6; // no audience: every stream is admitted silent,
-                                  // receiving nothing but a roster naming its addr,
+                                  // receiving nothing but a roster naming its identity,
                                   // and is disconnected unless
                                   // its first valid frame, from the admin's or a
-                                  // rostered address, arrives within the claim
+                                  // rostered address, arrives within the auth
                                   // deadline.
                                   // Unset = open, so that a SWIP-74 spec, which
                                   // never sets it, reads as an open cohort.
 }
 
 // ---------------------------------------------------------------------------
-// Stream establishment, stream name "pubsub/1.0.0" — one stream per
+// Stream establishment, libp2p protocol /swarm/bps/1.0.0/bps (name bps, version
+// 1.0.0, stream bps) — one stream per
 // (peer, cohort, identity). The first and only handshake frame on a fresh stream
 // is Join; the broker answers with Ack. The first frame settles the cohort; the
 // first valid Broadcast settles the role.
@@ -106,16 +109,15 @@ message CohortSpec {
 // cursor, no credential: the stream's role follows from what it sends after the
 // Ack.
 message Join {
-  CohortSpec cohort = 1;
-  bytes      addr   = 2; // 20 bytes, required: the stream's identity -- under
-                         // explicit authorship the address whose first valid
-                         // frame claims the stream; the admin's or a rostered
-                         // one makes the stream pending (outside the fan-out
-                         // bound, receiving nothing but the roster that names it
-                         // until it claims), any other
-                         // a spectator, which may not publish; under ALL and
-                         // under implicit authorship the one every publication
-                         // is validated against, no claim
+  CohortSpec cohort   = 1;
+  bytes      identity = 2; // 20 bytes, required: under explicit authorship the
+                           // address whose first valid frame claims the stream;
+                           // the principal's or a rostered one makes the stream
+                           // pending (outside the fan-out bound, receiving nothing
+                           // but the roster that names it until it claims), any
+                           // other a spectator, which may not publish; under ALL
+                           // and under implicit authorship the one every
+                           // publication is validated against, no claim
 }
 
 enum Status {
@@ -125,13 +127,13 @@ enum Status {
                           // connection); a singlehop broker refuses -- nothing
                           // else
   REJECTED           = 3; // a spec value outside this SWIP, or a malformed Join
-                          // (addr not 20 bytes)
+                          // (identity not 20 bytes)
 }
 
 // Broker -> peer, answering Join. A non-OK Ack ends the stream. The latest roster
 // is the first Broadcast on a stream when it enters a fan-out set -- at attach for
 // a spectator, at upgrade for a pending or silent stream -- and reaches a pending
-// or silent stream before that only if it names the stream's addr.
+// or silent stream before that only if it names the stream's identity.
 message Ack {
   Status status    = 1;
   bytes  challenge = 2; // iff OK: 32 bytes drawn at random for this stream -- the
