@@ -188,7 +188,7 @@ first publication, forwards it unchanged up both of its own parents on the child
 they already hold, and does so only if the address is legitimate to upgrade — the
 admin's, or an entry in the roster it holds; the receiving node validates the chunk at
 the address formed from the id and the owner the child names, checks legitimacy against
-its own roster, and upgrades that child stream for `addr` on the child's word, hop by
+its own roster, and upgrades that child stream for `identity` on the child's word, hop by
 hop — which is where the salt stops protecting identity: a parent that upgrades on a
 forwarded chunk alone would upgrade for anyone who replays a delivered one, so the
 child's word, and what bounds it, is what the re-base has to settle **(?)** — so that a
@@ -207,10 +207,10 @@ carries publications of many owners, so on relayed streams each hop authenticate
 publication on its own hash and signature rather than against one declared address
 **(?)**. This section still names `Publish` and the join `Subscribe`/`Open`; SWIP-60
 folded `Publish` into `Broadcast`, the one data frame both ways, and the join into
-`Join{cohort, addr}`; and the delivery receipt above — a publisher's own message
+`Join{cohort, identity}`; and the delivery receipt above — a publisher's own message
 reaching it — presumes a loopback that SWIP-74 does not have on streams upgraded for the
 publishing identity. The proto block and conformance item 3 below are written
-against SWIP-60 rev 4 and collide with rev 11: SWIP-60's `Ack` is `{status, challenge}`,
+against SWIP-60 rev 4 and collide with rev 12: SWIP-60's `Ack` is `{status, challenge}`,
 the challenge random per stream, and its `Broadcast` is `{soc, kind, challenge, index}` —
 the chunk data and what its id was derived from, no `oneof`, nothing reserved — so this
 SWIP's control frames must become messages of their own and `Ack.candidates` must be
@@ -504,7 +504,7 @@ An implementation is conformant when:
 
 ## Backwards compatibility
 
-Same stream name `pubsub/1.0.0`, no version bump: `Reparent`, `Probe` and `Candidates`
+Same stream name `bps/1.0.0`, no version bump: `Reparent`, `Probe` and `Candidates`
 fill `Broadcast` oneof fields reserved by SWIP-60, and the single new `Ack` field
 is invisible to old implementations — an old client ignores `Ack.candidates` and reads
 a plain `FULL`. A SWIP-60 leaf that receives a `Probe` ignores the unknown frame and
