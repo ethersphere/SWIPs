@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="660" viewBox="0 0 1120 660" font-family="Menlo, Consolas, DejaVu Sans Mono, monospace" font-size="12">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#444"/></marker></defs>
+<rect width="1120" height="660" fill="#ffffff"/>
+<text x="20" y="28" font-size="15" fill="#111" font-weight="bold">How a chunk&#x27;s id is derived from the frame, and where it is validated</text>
+<rect x="20" y="50" width="260" height="150" rx="6" fill="#f3f6fb" stroke="#444" stroke-width="1.2"/>
+<text x="30" y="68" font-weight="bold" fill="#111">Broadcast  (the frame)</text>
+<rect x="30" y="78" width="240" height="24" rx="6" fill="#ffe9b8" stroke="#777" stroke-width="1.2"/>
+<text x="38" y="94" font-size="12" fill="#111">kind</text>
+<text x="112" y="94" font-size="10" fill="#333">1 byte, enum</text>
+<rect x="30" y="107" width="240" height="24" rx="6" fill="#d9f2e3" stroke="#777" stroke-width="1.2"/>
+<text x="38" y="123" font-size="12" fill="#111">challenge</text>
+<text x="112" y="123" font-size="10" fill="#333">32 bytes, the stream&#x27;s</text>
+<rect x="30" y="136" width="240" height="24" rx="6" fill="#e3ddf7" stroke="#777" stroke-width="1.2"/>
+<text x="38" y="152" font-size="12" fill="#111">index</text>
+<text x="112" y="152" font-size="10" fill="#333">8 bytes, big-endian</text>
+<rect x="30" y="165" width="240" height="24" rx="6" fill="#f7e1e1" stroke="#777" stroke-width="1.2"/>
+<text x="38" y="181" font-size="12" fill="#111">soc</text>
+<text x="112" y="181" font-size="10" fill="#333">the chunk, 105 + payload</text>
+<rect x="20" y="230" width="260" height="90" rx="6" fill="#f3f6fb" stroke="#444" stroke-width="1.2"/>
+<text x="30" y="248" font-weight="bold" fill="#111">CohortSpec  (from Join)</text>
+<rect x="30" y="258" width="240" height="24" rx="6" fill="#d6ecf7" stroke="#777" stroke-width="1.2"/>
+<text x="38" y="274" font-size="12" fill="#111">topic</text>
+<text x="112" y="274" font-size="10" fill="#333">32 bytes</text>
+<rect x="30" y="287" width="240" height="24" rx="6" fill="#fbe3c9" stroke="#777" stroke-width="1.2"/>
+<text x="38" y="303" font-size="12" fill="#111">principal</text>
+<text x="112" y="303" font-size="10" fill="#333">20 bytes, eth address</text>
+<rect x="340" y="50" width="760" height="56" rx="6" fill="#fffaf0" stroke="#444" stroke-width="1.2"/>
+<text x="350" y="68" font-weight="bold" fill="#111">1  prefix  &lt;-  kind</text>
+<text x="352" y="86" font-size="12" fill="#111">DATA    -&gt;  (empty)</text>
+<text x="352" y="104" font-size="12" fill="#111">AUTH    -&gt;  &quot;bps-service:v1&quot; || 0x02</text>
+<rect x="340" y="128" width="760" height="52" rx="6" fill="#f0fff4" stroke="#444" stroke-width="1.2"/>
+<text x="350" y="146" font-weight="bold" fill="#111">2  topic_s  =  keccak256( prefix || topic || challenge )</text>
+<text x="352" y="168" font-size="10" fill="#333">the session feed of this kind: the topic salted with the challenge the broker drew for the stream; one feed per kind</text>
+<rect x="340" y="202" width="760" height="52" rx="6" fill="#f5f0ff" stroke="#444" stroke-width="1.2"/>
+<text x="350" y="220" font-weight="bold" fill="#111">3  id  =  keccak256( topic_s || index )</text>
+<text x="352" y="242" font-size="10" fill="#333">index as 8 bytes big-endian: the AUTH is at index 0 of its feed, a DATA update at its feed index</text>
+<rect x="340" y="276" width="760" height="96" rx="6" fill="#fff5f5" stroke="#444" stroke-width="1.2"/>
+<text x="350" y="294" font-weight="bold" fill="#111">4  the chunk must carry that id:   soc = id || signature || span || payload</text>
+<rect x="352" y="306" width="90" height="26" rx="6" fill="#e3ddf7" stroke="#777" stroke-width="1.2"/>
+<text x="358" y="323" font-size="10" fill="#111">id 32</text>
+<rect x="442" y="306" width="160" height="26" rx="6" fill="#f7e1e1" stroke="#777" stroke-width="1.2"/>
+<text x="448" y="323" font-size="10" fill="#111">signature 65</text>
+<rect x="602" y="306" width="120" height="26" rx="6" fill="#eeeeee" stroke="#777" stroke-width="1.2"/>
+<text x="608" y="323" font-size="10" fill="#111">span 8, LE</text>
+<rect x="722" y="306" width="360" height="26" rx="6" fill="#f7f7d9" stroke="#777" stroke-width="1.2"/>
+<text x="728" y="323" font-size="10" fill="#111">payload &lt;= 4096   (AUTH: span 0, no payload)</text>
+<text x="352" y="350" font-size="10" fill="#333">the receiver derives the id from the frame and requires soc[0:32] to equal it:</text>
+<text x="352" y="364" font-size="10" fill="#333">kind, challenge and index are not trusted, they are bound through the id&#x27;s preimage</text>
+<rect x="340" y="394" width="760" height="72" rx="6" fill="#f0f6ff" stroke="#444" stroke-width="1.2"/>
+<text x="350" y="412" font-weight="bold" fill="#111">5  address  =  keccak256( id || principal )      validate the SOC at this address</text>
+<text x="352" y="434" font-size="10" fill="#333">BMT(span || payload) = wrapped address;  the signature over keccak256(id || wrapped) recovers an owner;</text>
+<text x="352" y="449" font-size="10" fill="#333">keccak256(id || owner) must equal the address: the owner is forced to the principal, not read from the key</text>
+<line x1="270" y1="90" x2="340" y2="90" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+<path d="M270,119 C315,119 295,154 340,154" fill="none" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+<path d="M270,148 C315,148 295,228 340,228" fill="none" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+<path d="M270,177 C315,177 295,298 340,298" fill="none" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+<path d="M270,270 C315,270 295,166 340,166" fill="none" stroke="#2a7f4f" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+<path d="M270,299 C315,299 295,420 340,420" fill="none" stroke="#b5551d" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#ar)"/>
+<line x1="700" y1="106" x2="700" y2="128" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+<line x1="700" y1="180" x2="700" y2="202" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+<line x1="700" y1="254" x2="700" y2="276" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+<line x1="700" y1="372" x2="700" y2="394" stroke="#444" stroke-width="1.4" marker-end="url(#ar)"/>
+<text x="20" y="490" font-size="11" fill="#111">Nothing in the frame is signed. The kind, the challenge and the index are bound because the id the chunk</text>
+<text x="20" y="506" font-size="11" fill="#111">is signed under is derived from them: change any one and the derived id is not the chunk&#x27;s, so the frame</text>
+<text x="20" y="522" font-size="11" fill="#111">is refused before the signature is checked.</text>
+</svg>
