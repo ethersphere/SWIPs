@@ -37,7 +37,8 @@ a publisher-less cohort at the cohort bound. Rev 10: the `AUTH` — the empty ch
 index 0 of the session's `AUTH` feed — is the only way a stream authenticates, and a
 pending stream sends nothing else; an update is accepted on a publisher stream only, so
 nothing upgrades a stream from the data path; an `AUTH` on a publisher stream is a
-heartbeat; what earlier revisions called the claim is the auth.
+heartbeat; what earlier revisions called the claim is the auth; a glossary, an outcomes
+table and a figure of the id derivation are added.
 SWIP-60 (PR #104) is the
 full singlehop protocol and extends this wire without changing it; see "Relation to
 SWIP-60". Open points are marked (?). -->
@@ -100,6 +101,37 @@ who may write (the admin, proved by its signature on every message).
 The key words MUST, MUST NOT, REQUIRED, SHOULD, RECOMMENDED and MAY are to be interpreted
 as described in RFC 2119. Terms — cohort (a channel's set of nodes), broker, admin,
 subscriber — are SWIP-60's.
+
+### Terms
+
+| term | meaning |
+|---|---|
+| **channel** | what an application streams on: a feed topic and its author's address, `(topic, principal)`, independent of any broker |
+| **cohort** | the live state of one channel at one broker: the streams attached under one spec, created by the first `Join` that names the spec, reclaimed by inactivity |
+| **cohort spec**, `CohortSpec` | `{topic, binding = FEED_TOPIC, principal}`: the cohort's identity, carried in full in every `Join` |
+| **topic** | 32 bytes: the channel's feed topic |
+| **principal** | the 20-byte address whose single-owner chunks the cohort carries — the publisher; where the family's control plane is meant, the **admin** |
+| **broker** | the full node every stream of the cohort is attached to: it validates, keeps the cursor and fans out; it can withhold, never forge |
+| **peer** | a node connected to the broker; one peer connection may hold several streams |
+| **stream** | one libp2p stream `/swarm/bps/1.0.0/bps` from a peer to the broker, for one cohort and one identity: the unit of role, flow control and teardown |
+| **identity** | the address a stream declares in `Join`: the one it publishes as, if it may |
+| **role** | what a stream may send and receive, settled by its identity and its auth: **subscriber stream** — any identity but the principal's; receives every delivery, sends nothing. **Pending stream** — declared the principal, not yet authenticated; receives nothing, sends nothing but its `AUTH`, admitted outside the fan-out bound, disconnected at the auth deadline. **Publisher stream** — a pending stream after its `AUTH`; sends publications and heartbeats, receives nothing |
+| **frame** | one protobuf message on a stream: `Join`, `Ack` or `Broadcast`; what a frame is follows from the stream's direction and role, never from an envelope |
+| **handshake** | the first frame each way: `Join{cohort, identity}` from the peer, `Ack{status, challenge}` from the broker |
+| **challenge** | 32 bytes the broker draws at random for each stream and sends in the `Ack`: it salts the session feed and is never persisted or reused |
+| **single-owner chunk**, SOC | `id (32) ‖ signature (65) ‖ span (8) ‖ payload (≤ 4096)`, stored and validated at `keccak256(id ‖ owner)`; every chunk on this wire is one |
+| **kind** | what a chunk is: `DATA` or `AUTH` (SWIP-60 adds `EOS`, `ROSTER`); carried in the frame, it selects the feed's prefix |
+| **session feed** | the channel's feed salted for one stream: topic `keccak256(prefix ‖ topic ‖ challenge)`, one feed per kind, each with its own index sequence; the chunk id is `keccak256(topic_s ‖ index)` |
+| **index** | the chunk's position on its feed: 8 bytes big-endian in the frame and in the id's preimage |
+| **update**, publication | a `DATA` frame from a publisher stream: one chunk of the session's `DATA` feed |
+| **auth** | the act and the frame that authenticate a stream: the **`AUTH`**, an empty SOC at index 0 of the session's `AUTH` feed, which upgrades a pending stream and is never delivered |
+| **heartbeat** | an `AUTH` on a publisher stream: counts as activity, does nothing else |
+| **delivery** | an accepted update forwarded unchanged — chunk, kind, challenge, index — to every subscriber stream |
+| **fan-out set** | the subscriber streams of a cohort, bounded per cohort |
+| **cursor** | the lowest `DATA` index accepted next: the broker keeps one per cohort, a subscriber one per channel |
+| **retransmit** | a `DATA` frame below the cursor: dropped and counted, not a violation |
+| **violation** | a frame a stream may not send, or a chunk that does not validate: dropped, counted, the stream reset, the peer blocklisted |
+| **inactivity deadline** | how long a cohort survives without an accepted frame; the **auth deadline** is how long a pending stream has to send its `AUTH` |
 
 ### The contract
 
@@ -268,6 +300,8 @@ topic_s = keccak256(prefix ‖ topic ‖ challenge)
 id      = keccak256(topic_s ‖ index)        topic 32, challenge 32, index 8 bytes big-endian
 ```
 
+![How a chunk's id is derived from the frame, and where it is validated](assets/swip-74/id-derivation.svg)
+
 — an ordinary feed, addressable as `(admin, topic_s)` by ordinary feed tooling, and one
 of its own per kind, each with its own index sequence. The chunk is an ordinary
 single-owner chunk with that id in its `id` slot, and the frame carries beside it the
@@ -420,6 +454,35 @@ index read from the frame — end to end, whatever the broker did; they never ap
 is never a delivery. A delivery that fails step 5 is a broker forwarding
 what it should have refused: the subscriber MUST reset the stream, and SHOULD NOT
 rejoin that broker for the cohort (?).
+
+### Outcomes
+
+Every frame the broker receives ends in exactly one of the outcomes below. The wire
+carries no error frame: what a peer learns, it learns from the `Ack` status, from its
+stream being reset, or from nothing happening. A reset tells the peer nothing about its
+cause — a violation, the auth deadline, the inactivity reclaim and a broker restart look
+the same from the peer, which backs off before rejoining (*Resource bounds*); the broker
+tells them apart in its counters.
+
+| what arrived | from | outcome | counter | the sender sees |
+|---|---|---|---|---|
+| a `Join` with a binding other than `FEED_TOPIC`, an absent `principal`, or an `identity` that is not 20 bytes | anyone | `Ack{REJECTED}`, stream closed | — | `REJECTED` |
+| a `Join` at a capacity bound — fan-out set full, cohorts per broker, cohorts or streams per connection | anyone, except as below | `Ack{FULL}`, stream closed | — | `FULL` |
+| a `Join` declaring the principal when the fan-out set is full | the principal's node | admitted as a pending stream outside the bound; at the cohort bound the broker SHOULD reclaim the oldest publisher-less cohort for it (?) | — | `OK` and a challenge |
+| any `Broadcast` | a subscriber stream | violation: dropped, stream reset, peer blocklisted | `wrong_stream` | the stream is reset |
+| anything but an `AUTH` | a pending stream | violation: dropped, stream reset, peer blocklisted | `wrong_stream` | the stream is reset |
+| a kind this SWIP does not define | a publisher stream | dropped | `unknown_kind` | nothing |
+| a frame whose challenge is not the stream's | a publisher stream, or an `AUTH` on a pending one | dropped; the broker MAY reset the stream | `wrong_challenge` | nothing, or a reset |
+| a `DATA` below the cursor | a publisher stream | dropped | `retransmit` | nothing |
+| a chunk whose id is not the one derived from the frame, or that does not validate at `keccak256(id ‖ principal)`; an `AUTH` with a payload or not at index 0; a `DATA` at index 2⁶⁴−1 | a publisher or pending stream | violation: dropped, stream reset, peer blocklisted | `invalid_soc` | the stream is reset |
+| no `AUTH` within the auth deadline | a pending stream | stream reset, peer blocklisted for a short time | `auth_timeout` | the stream is reset |
+| a valid `AUTH` | a pending stream | the stream upgrades to a publisher stream; activity | — | nothing |
+| a valid `AUTH` | a publisher stream | activity, nothing else | — | nothing |
+| a valid `DATA` at or above the cursor | a publisher stream | cursor set past it; delivered to every subscriber stream | — | nothing |
+| a delivery a subscriber stream cannot take — its outbound queue is full | the broker, towards a subscriber | that stream is reset | `queue_reset` | the stream is reset |
+| no accepted frame for the inactivity deadline | — | the cohort is reclaimed, every stream in it reset | — | the stream is reset |
+| a delivery of a kind other than `DATA`, or below the subscriber's cursor | the broker, at a subscriber | dropped by the subscriber | — | — |
+| a delivery that does not validate | the broker, at a subscriber | the subscriber resets the stream | — | — |
 
 ### Lifetime: inactivity
 
