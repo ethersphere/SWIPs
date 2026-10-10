@@ -14,7 +14,8 @@ monolithic PubSub SWIP (ethersphere/SWIPs PR #93) into work-package-sized SWIPs.
 the base wire of SWIP-74 (BPS-lite, PR #111) and changes nothing in it. Companion
 protobuf: assets/swip-60/bps.proto (revision 16, derived from SWIP-74's block). Rev 13
 follows SWIP-74 rev 10: the `AUTH` is the only way a stream authenticates, a pending
-stream sends nothing else, and what earlier revisions called the claim is the auth. -->
+stream sends nothing else, and what earlier revisions called the claim is the auth; a
+glossary, an outcomes table, a replay table and a figure of the id derivation are added. -->
 
 - **Business line**: real-time topic streams for dApps without storing chunks or polling —
   enough on its own for the five cohort shapes it defines: **jam** (a closed set of authors:
@@ -56,6 +57,52 @@ adaptive reorganisation, incentives, discovery — is layered on top by later SW
 changing the semantics defined here.
 
 ## Specification
+
+### Terms
+
+The base terms are SWIP-74's, repeated here so that this SWIP reads on its own; the
+rows after **admin** are this SWIP's additions.
+
+| term | meaning |
+|---|---|
+| **channel** | what an application streams on: a topic and, under explicit authorship, its admin's address, independent of any broker |
+| **cohort** | the live state of one channel at one broker: the streams attached under one spec, created by the first `Join` that names the spec, reclaimed by inactivity or ended by an `EOS` |
+| **cohort spec**, `CohortSpec` | `{topic, binding, principal?, publishers?, closed?, history?}`: the cohort's identity, immutable, carried in full in every `Join` |
+| **topic** | 32 bytes: what the binding binds to |
+| **broker** | the full node every stream of the cohort is attached to: it validates, keeps the cursors and fans out; it can withhold, never forge |
+| **peer** | a node connected to the broker; one peer connection may hold several streams |
+| **stream** | one libp2p stream `/swarm/bps/1.0.0/bps` from a peer to the broker, for one cohort and one identity: the unit of role, flow control and teardown |
+| **identity** | the address a stream declares in `Join`: the one it publishes as, if it may |
+| **frame** | one protobuf message on a stream: `Join`, `Ack` or `Broadcast`; what a frame is follows from the stream's direction and role, never from an envelope |
+| **handshake** | the first frame each way: `Join{cohort, identity}` from the peer, `Ack{status, challenge}` from the broker |
+| **challenge** | 32 bytes the broker draws at random for each stream and sends in the `Ack`: it salts the session feed and is never persisted or reused |
+| **single-owner chunk**, SOC | `id (32) ‖ signature (65) ‖ span (8) ‖ payload (≤ 4096)`, stored and validated at `keccak256(id ‖ owner)`; every chunk on this wire is one |
+| **kind** | what a chunk is: `DATA`, `AUTH`, `EOS` or `ROSTER`; carried in the frame, it selects the feed's prefix |
+| **session feed** | the channel's feed salted for one stream: topic `keccak256(prefix ‖ topic ‖ challenge)`, one feed per kind, each with its own index sequence; the chunk id is `keccak256(topic_s ‖ index)` (SWIP-74) |
+| **index** | the chunk's position on its feed: 8 bytes big-endian in the frame and in the id's preimage |
+| **update**, publication | a `DATA` frame from a publisher stream |
+| **auth** | the act and the frame that authenticate a stream: the **`AUTH`**, an empty SOC at index 0 of the session's `AUTH` feed, which upgrades a stream that may authenticate and is never delivered |
+| **heartbeat** | an `AUTH` on a publisher stream: counts as activity, does nothing else |
+| **delivery** | an accepted frame forwarded unchanged — chunk, kind, challenge, index — to every stream in a fan-out set not bound to the publishing identity |
+| **fan-out set** | the streams of a cohort that receive deliveries, bounded per cohort |
+| **cursor** | the lowest index accepted next: at the broker one per publisher and one for the roster feed, at a subscriber the same, kept across streams |
+| **retransmit** | a frame below its cursor: dropped and counted, not a violation |
+| **violation** | a frame a stream may not send, or a chunk that does not validate: dropped, counted, the stream reset, the peer blocklisted |
+| **inactivity deadline**, **auth deadline** | how long a cohort survives without an accepted frame; how long a pending or silent stream has to send its `AUTH` |
+| **principal**, **admin** | the address in the spec: under explicit authorship the **admin** — the cohort's authority, the only writer of the service feeds, always a publisher |
+| **explicit authorship** | `principal` set: the admin and the addresses its roster names may publish; every such stream is authenticated by its `AUTH` and every chunk salted by its stream's challenge |
+| **implicit authorship** | `principal` absent: who may publish follows from the binding's SOC shape; no auth, no salt, dedup on chunk address |
+| **`ALL`** | the one `publishers` value: anyone attached may publish; a stream declaring an address is a publisher stream from its `Join`, no auth, every chunk still salted and held to the declared address |
+| **binding** | what the topic binds to — `MNEMONIC`, `ANCHOR`, `SOC_ID`, `OWNER`, `FEED_TOPIC` — which fixes which SOCs qualify under implicit authorship and the dedup rule there |
+| **roles** | **subscriber stream** — receives, sends nothing (SWIP-74). **Pending stream** — declared the admin's or a rostered address, not yet authenticated: receives nothing but the roster that names it, sends nothing but its `AUTH`, admitted outside the fan-out bound. **Publisher stream** — authenticated, or declared under `ALL` or implicit authorship: sends publications, heartbeats and, if it is the admin's, service messages. **Spectator stream** — under explicit authorship, an identity neither the admin's nor rostered: within the bound, receives, sends nothing, may authenticate once a roster names its address. **Silent stream** — a spectator in a `closed` cohort: receives nothing but a roster naming it, disconnected at the auth deadline unless it authenticates |
+| **roster** | the admin's complete publisher set, published as a `ROSTER` chunk on the admin's roster feed; the latest one the broker holds is the first delivery on every stream entering a fan-out set |
+| **rostered** | named by the latest roster the broker has accepted |
+| **service message**, service feed | the admin's control plane: `EOS` and `ROSTER`, each a kind with its own session feed, the owner forced to the admin |
+| **`EOS`** | end of stream: the empty chunk at index 0 of the admin's `EOS` feed; ends the channel, attributably and for good |
+| **grant**, **revocation** | the admin adding or removing an address by publishing the next roster: a grant takes effect at the grantee's `AUTH`, a revocation once the reduced roster has reached the revoked stream and a grace period has passed |
+| **`closed`** | no audience: every stream is silent until its `AUTH` validates for the admin's or a rostered address |
+| **`history`** | deliver matching chunks from the local store on attach (mechanism in bps-history) |
+| **dApp**, bridge | the application behind the Bee API's WebSocket endpoints; the node joins, validates and relays on its behalf and holds no key |
 
 ### The contract
 
@@ -546,6 +593,42 @@ Messages are defined in [bps.proto](assets/swip-60/bps.proto). Framing notes:
   (SWIP-74). What multihop's dual paths do to this is
   [SWIP-61](https://github.com/ethersphere/SWIPs/pull/105)'s business.
 
+#### Outcomes
+
+![How a chunk's id is derived from the frame, and where it is validated](assets/swip-60/id-derivation.svg)
+
+Every frame the broker receives ends in exactly one of the outcomes below — SWIP-74's,
+plus this SWIP's. The wire carries no error frame: a peer learns what it learns from the
+`Ack` status, from its stream being reset, or from nothing happening, and a reset says
+nothing about its cause; the broker tells causes apart in its counters.
+
+| what arrived | from | outcome | counter | the sender sees |
+|---|---|---|---|---|
+| a `Join` with a spec value outside this SWIP or an `identity` that is not 20 bytes | anyone | `Ack{REJECTED}`, stream closed | — | `REJECTED` |
+| a `Join` at a capacity bound | anyone but the admin's or a rostered identity | `Ack{FULL}`, stream closed | — | `FULL` |
+| a `Join` declaring the admin's or a rostered identity when the fan-out set is full | that address's node | admitted as a pending stream outside the bound | — | `OK` and a challenge |
+| a `Join` beyond the publisher streams one address may hold | a publisher's node | admitted; the oldest of that address's streams is reset at the new one's `AUTH` (?) | — | `OK`; the old stream is reset |
+| any `Broadcast` | a subscriber stream, or a spectator or silent stream no roster names | violation: dropped, stream reset, peer blocklisted | `wrong_stream` | the stream is reset |
+| anything but an `AUTH` | a pending stream, or a spectator or silent stream a roster names | violation | `wrong_stream` | the stream is reset |
+| an `EOS` or `ROSTER` | any stream but the admin's publisher stream | violation | `wrong_stream` | the stream is reset |
+| a kind this SWIP does not define | a publisher stream | dropped | `unknown_kind` | nothing |
+| a frame whose challenge is not the stream's | a publisher stream, or an `AUTH` on a stream that may authenticate | dropped; the broker MAY reset the stream | `wrong_challenge` | nothing, or a reset |
+| a `DATA` below the publisher's cursor, or a `ROSTER` below the roster cursor | the admin's or a publisher stream | dropped | `retransmit` | nothing |
+| a chunk whose id is not the one derived from the frame, or that does not validate at the address formed from the id and the owner the broker holds the stream to; an `AUTH` or `EOS` with a payload or not at index 0; an index of 2⁶⁴−1 | a stream that may send that kind | violation | `invalid_soc` | the stream is reset |
+| a `ROSTER` that validates but whose payload does not decode as a `Roster` | the admin's publisher stream | dropped; no cursor moves | `invalid_roster` | nothing |
+| a frame from a revoked publisher before the reduced roster has reached its stream and the grace period has passed | a revoked publisher stream | dropped and tolerated | `revoked` | nothing |
+| a frame from a revoked publisher after that point | the same | violation | `wrong_stream` | the stream is reset |
+| no `AUTH` within the auth deadline | a pending or silent stream | stream reset, peer blocklisted for a short time | `auth_timeout` | the stream is reset |
+| a valid `AUTH` | a stream that may authenticate | the stream upgrades to a publisher stream and, if it was not in the fan-out set, receives the latest roster first; activity | — | nothing |
+| a valid `AUTH` | a publisher stream | activity, nothing else | — | nothing |
+| a valid `DATA` at or above its publisher's cursor | a publisher stream | cursor set past it; delivered to every stream in the fan-out set not bound to the publishing identity | — | nothing |
+| a valid `ROSTER` at or above the roster cursor | the admin's publisher stream | roster cursor set past it; the roster replaces the broker's; delivered as any publication, and at once to a pending or silent stream it names | — | nothing |
+| a valid `EOS` | the admin's publisher stream | delivered to the fan-out set, then the cohort is reclaimed and every stream reset | — | the stream is reset |
+| a delivery a stream cannot take — its outbound queue is full | the broker, towards a receiving stream | that stream is reset | `queue_reset` | the stream is reset |
+| no accepted frame for the inactivity deadline | — | the cohort is reclaimed, every stream in it reset | — | the stream is reset |
+| a delivery of an `AUTH`, of a kind it does not know, or below its cursor | the broker, at a subscriber | dropped by the subscriber | — | — |
+| a delivery that does not validate, or whose owner the roster does not admit | the broker, at a subscriber | the subscriber resets the stream | — | — |
+
 ### API (WebSocket bridge)
 
 One endpoint pair on the Bee API. Endpoint shape follows bee
@@ -871,6 +954,34 @@ roster leaves the violation unable to begin at all, which is an ordinary, visibl
 fault. Announcing first also makes the revocation legible to the rest of the cohort, which
 learns *why* a publisher fell silent from an admin-signed message rather than from an
 unattributable disconnection.
+
+**Replay, case by case.** What can be captured and presented again, by whom, where, with
+what result, and what stops it — SWIP-74's table extended by this SWIP's rows:
+
+| replayed | by whom | where | result | stopped by |
+|---|---|---|---|---|
+| a session's frames as they were, the `AUTH` included | anyone who received them — every subscriber, the bridging node, a relay, the broker itself | any other stream: another node, the same node reconnecting, this broker after a restart or a reclaim, another broker, another cohort | on a publisher stream dropped before any signature check (`wrong_challenge`); from a subscriber, spectator or silent stream, or as anything but an `AUTH` from a pending one, a violation | the frame's challenge is not the receiving stream's |
+| a session's chunks with the receiving stream's challenge put in the frame | the same | the same | a violation: the stream reset, the peer blocklisted | the challenge is in the id's preimage: the derived id is not the chunk's |
+| a frame with its kind, challenge or index altered | the broker, towards subscribers | a subscriber | refused | the same: all three are in the id's preimage |
+| an `AUTH` passed off as an `EOS` — both empty, both at index 0 — or any kind as another | the broker | a subscriber | refused | the kind byte is in the prefix (?) |
+| an earlier session's update, at an index the publisher reused | a broker that carried it | a subscriber, in place of the later session's update | delivered: a subscriber cannot tell sessions apart | the publisher never reusing an index; then it is below every returning subscriber's cursor |
+| an earlier session's `ROSTER` | a broker that carried it | a subscriber | dropped below the roster cursor; a first-time subscriber has no cursor and can be shown an old roster as the latest | roster indices never reused; the roster cursor kept per `(topic, admin)` across streams; the residual stated |
+| an earlier session's `EOS` | a broker that carried it | a subscriber of a later run on the same channel | accepted — and true: the channel is ended | an `EOS` ends the channel, not a session; an admin that publishes again takes another topic (?) |
+| an earlier session's messages under a non-feed binding | a broker that carried it | a subscriber | dropped as retransmits | under explicit authorship and `ALL` the index works for every binding: a cursor per publisher, no index reuse |
+| a service chunk signed by anyone but the admin — the broker's own key, a rostered seat | the broker | a subscriber | refused | for every kind but `DATA` the owner is forced to the admin |
+| rosters or an `EOS` of another spec on the same topic and admin | a broker that carried it | a subscriber | accepted | nothing on the wire: the id binds topic and owner, not the spec — an admin SHOULD NOT run two specs on one topic |
+| the challenge, by joining with the admin's or a rostered address | anyone | this broker | harmless: a pending stream that receives nothing but the roster, until the auth deadline, then a blocklist | the `AUTH`, not the challenge, is the credential |
+| the challenge, forwarded | a relay or impostor broker the publisher was pointed at | the honest broker | the publisher's own frames reach the honest broker as the publisher's: the relay is a transparent hop that can withhold, not author — in a `closed` cohort it attends in the member's name (?) | nothing needed for authorship; `closed` against relays is flagged |
+| a chunk of the channel's own feed, `keccak256(topic ‖ index)` | anyone holding it | any stream | a violation | no challenge gives the unsalted topic |
+| the admin's queued updates of its previous session | the admin's own node, reconnecting | its new stream | before the `AUTH` a violation (`wrong_stream`), after it dropped (`wrong_challenge`), the broker MAY reset | the publisher re-signs its queue and sends nothing before its `AUTH` |
+| a publisher's updates on its own stream | the publisher's node | this session | dropped as retransmits | the cursor |
+| a publisher's updates from two nodes | the publisher | this broker | valid on each stream — two challenges, two signatures per update — delivered once | the cursor |
+| the session feed, from storage | anyone who saved it | first-time viewers | history: genuine updates in order | nothing needed; returning viewers keep their cursor per publisher |
+| a `Join` as the admin or a rostered address, from throwaway peer ids | a Sybil | a full cohort | a pending stream each: no deliveries but the roster, then the auth deadline | pending streams are outside the fan-out bound; streams per connection per cohort are bounded |
+| any frame | an unrostered member | its spectator or silent stream | a violation | unrostered streams never publish; the roster is delivered before an `AUTH` is accepted |
+| a revoked publisher's frames | the revoked peer | its publisher stream | tolerated and dropped until the reduced roster has reached it and the grace period has passed; then a violation | revocation is announced before it is enforced |
+| a participant's captured messages, under `ALL` | another participant | its own stream | a violation | every chunk is salted by its stream's challenge and held to the declared address |
+| a stored chunk, under implicit authorship | anyone | any stream | accepted once | what a store does; the binding's dedup rule, within its horizon |
 
 **Resource bounds are broker policy, and all are required.** A conformant broker bounds
 its per-cohort stream count (`FULL`), the number of cohorts it will create and the number
