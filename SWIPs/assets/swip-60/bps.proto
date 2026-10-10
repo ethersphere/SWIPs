@@ -1,18 +1,22 @@
 // Broadcast Pub/Sub (BPS) — protocol messages and types.
 // Spec: SWIP-60 (../../swip-60.md), extending the base wire of SWIP-74 (BPS-lite).
 //
+// Revision 16 (2026-10-10): the AUTH — the empty chunk at index 0 of the session's
+// AUTH feed — is the only way a stream authenticates; a pending stream sends nothing
+// else; an AUTH on a publisher stream is a heartbeat; "claim" reads "auth" throughout.
 // Revision 15 (2026-10-10): field names principal and identity, protocol bps/1.0.0,
 // auth deadline — as the implementation (bee #5626) settled them.
 // Revision 14 (2026-10-01), per Viktor — the chunk is an ordinary single-owner chunk
 // with its full id; the frame carries what the id was derived from (kind, challenge,
 // index) beside it; the challenge is 32 bytes; service messages are kinds, not
-// payloads; AUTH is the empty claim; a chunk that does not validate disconnects.
+// payloads; AUTH is the empty auth; a chunk that does not validate disconnects.
 //
 // SWIP-74 fixes the base: three frames (Join, Ack, Broadcast) and the two types they
 // carry (CohortSpec, Kind with DATA and AUTH), for a single publisher over a feed at
 // one broker, one hop, with every chunk signed under an id salted by the challenge
-// the broker issued for its stream, so that the first valid frame claims the
-// publisher role. This file adds what the full singlehop protocol needs and changes
+// the broker issued for its stream, and the stream authenticated by its AUTH, the
+// empty chunk at index 0 of the session's AUTH feed. This file adds what the full
+// singlehop protocol needs and changes
 // nothing SWIP-74 defines:
 //   - CohortSpec gains `publishers` (one value, ALL), `history` and `closed`;
 //   - Kind gains the admin's service kinds, EOS and ROSTER, and Roster is the
@@ -56,7 +60,7 @@ enum TopicBinding {
                   // never unattributable, since every message is SOC-signed.
 }
 
-// One value. Set: anyone attached may publish (group chat) -- no claim; a stream
+// One value. Set: anyone attached may publish (group chat) -- no auth; a stream
 // declares the address it publishes as, and every message it sends is validated
 // against it. Unset, with an admin: the admin publishes, and whoever its roster
 // ever names -- a cohort is multi-publisher iff a ROSTER is ever published, and
@@ -89,9 +93,8 @@ message CohortSpec {
   bool            closed     = 6; // no audience: every stream is admitted silent,
                                   // receiving nothing but a roster naming its identity,
                                   // and is disconnected unless
-                                  // its first valid frame, from the admin's or a
-                                  // rostered address, arrives within the auth
-                                  // deadline.
+                                  // its AUTH, for the admin's or a rostered
+                                  // address, arrives within the auth deadline.
                                   // Unset = open, so that a SWIP-74 spec, which
                                   // never sets it, reads as an open cohort.
 }
@@ -101,23 +104,25 @@ message CohortSpec {
 // 1.0.0, stream bps) — one stream per
 // (peer, cohort, identity). The first and only handshake frame on a fresh stream
 // is Join; the broker answers with Ack. The first frame settles the cohort; the
-// first valid Broadcast settles the role.
+// AUTH settles the role.
 // ---------------------------------------------------------------------------
 
 // Peer -> broker: the first frame on a fresh stream. Creates the cohort if no live
 // cohort has this spec, attaches to it otherwise. Nothing else is ever in it -- no
-// cursor, no credential: the stream's role follows from what it sends after the
-// Ack.
+// cursor, no credential: the declared identity settles the stream's role -- pending,
+// spectator or silent, or under ALL and implicit authorship a publisher at once -- and
+// under explicit authorship only an AUTH makes a publisher stream.
 message Join {
   CohortSpec cohort   = 1;
   bytes      identity = 2; // 20 bytes, required: under explicit authorship the
-                           // address whose first valid frame claims the stream;
+                           // address whose AUTH authenticates the stream;
                            // the principal's or a rostered one makes the stream
                            // pending (outside the fan-out bound, receiving nothing
-                           // but the roster that names it until it claims), any
-                           // other a spectator, which may not publish; under ALL
-                           // and under implicit authorship the one every
-                           // publication is validated against, no claim
+                           // but the roster that names it, sending nothing but its
+                           // AUTH), any other a spectator, which may not publish
+                           // until a roster names it and its AUTH upgrades it;
+                           // under ALL and under implicit authorship the one every
+                           // publication is validated against, no auth
 }
 
 enum Status {
@@ -152,8 +157,10 @@ message Ack {
 enum Kind {
   KIND_UNSPECIFIED = 0; // invalid on the wire (see header note)
   DATA             = 1; // a publication
-  AUTH             = 2; // an empty chunk: claims the stream, says nothing, is
-                        // never delivered
+  AUTH             = 2; // the empty chunk at index 0 of the session's AUTH feed:
+                        // authenticates a pending stream, or a spectator or silent
+                        // stream once a roster names its address; a heartbeat on a
+                        // publisher stream; never delivered
   EOS              = 3; // an empty chunk from the admin, at index 0: the channel
                         // is closed, attributably and for good
   ROSTER           = 4; // from the admin: the full publisher set as of this
@@ -168,7 +175,7 @@ message Roster {
                                  // it can verify.
 }
 
-// Every frame after the handshake: publisher -> broker a publication, a claim or,
+// Every frame after the handshake: publisher -> broker a publication, an AUTH or,
 // from the admin, a service message; broker -> peer a delivery of the same frame.
 // The chunk is an ordinary single-owner chunk, travelling as its chunk data with
 // its full id:
@@ -181,7 +188,7 @@ message Roster {
 //   id      = keccak256(topic_s || index)  index as a uint64 big-endian
 // and the receiver derives the id, requires the chunk's to equal it, forms the
 // address the chunk must have from the id and the owner it knows (the stream's
-// claimed or declared address; at a subscriber, the owner it recovers and admits)
+// authenticated or declared address; at a subscriber, the owner it recovers and admits)
 // and validates the chunk against it with the ordinary SOC code. For EOS and
 // ROSTER the owner is the admin, in every configuration; an AUTH is held to the
 // stream's declared address and is never delivered. Each kind is a
