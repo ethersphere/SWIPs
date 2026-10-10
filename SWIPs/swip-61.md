@@ -173,18 +173,20 @@ all subscribers — but its enforcement point is now explicit: **authorship is d
 root, and verified again by every subscriber.** Relays in between are conveniences, and a
 dishonest one can delay a message or drop it, never author one.
 
-**Claims travel rootward too.** A publisher proves its key to the node it attaches to
+**Auths travel rootward too.** A publisher proves its key to the node it attaches to
 exactly as at a singlehop broker (SWIP-74, *Handshake*): it declares its address in
-`Join`, receives a challenge that node drew at random for the stream, and its first
-valid frame — an update or an empty `AUTH`, signed, like every chunk after it, under an
-id salted with that challenge, which the frame names beside its kind and index — is its
-claim. A publisher that keeps two parents holds a stream to
-each, with each parent's own challenge, and signs each update once per stream. A parent's
+`Join`, receives a challenge that node drew at random for the stream, and its `AUTH` —
+the empty chunk at index 0 of the session's `AUTH` feed, signed, like every chunk after
+it, under an id salted with that challenge, which the frame names beside its kind and
+index — authenticates the stream, and nothing else is accepted from it before that. A
+publisher that keeps two parents holds a stream to
+each, with each parent's own challenge, and signs an `AUTH` and each update once per
+stream. A parent's
 own parent did not issue that challenge and cannot hold the frame to its own; what
 travels rootward is the frame itself, and the check that moves with it is the one every
 receiver can make — the id derived from the frame's kind, challenge and index, the
 signature and the owner — while the freshness check stays at the attachment node. The attachment node, having verified the
-first publication, forwards it unchanged up both of its own parents on the child streams
+`AUTH` and then the first publication, forwards the publication unchanged up both of its own parents on the child streams
 they already hold, and does so only if the address is legitimate to upgrade — the
 admin's, or an entry in the roster it holds; the receiving node validates the chunk at
 the address formed from the id and the owner the child names, checks legitimacy against
@@ -201,7 +203,7 @@ a publication: the root remains the authority per message, as the paragraph abov
 and a false attestation buys a relay exactly what a subscriber stream cannot carry — the
 admin's captured updates of an earlier session, rootward, after a reclaim — which the
 root's cursor drops as retransmits where it has seen them, and which is history, not
-forgery, where it has not. Under `ALL` nothing is forwarded and no claim exists, but the
+forgery, where it has not. Under `ALL` nothing is forwarded and no auth exists, but the
 salt still applies at the attachment node; a relay's upstream stream then
 carries publications of many owners, so on relayed streams each hop authenticates each
 publication on its own hash and signature rather than against one declared address
