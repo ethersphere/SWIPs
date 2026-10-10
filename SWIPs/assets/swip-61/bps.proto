@@ -1,0 +1,298 @@
+// Broadcast Pub/Sub (BPS) — protocol messages and types.
+// Spec: SWIP-60 (../../swip-60.md, base protocol) and
+//       SWIP-61 (../../swip-61.md, multihop control plane).
+//
+// SWIP-61 fills the multihop control plane reserved by SWIP-60: Ack gains
+// attachment candidates, Broadcast gains Reparent / Probe / Candidates, and
+// Publish travels rootward from any depth. CohortSpec is untouched.
+//
+// Revision 7 (2026-08-25), per Viktor — the control plane splits out.
+//
+// The publisher roster leaves the CohortSpec: it is dynamic, the spec is
+// immutable, and grantee identities are not public the way an admin's is. It
+// travels instead as admin-signed SERVICE MESSAGES on a feed the admin owns,
+// so that a subscriber verifies who may write against the admin's key rather
+// than the broker's word, and so that gaps in the roster history are visible.
+// What remains in the spec is immutable policy: admin, publisher regime,
+// whether spectators are admitted.
+//
+// Earlier revisions of this draft, for the record: Open/Subscribe were wrapped
+// in a Hello envelope (as bare frames they are indistinguishable on the wire,
+// and proto3's permissive unmarshalling makes a wrong guess succeed silently);
+// Auth became a recovered signature rather than an asserted address; `closed`
+// was removed in favour of joining deciding a role.
+//
+// Enum zero values (*_UNSPECIFIED): proto3 requires a zero value; it is
+// deliberately NOT a legitimate wire value. It exists so that an unset field
+// is detectable and no implementation can silently rely on a default.
+// Receivers MUST reject messages carrying it.
+//
+// The singlehop (depth = 1) subset is concrete; multihop control-plane
+// messages are reserved. Implementation groundwork: bee PR #5435
+// (hand-rolled byte framing with the same semantics).
+
+syntax = "proto3";
+package bps;
+
+option go_package = "github.com/ethersphere/bee/v2/pkg/bps/pb";
+
+// ---------------------------------------------------------------------------
+// Cohort genesis — immutable policy. The roster is NOT here (see ServiceKind).
+// ---------------------------------------------------------------------------
+
+// What the topic binds to (see SWIP-60: binding semantics).
+enum TopicBinding {
+  TOPIC_BINDING_UNSPECIFIED = 0; // invalid on the wire (see header note)
+  ANCHOR     = 1; // topic = full SOC/GSOC address; dedup on the wrapped CAC
+  SOC_ID     = 2; // topic = SOC id; any owner with PO(addr, anchor) >= PO_MIN
+  OWNER      = 3; // topic = keccak256(owner); any id, same PO constraint (MIC)
+  FEED_TOPIC = 4; // id = keccak256(topic || index); feed-update streams
+  MNEMONIC   = 5; // the topic names the cohort and constrains nothing: any SOC
+                  // from any owner qualifies (dedup on chunk address). What
+                  // PublisherRegime.ALL needs -- authorship unrestricted, but
+                  // never unattributable, since every message is SOC-signed.
+                  // APPENDED, not inserted: 1-4 keep the numbering the bee
+                  // prototype already implements.
+}
+
+// Who may author, when the cohort has an admin. With no admin the cohort is
+// implicit: authorship follows the binding's SOC shape and this does not apply.
+enum PublisherRegime {
+  PUBLISHER_REGIME_UNSPECIFIED = 0; // invalid on the wire (see header note)
+  ADMIN_ONLY = 1; // the admin alone, for the cohort's whole life (live stream)
+  GRANTED    = 2; // the admin plus whoever the current roster names (jam)
+  ALL        = 3; // anyone attached; needs MNEMONIC binding (group chat)
+}
+
+// Fixed by the cohort's opener; immutable for the cohort's lifetime.
+// NOTE: broker capacity is NOT a cohort parameter -- a cohort cannot dictate a
+// remote node's connection count. Each broker enforces its own per-topic
+// stream limit and answers FULL when it is exhausted.
+// NOTE: the proximity constraint for implicit bindings is a protocol constant,
+// PO_MIN = 16 -- not a cohort parameter (a proto3 unset uint32 is
+// indistinguishable from 0, which would silently disable the constraint; and
+// no use case varies it).
+message CohortSpec {
+  bytes           topic      = 1; // 32 bytes, meaning per binding
+  TopicBinding    binding    = 2;
+  bytes           admin      = 5; // 20-byte eth address: the opener, the
+                                  // cohort's authority, and always a member of
+                                  // its publisher set. Absent (length 0) =>
+                                  // implicit authorship, and `publishers` and
+                                  // `spectators` do not apply. Length is the
+                                  // discriminator, so absent and set are
+                                  // intrinsically distinguishable.
+  PublisherRegime publishers = 3; // set iff admin is set
+  bool            spectators = 9; // may peers outside the publisher set join?
+                                  // Real only under ADMIN_ONLY and GRANTED;
+                                  // under ALL and implicit authorship every
+                                  // attached peer is already a potential
+                                  // author, so openers MUST set it true.
+  bool            history    = 4; // deliver matching chunks from the local store
+  reserved 6, 7, 8;
+  // 6 was `publisher_list` -- now dynamic, carried as ServiceKind.ROSTER;
+  // 7 was `po_min`         -- now the protocol constant PO_MIN;
+  // 8 was `closed`         -- superseded by `spectators`, which is enforceable
+  //                           now that Auth is recovered rather than asserted.
+}
+
+// ---------------------------------------------------------------------------
+// The service feed — the admin's control plane.
+//
+// Service messages are ordinary SOCs on the ordinary path, owned by the admin:
+//
+//   owner = admin    id = keccak256("bps-service:v1" || topic || index)
+//
+// so a broker relays them and cannot author them, and a subscriber checks them
+// with the same code as any broadcast. Sequential indices (SWIP-65 self-indexed
+// feeds) make gaps visible: a single constant-id slot overwritten in place
+// would make a stale roster undetectable, reintroducing forging-by-omission at
+// the one point that decides who may write.
+// ---------------------------------------------------------------------------
+
+enum ServiceKind {
+  SERVICE_KIND_UNSPECIFIED = 0; // invalid on the wire (see header note)
+  GENESIS       = 1; // index 0: the CohortSpec, signed by the admin. Proves the
+                     // cohort was opened by the address it names.
+  ROSTER        = 2; // the full publisher set as of this index (not a delta)
+  END_OF_STREAM = 3; // the admin closes the cohort, attributably
+}
+
+// The payload of a service SOC.
+message ServiceMessage {
+  ServiceKind kind = 1;
+  CohortSpec  spec = 2; // set iff GENESIS
+  repeated bytes publishers = 3; // set iff ROSTER: 20-byte eth addresses, the
+                                 // complete set excl. admin (who is always a
+                                 // publisher). Full state, not a delta, so a
+                                 // reader needs only the latest it can verify.
+}
+
+// ---------------------------------------------------------------------------
+// Stream establishment, stream name "pubsub/1.0.0" — one stream per (peer, topic).
+// The first message on a fresh stream is Hello, carrying Open (fixes a new
+// cohort) or Subscribe (joins an existing one); the receiving cohort node
+// answers with Ack. The first frame settles the peer's role.
+//
+// SWIP-61: Open still goes to the broker -- opening IS contacting the root --
+// but Subscribe is answered by ANY cohort node, not only the broker. A relay
+// echoes to its own children exactly what it received on its own join.
+// ---------------------------------------------------------------------------
+
+// Peer -> broker: the first frame on a fresh stream.
+//
+// The envelope is load-bearing. As bare frames, Open and Subscribe are
+// indistinguishable: both encode as a length-delimited field 1 followed by an
+// optional Auth in field 2. proto3 unmarshalling is permissive, so a receiver
+// that guesses wrong does not fail -- it silently succeeds and misreads the
+// frame, then answers with a Status that describes the wrong problem.
+message Hello {
+  oneof handshake {
+    Open      open      = 1;
+    Subscribe subscribe = 2;
+  }
+}
+
+// Opener -> broker: the admin, fixing the cohort. The broker recovers the
+// address from `auth` and checks it against cohort.admin before accepting.
+message Open {
+  CohortSpec cohort = 1;
+  Auth       auth   = 2; // required iff cohort.admin is set
+}
+
+// Joiner -> any cohort node: names the topic — nothing more. Joiners carry no
+// cohort metadata; auth is present iff the joiner claims a publisher role.
+message Subscribe {
+  bytes topic = 1; // 32 bytes
+  Auth  auth  = 2;
+}
+
+// Proved, not asserted -- and in one operation: ecrecover yields the owner
+// address AND proves possession of its key, so no challenge round trip.
+//
+//   owner = ecrecover( H("bps-join:v1" || topic || admin), signature )
+//
+// The preimage is deliberately static and free of any node identity. Signing
+// over the libp2p peer id would make this unreplayable, but would weld the
+// publishing identity to the node holding the stream: the key could not be used
+// from a second node without re-signing, and every join would link an eth
+// identity to a peer id for anyone watching. An owner's identity is its own.
+//
+// The accepted consequence: a static preimage is replayable. It costs nothing,
+// because a replayed role is worthless -- the replayer cannot sign, so its
+// frames are dropped at Publish. Auth spares the broker from carrying peers
+// whose frames could only ever be dropped; authorship rests on the message
+// signature, never on the handshake.
+//
+// "bps-join:v1" is load-bearing: the same secp256k1 keys sign SOCs over
+// (id || wrappedAddress), and the separator is what stops a join signature from
+// ever being reinterpreted as a chunk signature, or the reverse.
+message Auth {
+  bytes signature = 1; // 65 bytes
+  bytes id        = 2; // 32-byte SOC id, where the binding does not fix it
+}
+
+// Parent -> peer, answering Open or Subscribe. The echoed CohortSpec lets a
+// subscriber verify every message end-to-end against the topic binding; the two
+// service SOCs let it verify the cohort and the roster against the ADMIN,
+// rather than taking any intermediary's word for either. A SWIP-61 relay
+// relays all three unchanged -- it holds what it was given on its own join, so
+// depth costs a subscriber nothing in what it can verify.
+message Ack {
+  Status     status  = 1;
+  CohortSpec cohort  = 2; // set iff status == OK
+  Soc        genesis = 3; // service feed index 0, iff the cohort has an admin
+  Soc        service = 4; // latest service SOC (may equal genesis)
+  uint64     index   = 5; // its feed index, so gaps are visible
+  repeated Candidate candidates = 6; // SWIP-61: set iff FULL at a relaying
+                                     // node -- the two shallowest attachment
+                                     // points its probe found. Field 6, not 3:
+                                     // 3-5 are SWIP-60's service SOCs.
+}
+
+enum Status {
+  STATUS_UNSPECIFIED = 0; // invalid on the wire (see header note)
+  OK                 = 1;
+  FULL               = 2; // node at its per-topic capacity; a singlehop broker
+                          // refuses and nothing else, while a SWIP-61 relay
+                          // attaches candidates
+  UNKNOWN_TOPIC      = 3; // Subscribe for a topic this node does not serve
+  REJECTED           = 4; // the SPEC is unacceptable -- e.g. Open naming an
+                          // already-open topic with a mismatched CohortSpec, or
+                          // an Auth that does not recover to cohort.admin.
+                          // Also the answer to a non-publisher Subscribe when
+                          // spectators == false -- the ONLY case in which a
+                          // peer is refused for who it is.
+}
+
+// ---------------------------------------------------------------------------
+// Messages — SOC-only is a protocol feature
+// ---------------------------------------------------------------------------
+
+// A full single-owner chunk in transit. Every frame is self-contained: no
+// per-stream handshake state, and no format change if the stream model
+// evolves (e.g. topic-muxed streams later).
+message Soc {
+  bytes id        = 1; // 32 bytes
+  bytes owner     = 2; // 20 bytes (recoverable from signature; explicit for cheap filtering)
+  bytes signature = 3; // 65 bytes
+  bytes span      = 4; // 8 bytes LE
+  bytes payload   = 5; // wrapped-CAC data, <= 4096 bytes
+}
+
+// Publisher -> parent, forwarded rootward hop by hop until it reaches the
+// broker, which validates, dedups and broadcasts it back down the tree.
+//
+// SWIP-60 had publishers attached directly to the broker; that was a
+// consequence of depth = 1, not an invariant. A publisher at depth d sends up
+// BOTH its parents where it has two: the dedup rule absorbs the double at the
+// first node that sees both, and the redundancy buys upstream what the two
+// downstream feeds buy -- a single relay cannot silently swallow a publish.
+// Depth-scaled upstream pricing (bps-bw-incentives) is what makes a deep
+// publisher pay for its depth.
+//
+// Any node MAY drop a Publish it can already tell is invalid (signature,
+// binding, roster); the broker is where dedup is authoritative, since it is
+// the single point every publish passes through.
+message Publish {
+  Soc soc = 1;
+}
+
+// Parent -> child, and (for Candidates) child -> parent: control frames ride
+// the Broadcast envelope in both directions on a (peer, topic) stream; frame
+// type and direction disambiguate.
+message Broadcast {
+  oneof frame {
+    Soc        soc      = 1; // as SWIP-60
+    Reparent   reparent = 2; // parent -> child
+    Probe      probe    = 3; // parent -> child: find free slots below
+    Candidates found    = 4; // child -> parent: probe reply, min-2 filtered
+    // 5–15 remain reserved
+  }
+}
+
+// Parent -> child: re-point, make-before-break — the child Subscribes to the
+// new parent and only drops the old stream once that Ack(OK) has arrived.
+message Reparent {
+  bytes to = 1; // overlay address of the new parent
+}
+
+// Depth of the receiver, incremented at each forwarding hop — no node stores
+// its own position, so nothing goes stale when the tree is reorganised.
+message Probe {
+  uint32 depth = 1;
+}
+
+// At most two, smallest depth first.
+message Candidates {
+  repeated Candidate candidates = 1;
+}
+
+message Candidate {
+  bytes  addr  = 1; // overlay address of a node with a free slot
+  uint32 depth = 2; // its depth at probe time
+}
+
+// Keepalive / RTT: none at the BPS level. Liveness is the transport's job
+// (libp2p), and latency metrics for reorganisation policies (SWATCH) are
+// sourced there as well.
