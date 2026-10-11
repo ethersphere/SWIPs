@@ -1,0 +1,189 @@
+---
+SWIP: <to be assigned>
+title: Mantaray 1.0
+author: Viktor Levente Tóth (@nugaon)
+discussions-to: <URL>
+status: Draft
+type: Core
+category (*only required for Standard Track): Core
+created: 2021-12-08
+---
+
+<!--You can leave these HTML comments in your merged SWIP and delete the visible duplicate text guides, they will not appear and may be helpful to refer to if you edit it again. This is the suggested template for new SWIPs. Note that a SWIP number will be assigned by an editor. When opening a pull request to submit your SWIP, please use an abbreviated title in the filename, `SWIP-draft_title_abbrev.md`. The title should be 44 characters or less.-->
+
+## Simple Summary
+<!--"If you can't explain it simply, you don't understand it well enough." Provide a simplified and layman-accessible explanation of the SWIP.-->
+The `mantaray` data-structure is widely used whithin the Swarm ecosystem;
+just to mention one, `manifests` are built on the `mantaray` data-structure, which consist of paths and files mappings of all dApps live on Swarm.
+
+This proposal fixes some design issues of the current `mantaray v0.2` data-structure and additionally provides better metadata handling and makes possible to have reliable web3 services that deal with tree-like data-structures.
+
+## Abstract
+<!--A short (~200 word) description of the technical issue being addressed.-->
+The objectives that this proposal seeks to achieve:
+1. **handling matadata of mantaray node**: currently, by design, only the mantaray forks can have metadata,
+2. **polishing mantaray flags**: some flags are not necessary or not clear why they were implemented,
+3. **the elements of the mantaray node body have random access**: the forks define their own metadata length, which makes forks to have only sequential access.  
+
+## Motivation
+<!--The motivation is critical for SWIPs that want to change the Swarm protocol. It should clearly explain why the existing protocol specification is inadequate to address the problem that the SWIP solves. SWIP submissions without sufficient motivation may be rejected outright.-->
+(Mantaray 0.2 binary format can be found [here](https://github.com/ethersphere/bee/blob/377b43bb835261c074708ea87d09517bffdf7614/pkg/manifest/mantaray/docs/format/node.md))
+
+Referring to the list in the Abstract:
+1. There is a need to have accessible metadata on the node level about the node; one evidence is [the `/` path hack that also has some problems](https://github.com/ethersphere/bee/issues/2549). With the current metadata handling, it is always necessary to rely on such hacks that pollute the tree structure as well.
+2. The `nodeType` encapsulated in the mantaray byte representation consists of the following flags:
+  - `value`: indicates whether the node's `entry` reference is defined or not. It is a useful flag, nevertheless, if it is zero, then 32 bytes of data is reseved for the `entry` anyway that does not carry any information.
+  - `edge`: the node has additional forks that are referring to other mantaray nodes. Again, it is useful, but still the dedicated compressed mapping of forks, namely `forksIndexBytes <32 bytes>` is not omitted if it is zero.
+  - `withPathSeparator`: it is unclear what this flag is used for.
+  - `withMetadata`: indicates whether the forks have metadata or not. It seems it just saves the 2 bytes `metadataBytesSize` under each fork. The problem here is the metadata length for forks should be the same under one node, but about it in the next point.\
+  \
+  the `nodeType` is defined on the fork, however, it could be a useful information on the node level as well.
+  In addition to these, there is `refByteSize`(1 byte) on the node level, that only describes whether the `entry` (32/64 bytes) is an encrypted reference or not which could be a 1 bit flag instead.
+3. Because the forks can have different byte length under a node, the fork array does not offer random access. It is a huge problem, not only because the fork deserialisation is not optimal, but also because one cannot provide _inclusion proof_ on forks. Thereby, web3 services cannot work reliably with tree-like data-structures, because the proof would be incredibly expensive on the blockchain for one particular segment of fork data.
+If the fork metadata length would be unified and defined by the node for each fork then this issue could be sorted out.
+
+## Specification
+<!--The technical specification should describe the syntax and semantics of any new feature. The specification should be detailed enough to allow competing, interoperable implementations for the current Swarm platform and future client implementations.-->
+
+The specification elaborates the discrepancies from the current version and the new features. 
+
+### Node
+
+Node binary format:
+```text
+┌────────────────────────────────┐
+│    obfuscationKey <32 byte>    │
+├────────────────────────────────┤
+│ hash("mantaray:1.0") <31 byte> │
+├────────────────────────────────┤
+│      nodeFeatures <1 byte>     │
+├────────────────────────────────┤
+│       entry <32/64 byte>       │
+├────────────────────────────────┤
+│   forksIndexBytes <32 byte>    │
+├────────────────────────────────┤
+│ ┌────────────────────────────┐ │
+│ │           Fork 1           │ │
+│ ├────────────────────────────┤ │
+│ │            ...             │ │
+│ ├────────────────────────────┤ │
+│ │           Fork N           │ │ -> where N maximum is 256
+│ └────────────────────────────┘ │
+├────────────────────────────────┤
+│     nodeMetadata <varlen>      │
+└────────────────────────────────┘
+```
+
+#### nodeFeatures
+- 3 bit flags + 5 bit forkMetadataSegmentSize
+- flags
+  - hasEntry
+      - whether the node has `entry` field
+  - encEntry
+      - if `hasEntry` 0 it cannot be 1
+      - the `entry` field is an encrypted reference and 64 bytes long
+  - edge
+      - whether the node has additional forks or not
+      - if 0, then [forkIndexBytes](#forkIndexBytes) is omitted
+- forkMetadataSegmentSize
+  - the first 5 most significant bit in the `nodeFeatures` bitvector
+  - its `value * the segment size (32)` gives the reserved bytesize for metadata under each forkdata
+  - the size is only the local maximum for metadata size, it does not apply or define for the whole tree
+
+In order to get the byte length until the fork array (`nodeHeaderSize`) we have to add 64 (`obfuscationKey (32) + hash("mantaray:1.0") (31) + nodeFeatures (1)`) to the evaluation of the `nodeFeature`'s flags:
+- `hasEntry` is true, then + 32
+- `encEntry` is true, then + 32
+- `edge` is true, then + 32
+
+#### entry
+- depends on the [nodeFeatures](#nodeFeatures)
+    - if `encEntry` is 1, then it has 64 bytes length
+    - if `hasEntry` is 0, it is omitted
+
+#### forkIndexBytes
+- 256 long bitvector
+- indicates and compresses the first bytes of the fork prefixes that the node has
+    - e.g. if there are forks with ASCII prefixes `foo` and `bar`, then the 98th and 102nd indices will be 1 of `forkIndexBytes` bitvector.
+- depends on the [nodeFeatures](#nodeFeatures)
+    - if `edge` is 1, then it is 32 byte length and has at least one true bit in the bitvector.
+    - if `edge` is 0, then it is omitted
+
+#### Fork
+
+Fork binary format:
+```text
+┌───────────────────────────────┬──────────────────────────────┐
+│     prefixLength <1 byte>     │        prefix <31 byte>      │
+├───────────────────────────────┴──────────────────────────────┤
+│                 forkReference <32/64 byte>                   │
+├──────────────────────────────────────────────────────────────┤
+│        forkMetadata <forkMetadataSegmentSize * 32 byte>      │
+└──────────────────────────────────────────────────────────────┘
+```
+
+- prefixLength
+    - if it is > 31 (`prefix` length) then the mantaray fork's node is a `continuous node` -> on `addFork` it has to be taken account (shorten the child's node prefix by the common part until `prefixLength <= 31`)
+- forkReference
+    - if `encEntry` is 1, then it is 64 bytes long, othetwise it is 32 bytes long.
+    - it has to be interpreted as another Mantaray reference by default, but this can be changed based on the metadata regarding to the reference interpretation. Nevertheless, this SWIP handles `forkReference` always as a child Mantaray node reference.
+- forkMetadata
+    - in structure the same as [nodeMetadata](#nodeMetadata)
+    - its length is defined by `forkMetadataSegmentSize * 32 bytes`
+
+The size of each element (`forkSize`) in the fork array can be calculated as `prefixLength (1 byte) + prefix (31 bytes) + mantarayReference (32/64 bytes) + forkMetadataSegmentSize * 32 bytes`.
+The byte length of the fork array (`forkArraySize`) counts all true (1) bits in the `forksIndexBytes` and multiply that with `forkSize`.
+The order of the fork array starts from the corresponding fork of the least significant true bit of the `forkIndexBytes`. 
+
+#### nodeMetadata
+- it is specified by another data structure
+    - on which you can also perform inclusion proof on demand
+    - it can consist of content ID references of metadata on swarm that can be cashed
+        - such as `Content-Type: index.hml`
+    - it can describe its own length.
+- in Mantaray 1.0 version it can be JSON.
+- the starting byte offset is taken by calculating the nodeHeaders
+
+The remaining bits after forks' data can be utilised for any arbitrary metadata. 
+By evaluating `nodeFeatures`, the byte length until the fork array is fixed (`nodeHeaderSize`) and then only the `forkSize` has to be added to get the offset for the `nodeMetadata`. 
+
+## Rationale
+<!--The rationale fleshes out the specification by describing what motivated the design and why particular design decisions were made. It should describe alternate designs that were considered and related work, e.g. how the feature is supported in other languages. The rationale may also provide evidence of consensus within the community, and should discuss important objections or concerns raised during discussion.-->
+
+Each separate part of the data-structure has been made for fitting into 32 byte segments in order to perform inclusion proof on that easily.
+
+The structure of the `nodeMetadata` and the `forkMetadata` are stringified JSON objects as in the current version.
+Obviously, it is not the best solution to store metadata effectively, it may require the introduction of a new data-structure and its canonical serialisation format  that offer provability.
+We are planning to elaborate this on mantaray version `1.1`.
+
+The `forkMetadata` and the corresponding fork's `nodeMetadata` can be intentionally **different metadata**. At in-memory representation, `nodeMetadata` and `forkMetadata` can be retrieved separately or merged with `forkMetadata` that is superior of `nodeMetadata` at key collision. 
+The latter feature is useful if, for example, one wants to override the MIME type of an existing mantaray node because of a different way of displaying content.
+
+Nevertheless, the `forkMetadata` and the corresponding fork's `nodeMetadata` can be intentionally the **same metadata** which is provable by inclusion proof.
+In this case, if fork has `nodeMetadata` and it has changed, then the corresponding parent's `forkMetadata` has to be updated __on saving__, and vice versa.
+
+## Backwards Compatibility
+<!--All SWIPs that introduce backwards incompatibilities must include a section describing these incompatibilities and their severity. The SWIP must explain how the author proposes to deal with these incompatibilities. SWIP submissions without a sufficient backwards compatibility treatise may be rejected outright.-->
+- instead of the designated `/` mantaray node which is used for setting `website-index-document`, the node can have `nodeMetadata` that consists of the same information
+- how to get `nodeType` values on `mantaray:1.0` node
+  - value
+    - `hasEntry` flag is 1
+  - edge
+    - `edge` flag is 1
+  - withPathSeparator
+    - couldn't identify what was its role before
+  - withMetadata
+    - `nodeMetadata`'s length is greater than 0 OR
+    - parent node sets its metadata if `forkMetadataSegmentSize` is greater than 0
+- the `addFork` and `removeFork` interfaces remain the same.
+- obfuscation key handling method remains the same, but for every new mantaray node should have different `obfuscationKey` than its parent if the `obfuscationKey != zeroBytes`
+
+## Test Cases
+<!--Test cases for an implementation are mandatory for SWIPs that are affecting changes to data and message formats. Other SWIPs can choose to include links to test cases if applicable.-->
+Unit and integration test can be found in [mantaray v1.0 PR in mantaray-js repository](https://github.com/ethersphere/mantaray-js/pull/30)
+
+## Implementation
+<!--The implementations must be completed before any SWIP is given status "Final", but it need not be completed before the SWIP is accepted. While there is merit to the approach of reaching consensus on the specification and rationale before writing code, the principle of "rough consensus and running code" is still useful when it comes to resolving many discussions of API details.-->
+The full implementation of the proposed features can be found in [mantaray v1.0 PR in mantaray-js repository](https://github.com/ethersphere/mantaray-js/pull/30)
+
+## Copyright
+Copyright and related rights waived via [CC0](https://creativecommons.org/publicdomain/zero/1.0/).
