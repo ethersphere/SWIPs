@@ -88,7 +88,7 @@ SWIP-74's terms, with these additions and changes:
 | **role** | **pending stream** — declared a publisher's address, not yet authenticated: outside the fan-out bound, receives nothing but the roster that names it, sends nothing but its `AUTH`. **Publisher stream** — authenticated: sends publications and heartbeats and, if it is the admin's, service messages; **receives every delivery not its own**. **Spectator stream** — SWIP-74's subscriber stream: declared an address that is not a publisher's; within the bound, receives, sends nothing — except its `AUTH` once a roster names its address |
 | **receiving stream** | a spectator or a publisher stream: one that deliveries are enqueued on |
 | **fan-out set** | the spectator streams of a cohort, bounded per cohort; publisher streams receive outside it, bounded per address |
-| **delivery** | an accepted `DATA`, `ROSTER` or `EOS` frame forwarded unchanged to every receiving stream not bound to the publishing identity |
+| **delivery** | an accepted frame forwarded unchanged: a `DATA` to every receiving stream not bound to the publishing identity, a `ROSTER` or `EOS` to every receiving stream but the one it came on |
 | **cursor** | the lowest index accepted next, one per feed: at the broker one per publisher's `DATA` feed and one per service kind, at a subscriber the same, kept across streams and sessions |
 
 ### The contract
@@ -237,21 +237,25 @@ Then, by kind:
   stream it names; (b) every stream whose `identity` it no longer names — publisher
   streams and pending streams of a revoked address — is **revoked** (below); (c) the
   cursors of addresses it no longer names are forgotten.
-- **`EOS`** — is delivered, and then the broker reclaims the cohort as at the
-  inactivity deadline: every stream in it is reset once its queue has drained (?), and
-  the cohort is forgotten.
+- **`EOS`** — is delivered, and then the broker forgets the cohort and closes every
+  stream in it once its queue — the `EOS` last — has been written: closed, not reset,
+  so that the end reaches everyone (?).
 
-**Delivery.** An accepted `DATA`, `ROSTER` or `EOS` frame is enqueued, unchanged, on
-**every receiving stream not bound to the publishing identity**: every spectator, and
-every publisher stream but those authenticated as the address the frame was published
-under. A publisher never gets its own messages back, on whichever of its streams they
-were sent; it receives everybody else's — which is what a publisher stream adds to
-SWIP-74, where it received nothing.
+**Delivery.** An accepted `DATA` frame is enqueued, unchanged, on **every receiving
+stream not bound to the publishing identity**: every spectator, and every publisher
+stream but those authenticated as the address the frame was published under. A
+publisher never gets its own updates back, on whichever of its streams they were sent;
+it receives everybody else's — which is what a publisher stream adds to SWIP-74, where
+it received nothing. An accepted `ROSTER` or `EOS` is enqueued on **every receiving
+stream but the one it came on** — the admin's other publisher streams included, since
+the roster is what every receiver admits by, and an admin publishing from two nodes
+must hold it on both. The stream that sent a roster is not sent it back: its sender
+admits by the roster it published.
 
 **The latest roster is the first delivery** on every stream as it starts receiving — at
-attach for a spectator, at its `AUTH` for a pending stream — before any other frame,
-and is delivered at once to a pending stream whose `identity` it names, its one
-delivery before its `AUTH`. A cohort whose admin has published no roster delivers
+attach for a spectator, at its `AUTH` for a pending stream, unless it is the roster the
+stream was already given as its cue — before any other frame, and is delivered at once
+to a pending stream whose `identity` it names, its one delivery before its `AUTH`. A cohort whose admin has published no roster delivers
 nothing first. So a joiner learns who may write from the admin, not from the broker,
 before it receives a single update.
 
@@ -305,6 +309,8 @@ every delivery end to end, whatever the broker did:
   admissible set; an `EOS` sets the `EOS` cursor past 0 and the subscriber treats the
   channel as ended — a channel it has seen end it does not rejoin;
 - it drops an `AUTH` and a kind it does not know;
+- a publisher admits by the rosters it receives and, if it is the admin, by those it
+  publishes, which the broker does not send back on the stream they came on;
 - an index gap in the roster feed is a liveness fault, and the subscriber does not
   admit on a roster it knows to be stale (?);
 - a delivery that does not validate, or whose owner it does not admit, is a broker
@@ -322,8 +328,8 @@ sends.
 
 SWIP-74's inactivity rule holds, and the `EOS` adds the one end that is **signed**: the
 admin's, attributable, final. On accepting an `EOS` the broker delivers it to every
-receiving stream and then reclaims the cohort — resets every stream in it and forgets
-it. A subscriber that accepts an `EOS` treats the channel as ended; it can tell "over"
+receiving stream but the sender's and then forgets the cohort, closing every stream in
+it once its queue has been written. A subscriber that accepts an `EOS` treats the channel as ended; it can tell "over"
 from "paused", which in SWIP-74 only the application could. A peer whose stream is reset
 after an `EOS` does not rejoin the cohort; a later `Join` of the same spec creates a
 fresh cohort, which a subscriber holding the `EOS` cursor refuses to treat as the same
@@ -371,8 +377,8 @@ with this SWIP's rows. The wire carries no error frame.
 | a valid `AUTH` | a pending stream, or a spectator stream a roster names | upgraded to a publisher stream; the latest roster first if it was pending; activity; beyond the per-address bound the oldest publisher stream of the address is reset | — | nothing |
 | a valid `AUTH` | a publisher stream | activity, nothing else | — | nothing |
 | a valid `DATA` at or above its publisher's cursor | a publisher stream | cursor set past it; delivered to every receiving stream not bound to the publishing identity | — | nothing |
-| a valid `ROSTER` at or above the roster cursor | the admin's publisher stream | roster cursor set past it; the roster replaces the broker's; delivered; enqueued at once on pending streams it names; streams of addresses it drops demoted to spectators; their cursors forgotten | — | nothing |
-| a valid `EOS` | the admin's publisher stream | delivered to every receiving stream; the cohort reclaimed, every stream reset | — | the stream is reset |
+| a valid `ROSTER` at or above the roster cursor | the admin's publisher stream | roster cursor set past it; the roster replaces the broker's; delivered to every receiving stream but the sender; enqueued at once on pending streams it names; streams of addresses it drops demoted to spectators; their cursors forgotten | — | nothing |
+| a valid `EOS` | the admin's publisher stream | delivered to every receiving stream but the sender; the cohort reclaimed, every stream closed once its queue is written | — | the stream is closed |
 | a delivery a receiving stream cannot take — its queue is full | the broker | that stream is reset | `queue_reset` | the stream is reset |
 | no accepted frame for the inactivity deadline | — | the cohort is reclaimed, every stream reset | — | the stream is reset |
 | a delivery of an `AUTH`, of a kind it does not know, or below its cursor | the broker, at a subscriber | dropped by the subscriber | — | — |
@@ -528,9 +534,11 @@ and 11 unchanged, and:
    the owner forced to the admin for `ROSTER` and `EOS` and the stream's identity for
    `DATA` and `AUTH`; a `ROSTER` whose payload does not decode is dropped and counted
    and changes nothing;
-3. an accepted `DATA`, `ROSTER` or `EOS` is delivered unchanged to every receiving
-   stream — spectator or publisher — not bound to the publishing identity; the latest
-   roster is the first delivery on a stream when it starts receiving;
+3. an accepted `DATA` is delivered unchanged to every receiving stream — spectator or
+   publisher — not bound to the publishing identity, and an accepted `ROSTER` or `EOS`
+   to every receiving stream but the one it came on; the latest roster is the first
+   delivery on a stream when it starts receiving, unless the stream was given it as its
+   cue;
 4. an accepted `ROSTER` replaces the broker's roster, is enqueued at once on every
    pending stream it names, and demotes every stream of an address it drops to a
    spectator, whose next delivery is that roster and any frame from which is a
