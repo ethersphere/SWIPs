@@ -414,18 +414,38 @@ with this SWIP's rows. The wire carries no error frame.
 
 ### API (WebSocket bridge)
 
-(?) To be settled. The lite bridge's pair of sockets — `/bps/publish/{owner}/{topic}`
-and `/bps/subscribe/{owner}/{topic}` — cannot express a seat: the publish socket
-authenticates as the owner only, and the subscribe socket's frames carry no kind and no
-owner. What this SWIP needs from the bridge, whatever its shape:
+Informative: the Bee node's bridge between a dApp and this wire, extending the lite pair
+of WebSocket endpoints; the dApp holds every key, the node none.
 
-- a publisher socket that declares an `identity` other than the admin's, and on which
-  the admin can publish `ROSTER` and `EOS` chunks;
-- the roster reaching the dApp — as its own feed (?) — so that it can show who may
-  speak and verify what it receives;
-- the subscriber's service-kind cursors — the roster cursor and the `EOS` cursor — kept
-  across sessions, by the node or passed by the dApp, like `cursor` today, together
-  with its cursor per publisher (?).
+**The roster is the owner's alone.** Only the principal owns the roster and `EOS` feeds,
+and only the principal can add to or change the roster; the bridge says so at the
+socket, before the broker does.
+
+- **`GET /bps/publish/{owner}/{topic}?broker&identity`** — `identity` is the owner by
+  default, or a **seat**: an address the owner's latest roster names. A seat connects
+  after it has seen itself on a roster; the node joins knowing it rostered, waits for
+  the broker's cue, and closes the socket (4002) if the broker's first frame is anything
+  else. The node then sends the challenge as JSON — `challenge`, `dataTopic`,
+  `authTopic`, and to the owner also `rosterTopic` and `eosTopic` — and the dApp sends
+  binary frames `kind (1) ‖ index (8) ‖ soc`: `DATA` and `AUTH` signed by the identity,
+  `ROSTER` and `EOS` signed by the owner and accepted from the owner's socket only (4002
+  from a seat's, and for a roster that does not decode). The `AUTH` comes first, as in
+  SWIP-74. A publisher stream receives: the socket delivers what the other publishers
+  publish, and the owner's rosters, in the subscribe socket's frame format. The roster
+  travels on the owner's publish socket rather than a socket of its own, because the
+  wire requires it on the admin's publisher stream, and a second socket would hold a
+  second one.
+- **`GET /bps/subscribe/{owner}/{topic}?broker&identity&cursor`** — every verified
+  delivery as a binary frame `kind (1) ‖ owner (20) ‖ challenge (32) ‖ index (8) ‖
+  soc`: `DATA` by the owner or a seat, `ROSTER` and `EOS` by the owner. The owner and
+  the kind let the dApp re-verify every chunk itself, and the rosters let it show who
+  may speak. After an `EOS` both sockets close with 4004.
+- Close codes: 4001 invalid soc, 4002 invalid message, 4003 broker stream closed, 4004
+  end of stream.
+
+The subscriber's position across sessions — its cursor per publisher, the roster with
+its cursor, the `EOS` cursor — is kept by the node within a session; across sessions the
+dApp passes the owner's `cursor` (?).
 
 ### Relation to SWIP-74 and SWIP-60
 
