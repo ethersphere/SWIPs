@@ -10,7 +10,7 @@ created: 2026-10-16
 replaces: ACT
 ---
 
-*IMPORTANT NOTE: This SWIP is proactive to future threats. Current ACT security levels are unaffected.*
+*IMPORTANT NOTE: This SWIP is proactive against future threats. Current ACT security levels are unaffected.*
 
 # PQACT
 
