@@ -367,8 +367,10 @@ every delivery end to end, whatever the broker did:
   there; one that sees its address dropped stops publishing, and its publisher stream
   is closed;
 - a delivery that does not validate, or whose owner it does not admit, is a broker
-  forwarding what it should have refused: the subscriber MUST reset the stream, and
-  SHOULD NOT rejoin that broker for the cohort (?).
+  forwarding what it should have refused: the subscriber MUST reset the stream and
+  SHOULD blocklist the broker for the longest period its node allows — permanently
+  where it can. Every check is end to end and the roster is the admin's, so an honest
+  broker never sends one; the subscriber is not the one at fault.
 
 The ordering makes admission exact: a broker that follows this SWIP delivers a roster
 granting an address before any update from it — the grantee's `AUTH` follows the roster,
@@ -403,7 +405,7 @@ SWIP-74's bounds, with these changes:
 | subscriber streams per cohort — the fan-out set | `FULL` to the next `Join` — except a `Join` declaring the admin's or a rostered address, admitted outside the bound as a pending stream | implementation-defined |
 | **publisher streams per address** per cohort — publisher streams receive outside the fan-out bound, so one key holding many would buy deliveries past it | an `AUTH` that would exceed it is accepted and resets the **oldest** of that address's publisher streams | 2 — one live stream and one reconnecting |
 | the outbound queue | per **receiving** stream, spectator or publisher; a full queue resets that stream | 64 frames |
-| **flush deadline** — a stream being closed, by an `EOS` or a revocation, has its queue written within it, counted from the close, a write in progress included | reset | 5 s (?) |
+| **flush deadline** — a stream being closed, by an `EOS` or a revocation, has its queue written within it, counted from the close, a write in progress included | reset | 5 s |
 
 A rostered address costs the broker, past a full fan-out set, what the admin's does: a
 pending stream receiving one frame, for one auth deadline, bounded per peer connection
@@ -443,7 +445,7 @@ with this SWIP's rows. The wire carries no error frame.
 | a queue not written within the flush deadline | the broker, closing a stream | that stream is reset | — | the stream is reset |
 | no accepted frame for the inactivity deadline | — | the cohort is reclaimed, every stream reset | — | the stream is reset |
 | a delivery of an `AUTH`, of a kind it does not know, or below its cursor | the broker, at a subscriber | dropped by the subscriber | — | — |
-| a delivery that does not validate, or whose owner the subscriber's roster does not admit | the broker, at a subscriber | the subscriber resets the stream | — | — |
+| a delivery that does not validate, or whose owner the subscriber's roster does not admit | the broker, at a subscriber | the subscriber resets the stream and blocklists the broker for good | — | — |
 
 ### API (WebSocket bridge)
 
@@ -677,7 +679,7 @@ and 11 unchanged, and:
    latest roster delivered to it — the admin's own included; it keeps its cursor per publisher and per service kind
    across streams and sessions, drops what is below them, treats an `EOS` as the
    channel's end, and resets the stream on a delivery that does not validate or whose
-   owner it does not admit;
+   owner it does not admit, blocklisting the broker for good;
 9. a grantee sends its `AUTH` on a stream only after a roster naming it has been
    delivered on that stream; a peer whose address a roster drops stops publishing; every
    publisher signs every chunk under its stream's challenge, and never reuses a `DATA`
