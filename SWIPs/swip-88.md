@@ -16,6 +16,8 @@ replaces: ACT
 
 *Lattice based protection from the rebel alliance.*
 
+![A sage holding a lightsaber and three floating Swarm crystals](assets/SWIP-88/SWIP-88-1.png)
+
 ## Simple Summary
 
 ACT derives each grantee's session secret from secp256k1 Diffie-Hellman. A quantum computer breaks that, and ACT tries sit on a public network. PQACT hashes an ML-KEM-1024 shared secret into the session secret at the one place it is computed. Nothing else changes. This is the hybrid shape of Signal's PQXDH. ACT v2 supersedes v1; re-encryption of pre-existing data will be required.
