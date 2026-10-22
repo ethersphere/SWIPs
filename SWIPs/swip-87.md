@@ -29,7 +29,10 @@ naming it has been delivered there; a rostered address can also just listen, and
 client never has to guess its role; pending is the admin's, and a rostered identity's
 only past a full fan-out set; revocation still closes. A `ROSTER` and an `EOS` are delivered back to their sender. An `EOS` ends the
 cohort at once: every stream is told, pending ones included, and nothing more is read.
-The admin republishes its roster on every new stream. Open points are marked (?). -->
+The admin republishes its roster on every new stream. Rev 3.1 (2026-10-22): a subscriber
+blocklists a forging broker for 10 days; across sessions the dApp passes back the
+roster with a cursor per grantee and the roster cursor; a cohort whose admin grants
+needs SWIP-87 subscribers; the flush deadline is 5 s. No open points remain. -->
 
 - **Business line**: a live stream with more than one voice — a panel, a co-hosted show,
   a band jamming, a newsroom ticker with several editors, a game whose server is
@@ -368,9 +371,9 @@ every delivery end to end, whatever the broker did:
   is closed;
 - a delivery that does not validate, or whose owner it does not admit, is a broker
   forwarding what it should have refused: the subscriber MUST reset the stream and
-  SHOULD blocklist the broker for the longest period its node allows — permanently
-  where it can. Every check is end to end and the roster is the admin's, so an honest
-  broker never sends one; the subscriber is not the one at fault.
+  SHOULD blocklist the broker for a long period (RECOMMENDED 10 days). Every check is
+  end to end and the roster is the admin's, so an honest broker never sends one; the
+  subscriber is not the one at fault.
 
 The ordering makes admission exact: a broker that follows this SWIP delivers a roster
 granting an address before any update from it — the grantee's `AUTH` follows the roster,
@@ -445,7 +448,7 @@ with this SWIP's rows. The wire carries no error frame.
 | a queue not written within the flush deadline | the broker, closing a stream | that stream is reset | — | the stream is reset |
 | no accepted frame for the inactivity deadline | — | the cohort is reclaimed, every stream reset | — | the stream is reset |
 | a delivery of an `AUTH`, of a kind it does not know, or below its cursor | the broker, at a subscriber | dropped by the subscriber | — | — |
-| a delivery that does not validate, or whose owner the subscriber's roster does not admit | the broker, at a subscriber | the subscriber resets the stream and blocklists the broker for good | — | — |
+| a delivery that does not validate, or whose owner the subscriber's roster does not admit | the broker, at a subscriber | the subscriber resets the stream and blocklists the broker for long | — | — |
 
 ### API (WebSocket bridge)
 
@@ -481,9 +484,14 @@ socket, before the broker does.
 - Close codes: 4001 invalid soc, 4002 invalid message, 4003 broker stream closed, 4004
   end of stream.
 
-The subscriber's position across sessions — its cursor per publisher, the roster with
-its cursor, the `EOS` cursor — is kept by the node within a session; across sessions the
-dApp passes the owner's `cursor` (?).
+The subscriber's position — its cursor per publisher, the roster with its cursor, the
+`EOS` cursor — is kept by the node within a session. Across sessions the dApp keeps it
+from the deliveries it received, and passes it back on the subscribe socket:
+`cursor=<index>` for the owner, `roster=<address>:<index>,…` for the roster it last
+received with a cursor per grantee, and `rosterCursor=<n>`, one past that roster's
+index. The roster travels with its cursor: a node handed the cursor alone would drop
+the broker's re-sent roster as old and admit no grantee at all — and take the first
+grantee's update for a forgery. A dApp that received an `EOS` does not reconnect.
 
 ### Relation to SWIP-74 and SWIP-60
 
@@ -491,11 +499,9 @@ dApp passes the owner's `cursor` (?).
 rule holds; a cohort whose admin never publishes a roster or an `EOS` behaves exactly as
 a SWIP-74 cohort — except that its publisher streams receive each other's deliveries,
 which, the admin being the only publisher, never arise. A SWIP-74 publisher at a SWIP-87
-broker is a conformant admin that never uses its control plane. A **SWIP-74 subscriber
-in a multi-publisher cohort is not**: it drops the roster as `unknown_kind`, re-verifies
-every `DATA` at the admin's address, and resets its stream at the first update from a
-grantee. A cohort whose admin grants needs SWIP-87 subscribers; an admin that wants to
-reach SWIP-74 subscribers does not grant (?). At a SWIP-74 broker an admin's roster and
+broker is a conformant admin that never uses its control plane. A cohort whose admin
+grants needs SWIP-87 subscribers: one that implements SWIP-74 alone checks every update
+against the admin's address and cannot follow a grantee. At a SWIP-74 broker an admin's roster and
 `EOS` are dropped as `unknown_kind`, and a grantee's stream is a subscriber stream there,
 reset at its `AUTH` — but a conforming grantee never sends one, since no roster is ever
 delivered to it: an admin that grants needs a SWIP-87 broker.
@@ -679,7 +685,7 @@ and 11 unchanged, and:
    latest roster delivered to it — the admin's own included; it keeps its cursor per publisher and per service kind
    across streams and sessions, drops what is below them, treats an `EOS` as the
    channel's end, and resets the stream on a delivery that does not validate or whose
-   owner it does not admit, blocklisting the broker for good;
+   owner it does not admit, blocklisting the broker for long;
 9. a grantee sends its `AUTH` on a stream only after a roster naming it has been
    delivered on that stream; a peer whose address a roster drops stops publishing; every
    publisher signs every chunk under its stream's challenge, and never reuses a `DATA`
@@ -701,9 +707,8 @@ incentives; broker discovery; confidentiality.
 ## Backwards compatibility
 
 Extends SWIP-74 by two `Kind` values and one message, both SWIP-60's; changes no frame,
-field or value. A cohort that never uses them is a SWIP-74 cohort. SWIP-74 subscribers
-in a cohort whose admin grants reset at the first grantee's update — see *Relation to
-SWIP-74 and SWIP-60*.
+field or value. A cohort that never uses them is a SWIP-74 cohort; a cohort whose admin
+grants needs SWIP-87 subscribers — see *Relation to SWIP-74 and SWIP-60*.
 
 ## References
 
