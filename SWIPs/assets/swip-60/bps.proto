@@ -1,6 +1,10 @@
 // Broadcast Pub/Sub (BPS) — protocol messages and types.
 // Spec: SWIP-60 (../../swip-60.md), extending the base wire of SWIP-74 (BPS-lite).
 //
+// Revision 17 (2026-11-02), per Viktor: FEED_TOPIC is 1, as the implementation (bee
+// #5626) has it, and ANCHOR takes its old 4; Join.identity is Join.owner, the owner of
+// the stream's frames, the wallet address signing its SOCs, and it may be absent on a
+// stream that will only listen.
 // Revision 16 (2026-10-10): the AUTH — the empty chunk at index 0 of the session's
 // AUTH feed — is the only way a stream authenticates; a pending stream sends nothing
 // else; an AUTH on a publisher stream is a heartbeat; "claim" reads "auth" throughout.
@@ -48,11 +52,11 @@ option go_package = "github.com/ethersphere/bee/v2/pkg/bps/pb";
 // FEED_TOPIC alone; the numbers are shared.
 enum TopicBinding {
   TOPIC_BINDING_UNSPECIFIED = 0; // invalid on the wire (see header note)
-  ANCHOR     = 1; // topic = full SOC/GSOC address; dedup on the wrapped CAC
+  FEED_TOPIC = 1; // a feed on the topic; on the wire the session feed (see
+                  // Broadcast)
   SOC_ID     = 2; // topic = SOC id; any owner with PO(addr, anchor) >= PO_MIN
   OWNER      = 3; // topic = keccak256(owner); any id, same PO constraint (MIC)
-  FEED_TOPIC = 4; // a feed on the topic; on the wire the session feed (see
-                  // Broadcast)
+  ANCHOR     = 4; // topic = full SOC/GSOC address; dedup on the wrapped CAC
   MNEMONIC   = 5; // the topic names the cohort and constrains nothing: under
                   // implicit authorship any SOC from any owner qualifies (dedup
                   // on chunk address), under ALL any owner's session chunk. What
@@ -91,7 +95,7 @@ message CohortSpec {
   PublisherRegime publishers = 4; // ALL, or unset (see the enum)
   bool            history    = 5; // deliver matching chunks from the local store
   bool            closed     = 6; // no audience: every stream is admitted silent,
-                                  // receiving nothing but a roster naming its identity,
+                                  // receiving nothing but a roster naming its owner,
                                   // and is disconnected unless
                                   // its AUTH, for the admin's or a rostered
                                   // address, arrives within the auth deadline.
@@ -102,27 +106,29 @@ message CohortSpec {
 // ---------------------------------------------------------------------------
 // Stream establishment, libp2p protocol /swarm/bps/1.0.0/bps (name bps, version
 // 1.0.0, stream bps) — one stream per
-// (peer, cohort, identity). The first and only handshake frame on a fresh stream
+// (peer, cohort, owner). The first and only handshake frame on a fresh stream
 // is Join; the broker answers with Ack. The first frame settles the cohort; the
 // AUTH settles the role.
 // ---------------------------------------------------------------------------
 
 // Peer -> broker: the first frame on a fresh stream. Creates the cohort if no live
 // cohort has this spec, attaches to it otherwise. Nothing else is ever in it -- no
-// cursor, no credential: the declared identity settles the stream's role -- pending,
+// cursor, no credential: the declared owner settles the stream's role -- pending,
 // spectator or silent, or under ALL and implicit authorship a publisher at once -- and
 // under explicit authorship only an AUTH makes a publisher stream.
 message Join {
-  CohortSpec cohort   = 1;
-  bytes      identity = 2; // 20 bytes, required: under explicit authorship the
-                           // address whose AUTH authenticates the stream;
-                           // the principal's or a rostered one makes the stream
-                           // pending (outside the fan-out bound, receiving nothing
-                           // but the roster that names it, sending nothing but its
-                           // AUTH), any other a spectator, which may not publish
-                           // until a roster names it and its AUTH upgrades it;
-                           // under ALL and under implicit authorship the one every
-                           // publication is validated against, no auth
+  CohortSpec cohort = 1;
+  bytes      owner  = 2; // 20 bytes or absent: the owner of the stream's frames, the
+                         // wallet address signing its SOCs; absent, the stream can
+                         // only listen and no roster can name it. Under explicit
+                         // authorship the address whose AUTH authenticates the stream;
+                         // the principal's or a rostered one makes the stream
+                         // pending (outside the fan-out bound, receiving nothing
+                         // but the roster that names it, sending nothing but its
+                         // AUTH), any other a spectator, which may not publish
+                         // until a roster names it and its AUTH upgrades it;
+                         // under ALL and under implicit authorship the one every
+                         // publication is validated against, no auth
 }
 
 enum Status {
@@ -132,13 +138,13 @@ enum Status {
                           // connection); a singlehop broker refuses -- nothing
                           // else
   REJECTED           = 3; // a spec value outside this SWIP, or a malformed Join
-                          // (identity not 20 bytes)
+                          // (owner neither absent nor 20 bytes)
 }
 
 // Broker -> peer, answering Join. A non-OK Ack ends the stream. The latest roster
 // is the first Broadcast on a stream when it enters a fan-out set -- at attach for
 // a spectator, at upgrade for a pending or silent stream -- and reaches a pending
-// or silent stream before that only if it names the stream's identity.
+// or silent stream before that only if it names the stream's owner.
 message Ack {
   Status status    = 1;
   bytes  challenge = 2; // iff OK: 32 bytes drawn at random for this stream -- the
