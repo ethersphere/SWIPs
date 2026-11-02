@@ -6,6 +6,9 @@
 // attachment candidates, Broadcast gains Reparent / Probe / Candidates, and
 // Publish travels rootward from any depth. CohortSpec is untouched.
 //
+// Revision 8 (2026-11-02), per Viktor: the binding numbers follow SWIP-60 revision 17,
+// FEED_TOPIC 1 and ANCHOR 4, as the implementation (bee #5626) has it.
+//
 // Revision 7 (2026-08-25), per Viktor — the control plane splits out.
 //
 // The publisher roster leaves the CohortSpec: it is dynamic, the spec is
@@ -43,16 +46,14 @@ option go_package = "github.com/ethersphere/bee/v2/pkg/bps/pb";
 // What the topic binds to (see SWIP-60: binding semantics).
 enum TopicBinding {
   TOPIC_BINDING_UNSPECIFIED = 0; // invalid on the wire (see header note)
-  ANCHOR     = 1; // topic = full SOC/GSOC address; dedup on the wrapped CAC
+  FEED_TOPIC = 1; // id = keccak256(topic || index); feed-update streams
   SOC_ID     = 2; // topic = SOC id; any owner with PO(addr, anchor) >= PO_MIN
   OWNER      = 3; // topic = keccak256(owner); any id, same PO constraint (MIC)
-  FEED_TOPIC = 4; // id = keccak256(topic || index); feed-update streams
+  ANCHOR     = 4; // topic = full SOC/GSOC address; dedup on the wrapped CAC
   MNEMONIC   = 5; // the topic names the cohort and constrains nothing: any SOC
                   // from any owner qualifies (dedup on chunk address). What
                   // PublisherRegime.ALL needs -- authorship unrestricted, but
                   // never unattributable, since every message is SOC-signed.
-                  // APPENDED, not inserted: 1-4 keep the numbering the bee
-                  // prototype already implements.
 }
 
 // Who may author, when the cohort has an admin. With no admin the cohort is
