@@ -26,13 +26,21 @@ is not a violation); a stream being closed writes its queue within a flush deadl
 Rev 3 (2026-10-16), after an adversarial review: a grant upgrades in place again — a
 grantee joins as a spectator, receives, and authenticates where it is once a roster
 naming it has been delivered there; a rostered address can also just listen, and the
-client never has to guess its role; pending is the admin's, and a rostered identity's
+client never has to guess its role; pending is the admin's, and a rostered owner's
 only past a full fan-out set; revocation still closes. A `ROSTER` and an `EOS` are delivered back to their sender. An `EOS` ends the
 cohort at once: every stream is told, pending ones included, and nothing more is read.
 The admin republishes its roster on every new stream. Rev 3.1 (2026-10-22): a subscriber
 blocklists a forging broker for 10 days; across sessions the dApp passes back the
 roster with a cursor per grantee and the roster cursor; a cohort whose admin grants
-needs SWIP-87 subscribers; the flush deadline is 5 s. No open points remain. -->
+needs SWIP-87 subscribers; the flush deadline is 5 s. No open points remain. Rev 3.2
+(2026-11-02): following SWIP-74 rev 11, `identity` is now `owner`, the owner of a
+stream's frames, the wallet address signing its feed update SOCs, and may be absent: a stream
+with none is a spectator no roster can name, which only listens. In the informative API
+section the bridge is one socket, `/bps/feeds/subscribe/{principal}/{topic}`, with the binding
+in the path because BPS sits over the subscriptions, and the declared owner settling what the
+stream is, as on the wire; a grant is the text frame `granted`; only the principal has a
+bridge auth deadline, with a close code of its own; a roster naming the principal, or an
+address twice, is refused at the socket. -->
 
 - **Business line**: a live stream with more than one voice — a panel, a co-hosted show,
   a band jamming, a newsroom ticker with several editors, a game whose server is
@@ -101,10 +109,10 @@ SWIP-74's terms, with these additions and changes:
 | **publisher** | the admin, or a rostered address |
 | **`EOS`** | end of stream: the empty chunk at index 0 of the admin's `EOS` feed; ends the channel, attributably and for good |
 | **grant**, **revocation** | the admin adding or removing an address by publishing the next roster; a grant takes effect at the grantee's `AUTH`, sent on a stream the roster has reached, which it upgrades in place; a revocation when the broker accepts the reduced roster, which closes the revoked publisher streams |
-| **role** | **pending stream** — declared the admin's address, not yet authenticated: outside the fan-out bound, receives nothing, sends nothing but its `AUTH` (SWIP-74). **Spectator stream** — any other identity, rostered or not: receives every delivery; sends nothing but, once a roster naming its identity has been delivered on it, its `AUTH`, which upgrades it. **Publisher stream** — authenticated: sends publications and heartbeats and, if it is the admin's, service messages; **receives every delivery not its own**. **Revoked stream** — a publisher stream whose address a roster dropped: written that roster, then closed; nothing it sends is read. **Ended stream** — any stream of a cohort an `EOS` ended: written the `EOS`, then closed; nothing it sends is read |
+| **role** | **pending stream** — declared the admin's address, not yet authenticated: outside the fan-out bound, receives nothing, sends nothing but its `AUTH` (SWIP-74). **Spectator stream** — any other owner, rostered or not, or none: receives every delivery; sends nothing but, once a roster naming its owner has been delivered on it, its `AUTH`, which upgrades it. **Publisher stream** — authenticated: sends publications and heartbeats and, if it is the admin's, service messages; **receives every delivery not its own**. **Revoked stream** — a publisher stream whose address a roster dropped: written that roster, then closed; nothing it sends is read. **Ended stream** — any stream of a cohort an `EOS` ended: written the `EOS`, then closed; nothing it sends is read |
 | **receiving stream** | a spectator or a publisher stream: one that deliveries are enqueued on |
-| **fan-out set** | the spectator streams of a cohort, bounded per cohort — a rostered identity is admitted past the bound; publisher streams receive outside it, bounded per address |
-| **delivery** | an accepted frame forwarded unchanged: a `DATA` to every receiving stream whose declared identity is not the author's, a `ROSTER` or `EOS` to every receiving stream, its sender's included |
+| **fan-out set** | the spectator streams of a cohort, bounded per cohort — a rostered owner is admitted past the bound; publisher streams receive outside it, bounded per address |
+| **delivery** | an accepted frame forwarded unchanged: a `DATA` to every receiving stream whose declared owner is not the author, a `ROSTER` or `EOS` to every receiving stream, its sender's included |
 | **cursor** | the lowest index accepted next, one per feed: at the broker one per publisher's `DATA` feed and one per service kind, at a subscriber the same, kept across streams and sessions |
 
 ### The contract
@@ -196,28 +204,34 @@ an admin that means to publish again after an `EOS` MUST take another topic.
 
 ### Roles
 
-A stream's role is settled by its declared `identity` against the principal, by the
+A stream's role is settled by its declared `owner` against the principal, by the
 roster, and by its `AUTH`. Only an upgrade happens in place; a revocation closes.
 
-| `identity` | at `Join` | the `AUTH` | anything else |
+| `owner` | at `Join` | the `AUTH` | anything else |
 |---|---|---|---|
 | the admin's | **pending**, outside the fan-out bound, receives nothing (SWIP-74) | upgrades it to a **publisher stream**, which receives the latest roster first, then every delivery not its own | violation (`wrong_stream`) |
-| any other | **spectator**, within the fan-out bound; receives the latest roster first, then every delivery | a violation, until a roster naming the identity has been accepted and delivered on the stream; then it upgrades it to a **publisher stream** in place | violation (`wrong_stream`) |
+| any other | **spectator**, within the fan-out bound; receives the latest roster first, then every delivery | a violation, until a roster naming the owner has been accepted and delivered on the stream; then it upgrades it to a **publisher stream** in place | violation (`wrong_stream`) |
+| none | **spectator**, within the fan-out bound; receives the latest roster first, then every delivery | a violation, always: no roster can name it | violation (`wrong_stream`) |
 | rostered, the fan-out set full | **pending**, outside the bound: receives the roster that names it at once, and nothing else | upgrades it to a **publisher stream**, as for the admin; without it by the auth deadline the stream is reset, not blocklisted | violation (`wrong_stream`) |
 
 **A grant takes effect at the grantee's `AUTH`, on the stream the roster reached.** A
 grantee joins like anyone — rostered or not yet — and listens. When a roster naming its
 address is delivered on its stream, it may send its `AUTH` there, and the broker
-accepts it iff the identity is rostered when the `AUTH` arrives: the stream becomes a
+accepts it iff the owner is rostered when the `AUTH` arrives: the stream becomes a
 publisher stream, leaves the fan-out set, and goes on receiving. Nothing is re-sent; the
 stream has the roster already. A rostered address that never authenticates is a
 spectator like any other: it may simply listen, and no deadline applies to it. Only when
-the fan-out set is full is a rostered identity's `Join` admitted past it, and then as a
+the fan-out set is full is a rostered owner's `Join` admitted past it, and then as a
 **pending** stream — the roster that names it, nothing else, and the auth deadline —
 because a roster is public: were a rostered `Join` admitted past the bound as a
 spectator, anyone could open any number of streams under a grantee's address and be fed
-past the bound. A pending stream of a rostered identity that does not authenticate in
+past the bound. A pending stream of a rostered owner that does not authenticate in
 time has cost the broker what a `FULL` would have, and is reset without a blocklist.
+
+**A stream that will only listen declares no owner.** The owner is the address signing a
+stream's frames, and a listener signs none. A stream with no owner is a spectator like any
+other, within the fan-out bound, but no roster can name it: it can never upgrade, even if the
+key behind it is on the roster. To publish, a peer joins with its `owner` declared.
 
 **The roster is the cue.** A peer other than the admin MUST NOT send its `AUTH` on a
 stream before a roster naming its address has been delivered **on that stream**. The
@@ -230,7 +244,7 @@ has delivered a roster has every hop inward of it holding that roster or a later
 The admin needs no cue.
 
 **An `AUTH` that races its revocation is not punished.** A spectator that sent its `AUTH`
-after the roster naming it, but whose identity a later roster dropped before the `AUTH`
+after the roster naming it, but whose owner a later roster dropped before the `AUTH`
 arrived, was honest: the broker closes the stream — it is a **revoked stream** — and
 drops the `AUTH` (`revoked`). The peer rejoins to listen. An `AUTH` from a spectator that
 no roster has ever named on that stream is a violation.
@@ -249,7 +263,7 @@ extended:
    peer read the roster or the `EOS` that closed the stream;
 1. it arrived on a **publisher stream** — and, if its kind is `ROSTER` or `EOS`, on the
    **admin's** — or it is an `AUTH` on a **pending stream**, or on a **spectator stream
-   whose identity the roster names** (one whose identity a roster named on that stream
+   whose owner the roster names** (one whose owner a roster named on that stream
    but the latest no longer does is revoked, as above); any other frame is a protocol
    violation: dropped, counted (`wrong_stream`), the stream reset, the peer blocklisted
    per the node's policy;
@@ -263,7 +277,7 @@ extended:
    `EOS` are at index 0, anything else is a violation under step 5;
 5. the chunk's id is the one **derived from the frame**, and the chunk **validates as a
    single-owner chunk** at `keccak256(id ‖ owner)`, where the owner is the **admin** for
-   `ROSTER` and `EOS` and the stream's declared `identity` for `DATA` and `AUTH`. An
+   `ROSTER` and `EOS` and the stream's declared `owner` for `DATA` and `AUTH`. An
    `AUTH` or an `EOS` chunk moreover has span 0 and no payload. A failure is a protocol
    violation (`invalid_soc`);
 6. for `ROSTER`, the payload **decodes as a `Roster`** of 20-byte entries — otherwise the
@@ -280,7 +294,7 @@ Then, by kind:
 - **`DATA`** — sets its publisher's cursor to `n + 1` and is delivered.
 - **`ROSTER`** — sets the roster cursor to `n + 1`; its set **replaces** the broker's;
   it is delivered — to its sender too — and enqueued on every pending stream it names;
-  every publisher or pending stream whose `identity` it no longer names is **revoked**
+  every publisher or pending stream whose `owner` it no longer names is **revoked**
   (below); the cursors of addresses it no longer names are forgotten.
 - **`EOS`** — **ends the cohort at once**: it is delivered to every receiving stream —
   its sender's too — and enqueued on every pending stream; every stream of the cohort
@@ -290,7 +304,7 @@ Then, by kind:
   longer exists, and creates a fresh one.
 
 **Delivery.** An accepted `DATA` frame is enqueued, unchanged, on **every receiving
-stream whose declared identity is not the author's** — spectators included. A publisher
+stream whose declared owner is not the author** — spectators included. A publisher
 never gets its own updates back, on whichever of its streams they were sent; it receives
 everybody else's — which is what a publisher stream adds to SWIP-74, where it received
 nothing. An accepted `ROSTER` or `EOS` is enqueued on **every receiving stream, its
@@ -422,13 +436,13 @@ with this SWIP's rows. The wire carries no error frame.
 
 | what arrived | from | outcome | counter | the sender sees |
 |---|---|---|---|---|
-| a `Join` with a spec value outside SWIP-74 or an `identity` that is not 20 bytes | anyone | `Ack{REJECTED}`, stream closed | — | `REJECTED` |
-| a `Join` at a capacity bound | anyone but the admin's or a rostered identity | `Ack{FULL}`, stream closed | — | `FULL` |
-| a `Join` declaring the admin's identity when the fan-out set is full | the admin's node | admitted as a pending stream outside the bound | — | `OK` and a challenge |
-| a `Join` declaring a rostered identity when the fan-out set is full | its node | admitted as a pending stream outside the bound, given the roster at once | — | `OK`, a challenge, the roster |
+| a `Join` with a spec value outside SWIP-74 or an `owner` that is neither absent nor 20 bytes | anyone | `Ack{REJECTED}`, stream closed | — | `REJECTED` |
+| a `Join` at a capacity bound | anyone but the admin or a rostered owner | `Ack{FULL}`, stream closed | — | `FULL` |
+| a `Join` declaring the admin as its owner when the fan-out set is full | the admin's node | admitted as a pending stream outside the bound | — | `OK` and a challenge |
+| a `Join` declaring a rostered owner when the fan-out set is full | its node | admitted as a pending stream outside the bound, given the roster at once | — | `OK`, a challenge, the roster |
 | any `Broadcast` but an `AUTH` | a spectator stream | violation | `wrong_stream` | the stream is reset |
 | an `AUTH` | a spectator stream no roster has named on that stream | violation | `wrong_stream` | the stream is reset |
-| an `AUTH` | a spectator stream a roster named there, whose identity the latest no longer names | dropped; the stream closed | `revoked` | the stream is closed |
+| an `AUTH` | a spectator stream a roster named there, whose owner the latest no longer names | dropped; the stream closed | `revoked` | the stream is closed |
 | anything but an `AUTH` | a pending stream | violation | `wrong_stream` | the stream is reset |
 | a `ROSTER` or an `EOS` | any stream but the admin's publisher stream | violation | `wrong_stream` | the stream is reset |
 | any frame | a revoked stream | dropped unread | `revoked` | nothing; the stream is closed |
@@ -441,7 +455,7 @@ with this SWIP's rows. The wire carries no error frame.
 | no `AUTH` within the auth deadline | a pending stream | stream reset — the admin's peer blocklisted for a short time, a rostered one not; an `AUTH` arriving after is not accepted | `auth_timeout` | the stream is reset |
 | a valid `AUTH` | a pending stream, or a spectator stream the roster names | upgraded to a publisher stream; a pending one receives the latest roster first; activity; beyond the per-address bound the oldest publisher stream of the address is reset | — | nothing |
 | a valid `AUTH` | a publisher stream | activity, nothing else | — | nothing |
-| a valid `DATA` at or above its publisher's cursor | a publisher stream | cursor set past it; delivered to every receiving stream whose identity is not the author's | — | nothing |
+| a valid `DATA` at or above its publisher's cursor | a publisher stream | cursor set past it; delivered to every receiving stream whose owner is not the author | — | nothing |
 | a valid `ROSTER` at or above the roster cursor | the admin's publisher stream | roster cursor set past it; the roster replaces the broker's; delivered to every receiving stream, the sender's included, and to every pending stream it names; publisher and pending streams of addresses it drops revoked — written the roster, then closed; their cursors forgotten | — | the roster, delivered back |
 | a valid `EOS` | the admin's publisher stream | the cohort ended: delivered to every receiving stream and every pending one, every stream ended, the cohort forgotten, every stream closed once its queue is written | — | the `EOS`, then the stream is closed |
 | a delivery a receiving stream cannot take — its queue is full | the broker | that stream is reset | `queue_reset` | the stream is reset |
@@ -452,42 +466,55 @@ with this SWIP's rows. The wire carries no error frame.
 
 ### API (WebSocket bridge)
 
-Informative: the Bee node's bridge between a dApp and this wire, extending the lite pair
-of WebSocket endpoints; the dApp holds every key, the node none.
+Informative: the Bee node's bridge between a dApp and this wire; the dApp holds every key,
+the node none. There is **one socket**: on the wire the declared owner settles what a
+stream is, and a grantee's stream is a spectator's until its `AUTH`, so a stream that only
+listens and one that publishes differ only in what the dApp does with them. BPS sits over
+the SOC subscriptions rather than beside them, so the binding is in the path: `feeds` here,
+and `mic`, `moc` or `gsoc` in the same shape, each with its own parameters. Only `feeds`
+publishes directly, with binary frames on the socket.
 
-**The roster is the owner's alone.** Only the principal owns the roster and `EOS` feeds,
+**The roster is the principal's alone.** Only the principal owns the roster and `EOS` feeds,
 and only the principal can add to or change the roster; the bridge says so at the
-socket, before the broker does.
+socket, before the broker does. A seat does not write to the principal's feed: it signs its
+own updates on its own feed, and the roster only admits it. So the path says whose channel
+the stream joins, and `owner` who is speaking.
 
-- **`GET /bps/publish/{owner}/{topic}?broker&identity`** — `identity` is the owner by
-  default, or a **seat**: an address the owner's roster names, or will. The node joins
-  and sends the challenge as JSON — `challenge`, `dataTopic`, `authTopic`, and to the
-  owner also `rosterTopic` and `eosTopic` — and from then on delivers what the stream
-  receives, in the subscribe socket's frame format: a seat's stream listens from the
-  start, the owner's once authenticated, and the owner receives its own rosters back.
-  When a roster naming a seat has reached its stream, the node sends
-  `{"type":"granted"}`; the seat may then send its `AUTH`, and anything a seat sends
-  before is refused (4002). The dApp sends binary frames `kind (1) ‖ index (8) ‖ soc`:
-  `DATA` and `AUTH` signed by the identity, `ROSTER` and `EOS` signed by the owner and
-  accepted from the owner's socket only (4002 from a seat's, and for a roster that does
-  not decode). The `AUTH` comes first — for the owner within the node's auth deadline,
-  shorter than the broker's, for a seat within the same span of the grant. The roster
-  travels on the owner's publish socket rather than a socket of its own, because the
-  wire requires it on the admin's publisher stream, and a second socket would hold a
-  second one.
-- **`GET /bps/subscribe/{owner}/{topic}?broker&identity&cursor`** — every verified
-  delivery as a binary frame `kind (1) ‖ owner (20) ‖ challenge (32) ‖ index (8) ‖
-  soc`: `DATA` by the owner or a seat, `ROSTER` and `EOS` by the owner. The owner and
-  the kind let the dApp re-verify every chunk itself, and the rosters let it show who
-  may speak. A rostered `identity` may subscribe: it listens like any spectator. After
-  an `EOS` both sockets close with 4004.
-- Close codes: 4001 invalid soc, 4002 invalid message, 4003 broker stream closed, 4004
-  end of stream.
+- **`GET /bps/feeds/subscribe/{principal}/{topic}?broker&owner&cursor&roster&rosterCursor`**
+  — `owner` is the principal's, or any other address, a **seat** if the principal's roster
+  names it or will; left out, the stream can only listen, even if the key behind it is on the
+  roster. The node joins and, unless the stream has no owner, sends the challenge as JSON —
+  `challenge`, `dataTopic`, `authTopic`, and to the principal also `rosterTopic` and
+  `eosTopic` — and from then on delivers what the stream receives, as binary frames
+  `kind (1) ‖ owner (20) ‖ challenge (32) ‖ index (8) ‖ soc`, `owner` being the chunk's
+  signer: `DATA` by the principal or a seat, `ROSTER` and `EOS` by the principal.
+  The signer and the kind let the dApp re-verify every chunk itself, and the rosters let it
+  show who may speak. Any stream but the principal's listens from the start, for as long as
+  it likes; the principal's receives once authenticated, its own rosters included. When a roster
+  naming a seat has reached its stream, the node sends the text frame `granted`; the seat
+  may then send its `AUTH`, and anything it sends before is refused (4002). The frame is
+  needed beside the roster: a seat that passes back its position is not given the broker's
+  re-sent roster, which is below its roster cursor, though it is the cue on the new stream.
+  The dApp sends binary frames `kind (1) ‖ index (8) ‖ soc`: `DATA` and `AUTH` signed by
+  the owner, `ROSTER` and `EOS` signed by the principal and accepted from the principal's
+  socket only (4002 from a seat's, and for a roster that does not decode, or that names the
+  principal or an address twice: harmless at a receiver, and nothing a sender means). The
+  `AUTH` comes first; the principal's within the node's auth deadline, shorter than the
+  broker's (4005). A seat has no deadline: it may just listen. The roster travels on the
+  principal's socket rather than one of its own, because the wire requires it on the admin's
+  publisher stream, and a second socket would hold a second one. After an `EOS` the socket
+  closes with 4004.
+- Errors: the HTTP statuses and close codes are in SWIP-74's *Errors*: 4001 invalid soc, 4002
+  invalid message, 4003 broker stream closed, 4004 end of stream, 4005 auth timeout, 1001 when
+  the node shuts down, 1009 for an oversized frame. This SWIP adds 4004 and widens two: 4002
+  for a frame before the grant or after a revocation, a `ROSTER` or `EOS` from a seat, and a
+  roster the node will not send; 4003 for a seat's socket closing after the roster that
+  dropped it.
 
-The subscriber's position — its cursor per publisher, the roster with its cursor, the
-`EOS` cursor — is kept by the node within a session. Across sessions the dApp keeps it
-from the deliveries it received, and passes it back on the subscribe socket:
-`cursor=<index>` for the owner, `roster=<address>:<index>,…` for the roster it last
+The position — its cursor per publisher, the roster with its cursor, the `EOS` cursor — is
+kept by the node within a session. Across sessions the dApp keeps it
+from the deliveries it received, and passes it back on the socket:
+`cursor=<index>` for the principal, `roster=<address>:<index>,…` for the roster it last
 received with a cursor per grantee, and `rosterCursor=<n>`, one past that roster's
 index. The roster travels with its cursor: a node handed the cursor alone would drop
 the broker's re-sent roster as old and admit no grantee at all — and take the first
@@ -511,7 +538,7 @@ delivered to it: an admin that grants needs a SWIP-87 broker.
 same `Roster`, the same roles but the silent one, the same validation. SWIP-60 adds the
 `ALL` regime, `closed` and the silent role, `history`, the other bindings, implicit
 authorship and its API. Rules here to be carried back to it: pending is the admin's alone
-— a rostered identity joins as a spectator, admitted past the fan-out bound, and
+— a rostered owner joins as a spectator, admitted past the fan-out bound, and
 upgrades in place after the roster cue; revocation closes the revoked publisher streams
 and drops their frames unpunished, with no grace period; a `ROSTER` or `EOS` is
 delivered back to its sender; an `EOS` ends the cohort at once, pending streams told;
@@ -584,7 +611,7 @@ long it spends writing to a peer that does not read.
 **Why publisher streams receive.** With one publisher a publisher stream had nothing
 to receive. With several, a co-host is part of the audience: a panel in which speakers
 cannot hear each other is not a panel. Giving it its own subscriber stream would double
-the streams per seat and split one identity across two roles; receiving on the stream
+the streams per seat and split one owner across two roles; receiving on the stream
 it publishes on keeps a seat to one stream, and the per-address bound keeps that stream
 from buying deliveries outside the fan-out bound.
 
@@ -630,10 +657,10 @@ Replay, SWIP-74's table extended by these rows:
 | rosters or an `EOS` of another spec on the same topic and admin | a broker that carried it | a subscriber | accepted | nothing on the wire: an admin SHOULD NOT run two specs on one topic |
 | a grantee's updates, after its revocation | a broker | a subscriber | refused: the owner is no longer admissible | the reduced roster precedes them; the subscriber admits against the roster it holds |
 | a revoked publisher's frames | the revoked peer, or a relay behind the roster | its stream, or a relay link | dropped unread, counted; the revoked stream closed | revocation closes the stream; nothing it sends is accepted |
-| a `Join` declaring a rostered address, from throwaway peer ids | a Sybil | a full cohort | a pending stream each: the roster, nothing else, then the auth deadline | past a full set a rostered identity is pending, not a spectator; streams per connection per cohort are bounded |
+| a `Join` declaring a rostered address, from throwaway peer ids | a Sybil | a full cohort | a pending stream each: the roster, nothing else, then the auth deadline | past a full set a rostered owner is pending, not a spectator; streams per connection per cohort are bounded |
 | a `Join` declaring the admin's address, from throwaway peer ids | a Sybil | a full cohort | a pending stream each: nothing, then the auth deadline | SWIP-74's pending-stream bounds |
 | an `AUTH` | a spectator no roster has named on that stream | its stream | a violation | an `AUTH` on a spectator is accepted only once the roster names it |
-| an `AUTH` sent after the roster naming it, overtaken by the roster revoking it | an honest grantee | its stream | dropped; the stream closed | the `AUTH` is accepted iff the identity is rostered when it arrives |
+| an `AUTH` sent after the roster naming it, overtaken by the roster revoking it | an honest grantee | its stream | dropped; the stream closed | the `AUTH` is accepted iff the owner is rostered when it arrives |
 | a seat's updates from more streams than the bound | the seat's key, from many nodes | this broker | the oldest stream is reset at each `AUTH` beyond two | publisher streams per address are bounded |
 
 **No confidentiality**, as in SWIP-74: the roster is plaintext, and with it the set of
@@ -646,24 +673,25 @@ An implementation is SWIP-87 conformant when it is SWIP-74 conformant, items 1�
 and 11 unchanged, and:
 
 1. a `Join` declaring the admin's address is admitted outside the fan-out bound as a
-   pending stream; every other `Join` is a spectator stream within the bound, whose
-   first delivery is the latest roster — except one declaring a rostered address when
+   pending stream; every other `Join`, one declaring no owner included, is a spectator
+   stream within the bound, whose first delivery is the latest roster — except one
+   declaring a rostered address when
    the set is full, admitted as a pending stream that is given the roster at once,
    nothing else, and is reset without a blocklist if it has not authenticated by the
    auth deadline;
 2. a `Broadcast` is accepted iff it arrives on a publisher stream — `ROSTER` and `EOS`
    on the admin's only — or is an `AUTH` on a pending stream, or on a spectator stream
-   whose identity the latest roster names; an `AUTH` on a spectator stream a roster had
+   whose owner the latest roster names; an `AUTH` on a spectator stream a roster had
    named there but the latest no longer does is dropped and the stream closed; any
    other frame from a spectator stream is a violation; its kind is one of the four; its
    challenge is the stream's; its index is at least its feed's cursor — a `DATA`'s
    publisher's, a `ROSTER`'s the roster cursor — and an `AUTH` and an `EOS` are at index
    0; and its chunk has the id derived from the frame and validates at
    `keccak256(id ‖ owner)`, the owner forced to the admin for `ROSTER` and `EOS` and the
-   stream's identity for `DATA` and `AUTH`; a `ROSTER` whose payload does not decode is
+   stream's owner for `DATA` and `AUTH`; a `ROSTER` whose payload does not decode is
    dropped and counted and changes nothing;
 3. an accepted `DATA` is delivered unchanged to every receiving stream whose declared
-   identity is not the author's, and an accepted `ROSTER` or `EOS` to every receiving
+   owner is not the author, and an accepted `ROSTER` or `EOS` to every receiving
    stream, the sender's included; the latest roster is the first delivery on a stream
    when it starts receiving;
 4. an accepted `ROSTER` replaces the broker's roster and revokes every publisher stream
